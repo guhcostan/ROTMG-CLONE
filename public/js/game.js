@@ -1,0 +1,441 @@
+'use strict';
+// Client game engine: rendering (canvas), input, local movement with
+// server reconciliation, bullet animation, minimap and effects.
+
+const GameClient = (() => {
+  const TILE = 40;             // pixels per tile at zoom 1
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const minimap = document.getElementById('minimap');
+  const mctx = minimap.getContext('2d');
+
+  let running = false;
+  let world = null;            // { w, h, tiles: Uint8Array, kind, name }
+  let myId = 0;
+  let me = { x: 0, y: 0 };     // local predicted position
+  let self = null;             // server-sent stats/inventory
+  let entities = new Map();    // id -> rendered entity (lerped)
+  let bullets = [];            // client-side animated bullets
+  let effects = [];            // transient fx (novas, damage text...)
+  let lastTickEntities = [];
+  let keys = {};
+  let mouse = { x: 0, y: 0, down: false };
+  let lastFrame = 0;
+  let shooting = false;
+  let mapCanvas = null;        // pre-rendered tile layer
+  let minimapDirty = true;
+  let deathInfo = null;
+  let onDeath = null;
+
+  // ------------------------------------------------ world setup
+  function loadWorld(msg) {
+    const tiles = Uint8Array.from(atob(msg.tiles), c => c.charCodeAt(0));
+    world = { w: msg.w, h: msg.h, tiles, kind: msg.kind, name: msg.name };
+    me.x = msg.x; me.y = msg.y;
+    myId = msg.you;
+    entities.clear(); bullets = []; effects = [];
+    prerenderMap();
+    minimapDirty = true;
+  }
+
+  function tileAt(x, y) {
+    x |= 0; y |= 0;
+    if (!world || x < 0 || y < 0 || x >= world.w || y >= world.h) return 0;
+    return world.tiles[y * world.w + x];
+  }
+  function blocked(x, y) { return TILE_BLOCKING.has(tileAt(x, y)); }
+
+  function prerenderMap() {
+    const px = 8; // pixels per tile in the prerender (scaled when drawn)
+    mapCanvas = document.createElement('canvas');
+    mapCanvas.width = world.w * px; mapCanvas.height = world.h * px;
+    const c = mapCanvas.getContext('2d');
+    for (let y = 0; y < world.h; y++) {
+      for (let x = 0; x < world.w; x++) {
+        const t = world.tiles[y * world.w + x];
+        const col = TILE_COLORS[t] || TILE_COLORS[0];
+        c.fillStyle = ((x + y) % 2 === 0) ? col[0] : col[1];
+        c.fillRect(x * px, y * px, px, px);
+        // simple wall shading
+        if (t === 10 || t === 4) {
+          c.fillStyle = 'rgba(255,255,255,0.06)';
+          c.fillRect(x * px, y * px, px, 2);
+        }
+      }
+    }
+  }
+
+  // ------------------------------------------------ network handlers
+  function onTick(msg) {
+    self = msg.self;
+    UI.update(self);
+    const seen = new Set();
+    for (const e of msg.e) {
+      const kind = e[0];
+      if (kind === 'p') {
+        const [, id, name, classId, x, y, hp, maxHp, level, invis] = e;
+        seen.add(id);
+        let ent = entities.get(id);
+        if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
+        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis });
+        if (id === myId) {
+          // server correction only when badly out of sync
+          if (Math.hypot(me.x - x, me.y - y) > 3) { me.x = x; me.y = y; }
+          ent.tx = me.x; ent.ty = me.y;
+        }
+      } else if (kind === 'e') {
+        const [, id, type, x, y, hp, maxHp] = e;
+        seen.add(id);
+        let ent = entities.get(id);
+        if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
+        Object.assign(ent, { kind, id, type, tx: x, ty: y, hp, maxHp });
+      } else if (kind === 'b') {
+        const [, id, x, y, tier, items] = e;
+        seen.add(id);
+        entities.set(id, { kind, id, x, y, tx: x, ty: y, tier, items });
+      } else if (kind === 'o') {
+        const [, id, pkind, x, y, name] = e;
+        seen.add(id);
+        entities.set(id, { kind, id, pkind, x, y, tx: x, ty: y, name });
+      }
+    }
+    for (const id of entities.keys()) if (!seen.has(id)) entities.delete(id);
+
+    // loot bag under the player?
+    let bag = null;
+    for (const ent of entities.values()) {
+      if (ent.kind === 'b' && Math.hypot(ent.tx - me.x, ent.ty - me.y) < 1.2) { bag = ent; break; }
+    }
+    UI.showBag(bag);
+  }
+
+  function onShot(msg) {
+    for (const a of msg.as) {
+      bullets.push({
+        x: msg.x, y: msg.y, a,
+        speed: msg.spd, left: msg.rg,
+        friendly: msg.f === 1, kind: msg.k,
+      });
+    }
+  }
+
+  function onDmg(msg) {
+    const ent = entities.get(msg.id);
+    const x = ent ? (ent.x ?? ent.tx) : null;
+    if (x === null && msg.id !== myId) return;
+    const px = ent ? ent.x : me.x, py = ent ? ent.y : me.y;
+    effects.push({
+      kind: 'text', x: px, y: py - 0.6,
+      text: msg.n < 0 ? `+${-msg.n}` : `-${msg.n}`,
+      color: msg.n < 0 ? '#50ff50' : (msg.id === myId ? '#ff4040' : '#ffd040'),
+      t: 0, ttl: 0.9,
+    });
+  }
+
+  function onFx(msg) {
+    effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, t: 0, ttl: 0.6 });
+  }
+
+  // ------------------------------------------------ input
+  function setupInput() {
+    onkeydown = (e) => {
+      const chatInput = document.getElementById('chat-input');
+      if (document.activeElement === chatInput) {
+        if (e.key === 'Enter') {
+          const text = chatInput.value.trim();
+          if (text) Net.send({ t: 'chat', text });
+          chatInput.value = '';
+          chatInput.classList.add('hidden');
+          chatInput.blur();
+        } else if (e.key === 'Escape') {
+          chatInput.value = '';
+          chatInput.classList.add('hidden');
+          chatInput.blur();
+        }
+        return;
+      }
+      if (!running) return;
+      keys[e.key.toLowerCase()] = true;
+      if (e.key === 'Enter') {
+        chatInput.classList.remove('hidden');
+        chatInput.focus();
+        e.preventDefault();
+      }
+      if (e.key === ' ') {
+        const w = screenToWorld(mouse.x, mouse.y);
+        Net.send({ t: 'ability', x: w.x, y: w.y });
+        e.preventDefault();
+      }
+      if (e.key === 'Escape' || e.key.toLowerCase() === 'r') Net.send({ t: 'nexus' });
+      if (e.key >= '1' && e.key <= '8') Net.send({ t: 'useitem', slot: 3 + parseInt(e.key, 10) });
+      if (e.key.toLowerCase() === 'f') Net.send({ t: 'portal' });
+    };
+    onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
+    canvas.onmousemove = (e) => { mouse.x = e.clientX; mouse.y = e.clientY; };
+    canvas.onmousedown = (e) => { if (e.button === 0) shooting = true; };
+    canvas.onmouseup = (e) => { if (e.button === 0) shooting = false; };
+    canvas.oncontextmenu = (e) => e.preventDefault();
+    window.onblur = () => { keys = {}; shooting = false; };
+    onresize = resize;
+    resize();
+  }
+
+  function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+  }
+
+  function screenToWorld(sx, sy) {
+    return {
+      x: me.x + (sx - canvas.width / 2) / TILE,
+      y: me.y + (sy - canvas.height / 2) / TILE,
+    };
+  }
+
+  // ------------------------------------------------ simulation
+  let moveAccum = 0;
+  let shotAccum = 0;
+  function update(dt) {
+    if (!world || !self) return;
+    // movement
+    let dx = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0);
+    let dy = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0);
+    if (dx || dy) {
+      const len = Math.hypot(dx, dy);
+      const slow = tileAt(me.x, me.y) === 3 ? 0.5 : 1;
+      const spd = (4 + 5.6 * (self.stats.spd / 75)) * slow;
+      let nx = me.x + (dx / len) * spd * dt;
+      let ny = me.y + (dy / len) * spd * dt;
+      if (!blocked(nx, me.y)) me.x = nx;
+      if (!blocked(me.x, ny)) me.y = ny;
+      me.x = Math.max(0.5, Math.min(world.w - 0.5, me.x));
+      me.y = Math.max(0.5, Math.min(world.h - 0.5, me.y));
+    }
+    moveAccum += dt;
+    if (moveAccum > 0.05) { // 20 position updates/s
+      moveAccum = 0;
+      Net.send({ t: 'move', x: Math.round(me.x * 100) / 100, y: Math.round(me.y * 100) / 100 });
+    }
+    // shooting (client asks; server enforces fire rate)
+    if (shooting) {
+      shotAccum += dt;
+      if (shotAccum > 0.07) {
+        shotAccum = 0;
+        const w = screenToWorld(mouse.x, mouse.y);
+        Net.send({ t: 'shoot', a: Math.atan2(w.y - me.y, w.x - me.x) });
+      }
+    }
+    // lerp entities toward server positions
+    for (const ent of entities.values()) {
+      if (ent.id === myId) { ent.x = me.x; ent.y = me.y; continue; }
+      const k = Math.min(1, dt * 12);
+      ent.x += (ent.tx - ent.x) * k;
+      ent.y += (ent.ty - ent.y) * k;
+    }
+    // bullets
+    bullets = bullets.filter(b => {
+      const step = b.speed * dt;
+      b.x += Math.cos(b.a) * step;
+      b.y += Math.sin(b.a) * step;
+      b.left -= step;
+      return b.left > 0 && !blocked(b.x, b.y);
+    });
+    // effects
+    effects = effects.filter(f => (f.t += dt) < f.ttl);
+  }
+
+  // ------------------------------------------------ rendering
+  function render() {
+    if (!world) return;
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    const camX = me.x * TILE - W / 2;
+    const camY = me.y * TILE - H / 2;
+
+    // tiles (from prerender, 8px per tile scaled to TILE)
+    const scale = TILE / 8;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.translate(-camX, -camY);
+    ctx.drawImage(mapCanvas, 0, 0, mapCanvas.width * scale, mapCanvas.height * scale);
+
+    // entity draw order: bags, portals, enemies, players
+    const ordered = [...entities.values()].sort((a, b) =>
+      ({ b: 0, o: 1, e: 2, p: 3 }[a.kind] - { b: 0, o: 1, e: 2, p: 3 }[b.kind]));
+
+    for (const ent of ordered) {
+      const px = ent.x * TILE, py = ent.y * TILE;
+      if (ent.kind === 'b') {
+        const name = ent.tier >= 4 ? 'bag_gold' : (ent.tier >= 2 ? 'bag_purple' : 'bag_brown');
+        drawSprite(name, px, py, TILE * 0.8);
+      } else if (ent.kind === 'o') {
+        const spr = ent.pkind === 'dungeon' ? 'portal_red' : 'portal_blue';
+        const pulse = 1 + Math.sin(performance.now() / 300) * 0.08;
+        drawSprite(spr, px, py, TILE * 1.2 * pulse);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText(ent.name + ' [F]', px, py - TILE * 0.8);
+      } else if (ent.kind === 'e') {
+        drawSprite(ent.type, px, py, TILE * (spriteScale(ent.type)));
+        drawHpBar(px, py, ent.hp, ent.maxHp, spriteScale(ent.type));
+      } else if (ent.kind === 'p') {
+        ctx.globalAlpha = ent.invis ? 0.35 : 1;
+        drawSprite(ent.classId, px, py, TILE * 0.95);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = ent.id === myId ? '#f0c040' : '#fff';
+        ctx.font = '11px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${ent.name} ${ent.level}`, px, py - TILE * 0.65);
+        if (ent.id !== myId) drawHpBar(px, py, ent.hp, ent.maxHp, 0.9);
+      }
+    }
+
+    // bullets
+    for (const b of bullets) {
+      const px = b.x * TILE, py = b.y * TILE;
+      ctx.fillStyle = b.friendly ? '#80d0ff' : '#ff6060';
+      ctx.beginPath();
+      ctx.arc(px, py, b.kind === 'heavyarrow' ? 7 : 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = b.friendly ? '#ffffff' : '#ffd0d0';
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // effects
+    for (const f of effects) {
+      const p = f.t / f.ttl;
+      const px = f.x * TILE, py = f.y * TILE;
+      if (f.kind === 'text') {
+        ctx.globalAlpha = 1 - p;
+        ctx.fillStyle = f.color;
+        ctx.font = 'bold 15px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText(f.text, px, py - p * 24);
+        ctx.globalAlpha = 1;
+      } else if (f.kind === 'nova' || f.kind === 'die') {
+        ctx.globalAlpha = (1 - p) * 0.7;
+        ctx.strokeStyle = f.kind === 'die' ? '#ffa040' : '#80d0ff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(px, py, f.r * TILE * p, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (f.kind === 'heal' || f.kind === 'buff' || f.kind === 'levelup') {
+        ctx.globalAlpha = (1 - p) * 0.8;
+        ctx.strokeStyle = f.kind === 'heal' ? '#50ff50' : '#f0c040';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px, py, f.r * TILE * (0.4 + p), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (f.kind === 'vanish') {
+        ctx.globalAlpha = (1 - p) * 0.5;
+        ctx.fillStyle = '#a0a0ff';
+        ctx.beginPath();
+        ctx.arc(px, py, TILE * 0.5 * (1 - p), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
+
+    renderMinimap();
+  }
+
+  function spriteScale(type) {
+    const big = { goblin_king: 1.7, brood_mother: 1.9, keep_lord: 1.9, inferno_lord: 2.2, flame_titan: 1.5, void_keeper: 1.5, storm_seraph: 1.4, ogre: 1.3, treant: 1.25 };
+    return big[type] || 0.95;
+  }
+
+  function drawSprite(name, px, py, size) {
+    const spr = Sprites.get(name);
+    if (!spr) {
+      ctx.fillStyle = '#f0f';
+      ctx.fillRect(px - size / 2, py - size / 2, size, size);
+      return;
+    }
+    const ratio = spr.height / spr.width;
+    ctx.drawImage(spr, px - size / 2, py - (size * ratio) / 2, size, size * ratio);
+  }
+
+  function drawHpBar(px, py, hp, maxHp, scale) {
+    if (hp >= maxHp) return;
+    const w = TILE * 0.9 * scale;
+    ctx.fillStyle = '#300';
+    ctx.fillRect(px - w / 2, py + TILE * 0.55 * scale, w, 5);
+    ctx.fillStyle = '#e03030';
+    ctx.fillRect(px - w / 2, py + TILE * 0.55 * scale, w * Math.max(0, hp / maxHp), 5);
+  }
+
+  let minimapBase = null;
+  function renderMinimap() {
+    if (minimapDirty && mapCanvas) {
+      minimapBase = document.createElement('canvas');
+      minimapBase.width = 160; minimapBase.height = 160;
+      const c = minimapBase.getContext('2d');
+      c.imageSmoothingEnabled = true;
+      c.drawImage(mapCanvas, 0, 0, 160, 160);
+      minimapDirty = false;
+    }
+    if (!minimapBase) return;
+    mctx.clearRect(0, 0, 160, 160);
+    mctx.drawImage(minimapBase, 0, 0);
+    const sx = 160 / world.w, sy = 160 / world.h;
+    for (const ent of entities.values()) {
+      if (ent.kind === 'p') {
+        mctx.fillStyle = ent.id === myId ? '#ffff40' : '#40c0ff';
+        mctx.fillRect(ent.x * sx - 2, ent.y * sy - 2, 4, 4);
+      } else if (ent.kind === 'o') {
+        mctx.fillStyle = '#ff60ff';
+        mctx.fillRect(ent.x * sx - 2, ent.y * sy - 2, 4, 4);
+      }
+    }
+  }
+
+  // ------------------------------------------------ main loop
+  function frame(ts) {
+    if (!running) return;
+    const dt = Math.min(0.1, (ts - lastFrame) / 1000);
+    lastFrame = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ------------------------------------------------ public
+  function start(charId, callbacks) {
+    onDeath = callbacks.onDeath;
+    running = true;
+    keys = {}; shooting = false;
+    Net.connect(charId, {
+      world: loadWorld,
+      tick: onTick,
+      shot: onShot,
+      dmg: onDmg,
+      fx: onFx,
+      notice: m => UI.notice(m.text),
+      chat: m => UI.chat(m.from, m.text, m.sys),
+      death: (m) => {
+        running = false;
+        callbacks.onDeath(m);
+      },
+      _close: () => {
+        if (running) { running = false; callbacks.onDisconnect(); }
+      },
+    });
+    setupInput();
+    lastFrame = performance.now();
+    requestAnimationFrame(frame);
+  }
+
+  function stop() {
+    running = false;
+    Net.disconnect();
+  }
+
+  return { start, stop };
+})();

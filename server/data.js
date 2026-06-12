@@ -1,0 +1,325 @@
+'use strict';
+// Static game data: classes, items, enemies, dungeons.
+// All names/art are original; mechanics are inspired by classic bullet-hell MMOs.
+
+// ---------------------------------------------------------------- classes
+// stats: [maxHp, maxMp, att, def, spd, dex, vit, wis]
+const CLASSES = {
+  wizard: {
+    name: 'Wizard', weapon: 'staff', armor: 'robe', ability: 'spell',
+    base: { hp: 100, mp: 100, att: 15, def: 0, spd: 10, dex: 15, vit: 10, wis: 12 },
+    growth: { hp: [20, 30], mp: [5, 15], att: 1.5, def: 0, spd: 0.5, dex: 1.2, vit: 0.5, wis: 1 },
+    max: { hp: 670, mp: 385, att: 75, def: 25, spd: 50, dex: 75, vit: 40, wis: 60 },
+    starter: ['staff0', 'spell0', 'robe0', null],
+  },
+  archer: {
+    name: 'Archer', weapon: 'bow', armor: 'leather', ability: 'quiver',
+    base: { hp: 130, mp: 100, att: 12, def: 0, spd: 12, dex: 12, vit: 12, wis: 10 },
+    growth: { hp: [22, 32], mp: [4, 12], att: 1.3, def: 0, spd: 0.7, dex: 1.1, vit: 0.7, wis: 0.6 },
+    max: { hp: 700, mp: 252, att: 75, def: 25, spd: 50, dex: 50, vit: 40, wis: 50 },
+    starter: ['bow0', 'quiver0', 'leather0', null],
+  },
+  warrior: {
+    name: 'Warrior', weapon: 'sword', armor: 'heavy', ability: 'helm',
+    base: { hp: 200, mp: 100, att: 15, def: 0, spd: 7, dex: 10, vit: 15, wis: 8 },
+    growth: { hp: [25, 35], mp: [2, 8], att: 1.5, def: 0, spd: 0.7, dex: 1, vit: 1, wis: 0.4 },
+    max: { hp: 770, mp: 252, att: 75, def: 25, spd: 50, dex: 50, vit: 75, wis: 50 },
+    starter: ['sword0', 'helm0', 'heavy0', null],
+  },
+  priest: {
+    name: 'Priest', weapon: 'wand', armor: 'robe', ability: 'tome',
+    base: { hp: 100, mp: 120, att: 12, def: 0, spd: 12, dex: 12, vit: 10, wis: 15 },
+    growth: { hp: [20, 30], mp: [5, 15], att: 1.2, def: 0, spd: 0.7, dex: 1.1, vit: 0.5, wis: 1.2 },
+    max: { hp: 670, mp: 385, att: 50, def: 25, spd: 55, dex: 55, vit: 40, wis: 75 },
+    starter: ['wand0', 'tome0', 'robe0', null],
+  },
+  rogue: {
+    name: 'Rogue', weapon: 'dagger', armor: 'leather', ability: 'cloak',
+    base: { hp: 150, mp: 100, att: 12, def: 0, spd: 15, dex: 15, vit: 12, wis: 10 },
+    growth: { hp: [20, 30], mp: [2, 8], att: 1.3, def: 0, spd: 1, dex: 1.3, vit: 0.7, wis: 0.6 },
+    max: { hp: 720, mp: 252, att: 50, def: 25, spd: 75, dex: 75, vit: 40, wis: 50 },
+    starter: ['dagger0', 'cloak0', 'leather0', null],
+  },
+  knight: {
+    name: 'Knight', weapon: 'sword', armor: 'heavy', ability: 'shield',
+    base: { hp: 200, mp: 100, att: 15, def: 0, spd: 7, dex: 10, vit: 15, wis: 8 },
+    growth: { hp: [25, 35], mp: [2, 8], att: 1.4, def: 0, spd: 0.6, dex: 0.9, vit: 1, wis: 0.4 },
+    max: { hp: 770, mp: 252, att: 50, def: 40, spd: 50, dex: 50, vit: 75, wis: 50 },
+    starter: ['sword0', 'shield0', 'heavy0', null],
+  },
+};
+
+// ---------------------------------------------------------------- items
+// type: weapon kinds (staff/bow/sword/wand/dagger), ability kinds
+// (spell/quiver/helm/tome/cloak/shield), armor kinds (robe/leather/heavy),
+// ring, consumable.
+const ITEMS = {};
+function def(id, item) { item.id = id; ITEMS[id] = item; return item; }
+
+// Weapons: proj = {dmg:[min,max], speed (tiles/s), range (tiles), count, spread(rad), pierce}
+const WEAPON_TIERS = {
+  staff: [
+    ['Cracked Staff',      [15, 30]], ['Apprentice Staff', [25, 40]],
+    ['Staff of Embers',    [35, 55]], ['Staff of Storms',  [45, 70]],
+    ['Staff of the Comet', [55, 85]], ['Staff of Eternity', [65, 100]],
+  ],
+  bow: [
+    ['Worn Shortbow', [15, 35]], ['Hunter Bow',    [25, 45]],
+    ['Longbow',       [35, 60]], ['Hawkeye Bow',   [45, 75]],
+    ['Stormcaller Bow', [55, 90]], ['Bow of the Void', [65, 105]],
+  ],
+  sword: [
+    ['Rusty Blade',  [25, 45]], ['Iron Sword',    [40, 60]],
+    ['Steel Saber',  [55, 80]], ['Knight Blade',  [70, 95]],
+    ['Dragonfang',   [85, 110]], ['Sword of Dawn', [100, 130]],
+  ],
+  wand: [
+    ['Bent Wand',     [20, 40]], ['Oak Wand',     [30, 55]],
+    ['Wand of Sparks', [45, 70]], ['Wand of Dusk', [55, 85]],
+    ['Wand of Wonder', [70, 100]], ['Wand of Ascension', [80, 115]],
+  ],
+  dagger: [
+    ['Chipped Dagger', [20, 40]], ['Steel Dagger', [30, 55]],
+    ['Twin Fang',      [45, 70]], ['Night Edge',   [55, 85]],
+    ['Viper Kiss',     [70, 100]], ['Dagger of the Abyss', [80, 115]],
+  ],
+};
+const WEAPON_PROJ = {
+  staff:  { speed: 18, range: 8,   count: 2, spread: 0.18, pierce: false, rateMul: 1 },
+  bow:    { speed: 16, range: 7,   count: 1, spread: 0,    pierce: true,  rateMul: 1.2 },
+  sword:  { speed: 14, range: 3.5, count: 1, spread: 0,    pierce: false, rateMul: 1 },
+  wand:   { speed: 18, range: 9,   count: 1, spread: 0,    pierce: false, rateMul: 0.9 },
+  dagger: { speed: 16, range: 5.6, count: 1, spread: 0,    pierce: false, rateMul: 1.3 },
+};
+for (const [kind, tiers] of Object.entries(WEAPON_TIERS)) {
+  tiers.forEach(([name, dmg], t) => {
+    def(`${kind}${t}`, {
+      name, type: kind, slot: 'weapon', tier: t,
+      proj: Object.assign({ dmg }, WEAPON_PROJ[kind]),
+    });
+  });
+}
+
+// Abilities: mpCost + effect parameters scale by tier.
+const ABILITY_TIERS = {
+  spell:  ['Magic Bolt Scroll', 'Fire Burst Spell', 'Ice Nova Spell', 'Meteor Spell', 'Spell of Cataclysm'],
+  quiver: ['Frayed Quiver', 'Hunter Quiver', 'Piercing Quiver', 'Quiver of Storms', 'Quiver of Stars'],
+  helm:   ['Dented Helm', 'Soldier Helm', 'Captain Helm', 'Helm of Fury', 'Helm of the Juggernaut'],
+  tome:   ['Torn Tome', 'Tome of Renewal', 'Blessed Tome', 'Tome of Purity', 'Tome of Divine Light'],
+  cloak:  ['Ragged Cloak', 'Shadow Cloak', 'Night Cloak', 'Cloak of Ghosts', 'Cloak of the Unseen'],
+  shield: ['Wooden Shield', 'Iron Shield', 'Tower Shield', 'Bulwark Shield', 'Aegis of Kings'],
+};
+for (const [kind, tiers] of Object.entries(ABILITY_TIERS)) {
+  tiers.forEach(([, x] = [], t) => {
+    def(`${kind}${t}`, {
+      name: ABILITY_TIERS[kind][t], type: kind, slot: 'ability', tier: t,
+      mpCost: [20, 25, 30, 35, 40][t],
+      power: [1, 1.5, 2, 2.6, 3.3][t],
+    });
+  });
+}
+
+// Armor: def value per tier per kind.
+const ARMOR_TIERS = {
+  robe:    [['Cloth Robe', 2], ['Apprentice Robe', 5], ['Silk Robe', 8], ['Robe of Shadows', 11], ['Robe of the Archmage', 14], ['Robe of Infinity', 17]],
+  leather: [['Worn Leather', 3], ['Studded Leather', 6], ['Ranger Hide', 9], ['Drake Hide', 13], ['Wyvern Hide', 16], ['Hide of the Behemoth', 19]],
+  heavy:   [['Rusty Mail', 4], ['Chain Mail', 8], ['Plate Mail', 12], ['Knight Plate', 16], ['Dragonscale Plate', 20], ['Armor of the Colossus', 24]],
+};
+for (const [kind, tiers] of Object.entries(ARMOR_TIERS)) {
+  tiers.forEach(([name, defense], t) => {
+    def(`${kind}${t}`, { name, type: kind, slot: 'armor', tier: t, def: defense });
+  });
+}
+
+// Rings
+[
+  ['ringhp0', 'Ring of Health', { hp: 40 }, 1],
+  ['ringhp1', 'Ring of Greater Health', { hp: 90 }, 3],
+  ['ringmp0', 'Ring of Magic', { mp: 30 }, 1],
+  ['ringmp1', 'Ring of Greater Magic', { mp: 70 }, 3],
+  ['ringatt0', 'Ring of Attack', { att: 4 }, 2],
+  ['ringdef0', 'Ring of Defense', { def: 4 }, 2],
+  ['ringspd0', 'Ring of Speed', { spd: 5 }, 2],
+  ['ringdex0', 'Ring of Dexterity', { dex: 5 }, 2],
+  ['ringall0', 'Ring of the Realm', { hp: 60, mp: 40, att: 3, def: 3 }, 5],
+].forEach(([id, name, bonus, tier]) => def(id, { name, type: 'ring', slot: 'ring', tier, bonus }));
+
+// Consumables
+def('hppot', { name: 'Health Potion', type: 'consumable', tier: 0, heal: 100 });
+def('mppot', { name: 'Magic Potion', type: 'consumable', tier: 0, restore: 100 });
+for (const s of ['att', 'def', 'spd', 'dex', 'vit', 'wis']) {
+  def(`pot_${s}`, { name: `Potion of ${{ att: 'Attack', def: 'Defense', spd: 'Speed', dex: 'Dexterity', vit: 'Vitality', wis: 'Wisdom' }[s]}`, type: 'consumable', tier: 4, stat: s, amount: 1 });
+}
+def('pot_life', { name: 'Potion of Life', type: 'consumable', tier: 6, stat: 'hp', amount: 20 });
+def('pot_mana', { name: 'Potion of Mana', type: 'consumable', tier: 6, stat: 'mp', amount: 20 });
+
+// ---------------------------------------------------------------- enemies
+// behavior: wander | chase | orbit | turret | boss
+// shots: { dmg, speed, range, count, spread, rate (shots/s), ring }
+// loot: [[itemId|group, chance], ...]  group e.g. 'weapon:1-2' rolls weapon tier 1-2
+const ENEMIES = {};
+function enemy(id, e) { e.id = id; ENEMIES[id] = e; return e; }
+
+// --- band 0: beach/shore (edge of realm)
+enemy('crab', {
+  name: 'Scuttler Crab', sprite: 'crab', hp: 60, def: 0, xp: 5, speed: 2.5, size: 0.8,
+  behavior: 'wander', band: 0,
+  shots: { dmg: 6, speed: 7, range: 5, count: 1, spread: 0, rate: 0.8 },
+  loot: [['hppot', 0.06]],
+});
+enemy('sandling', {
+  name: 'Sandling', sprite: 'sandling', hp: 45, def: 0, xp: 4, speed: 3.5, size: 0.7,
+  behavior: 'chase', band: 0,
+  shots: { dmg: 5, speed: 8, range: 4.5, count: 1, spread: 0, rate: 1 },
+  loot: [['weapon:0-0', 0.05], ['hppot', 0.05]],
+});
+// --- band 1: plains
+enemy('goblin', {
+  name: 'Goblin Raider', sprite: 'goblin', hp: 110, def: 2, xp: 12, speed: 4, size: 0.9,
+  behavior: 'chase', band: 1,
+  shots: { dmg: 10, speed: 9, range: 5, count: 1, spread: 0, rate: 1.2 },
+  loot: [['weapon:0-1', 0.08], ['armor:0-1', 0.08], ['hppot', 0.08], ['portal:goblin_warren', 0.025]],
+});
+enemy('wolf', {
+  name: 'Dire Wolf', sprite: 'wolf', hp: 130, def: 3, xp: 14, speed: 5.5, size: 0.9,
+  behavior: 'chase', band: 1, melee: { dmg: 14, rate: 1 },
+  shots: null,
+  loot: [['armor:0-1', 0.08], ['hppot', 0.08]],
+});
+enemy('bandit', {
+  name: 'Bandit', sprite: 'bandit', hp: 100, def: 2, xp: 12, speed: 4, size: 0.9,
+  behavior: 'orbit', band: 1,
+  shots: { dmg: 12, speed: 10, range: 6, count: 1, spread: 0, rate: 1.5 },
+  loot: [['weapon:0-1', 0.08], ['ringhp0', 0.03], ['mppot', 0.06]],
+});
+// --- band 2: forest
+enemy('treant', {
+  name: 'Elder Treant', sprite: 'treant', hp: 350, def: 6, xp: 30, speed: 1.5, size: 1.3,
+  behavior: 'wander', band: 2,
+  shots: { dmg: 18, speed: 8, range: 6, count: 3, spread: 0.5, rate: 1 },
+  loot: [['weapon:1-2', 0.1], ['armor:1-2', 0.1], ['ringdef0', 0.03], ['portal:spider_grotto', 0.03]],
+});
+enemy('spider', {
+  name: 'Venom Spider', sprite: 'spider', hp: 200, def: 4, xp: 22, speed: 5, size: 0.9,
+  behavior: 'chase', band: 2,
+  shots: { dmg: 15, speed: 11, range: 5.5, count: 2, spread: 0.35, rate: 1.4 },
+  loot: [['weapon:1-2', 0.08], ['mppot', 0.08]],
+});
+enemy('shaman', {
+  name: 'Dark Shaman', sprite: 'shaman', hp: 240, def: 5, xp: 28, speed: 3, size: 1,
+  behavior: 'orbit', band: 2,
+  shots: { dmg: 20, speed: 9, range: 7, count: 1, spread: 0, rate: 1.2, ring: 6, ringRate: 0.25 },
+  loot: [['armor:1-2', 0.1], ['ringmp0', 0.03], ['ringatt0', 0.025]],
+});
+// --- band 3: highlands
+enemy('ogre', {
+  name: 'Highland Ogre', sprite: 'ogre', hp: 700, def: 10, xp: 60, speed: 3, size: 1.4,
+  behavior: 'chase', band: 3,
+  shots: { dmg: 30, speed: 9, range: 5.5, count: 3, spread: 0.6, rate: 1 },
+  loot: [['weapon:2-3', 0.12], ['armor:2-3', 0.12], ['ringspd0', 0.03], ['portal:cursed_keep', 0.035]],
+});
+enemy('gargoyle', {
+  name: 'Gargoyle', sprite: 'gargoyle', hp: 550, def: 14, xp: 55, speed: 4.5, size: 1.1,
+  behavior: 'orbit', band: 3,
+  shots: { dmg: 28, speed: 12, range: 7, count: 2, spread: 0.25, rate: 1.5 },
+  loot: [['weapon:2-3', 0.1], ['ringdex0', 0.03], ['mppot', 0.1]],
+});
+enemy('wraith', {
+  name: 'Hollow Wraith', sprite: 'wraith', hp: 450, def: 8, xp: 50, speed: 5.5, size: 1,
+  behavior: 'chase', band: 3,
+  shots: { dmg: 24, speed: 10, range: 6, count: 1, spread: 0, rate: 2 },
+  loot: [['armor:2-3', 0.1], ['hppot', 0.1], ['ringall0', 0.01]],
+});
+// --- band 4: mountains / gods
+enemy('flame_titan', {
+  name: 'Flame Titan', sprite: 'flame_titan', hp: 2200, def: 18, xp: 180, speed: 3, size: 1.6,
+  behavior: 'orbit', band: 4, god: true,
+  shots: { dmg: 45, speed: 11, range: 8, count: 4, spread: 0.8, rate: 1.6, ring: 10, ringRate: 0.2 },
+  loot: [['weapon:3-4', 0.14], ['armor:3-4', 0.14], ['statpot', 0.25], ['portal:infernal_depths', 0.04]],
+});
+enemy('storm_seraph', {
+  name: 'Storm Seraph', sprite: 'storm_seraph', hp: 1800, def: 15, xp: 170, speed: 5, size: 1.4,
+  behavior: 'orbit', band: 4, god: true,
+  shots: { dmg: 50, speed: 14, range: 9, count: 2, spread: 0.2, rate: 2 },
+  loot: [['weapon:3-4', 0.14], ['ringall0', 0.03], ['statpot', 0.25]],
+});
+enemy('void_keeper', {
+  name: 'Void Keeper', sprite: 'void_keeper', hp: 2500, def: 20, xp: 200, speed: 2.5, size: 1.6,
+  behavior: 'orbit', band: 4, god: true,
+  shots: { dmg: 55, speed: 9, range: 8, count: 1, spread: 0, rate: 1.2, ring: 14, ringRate: 0.35 },
+  loot: [['armor:3-4', 0.14], ['statpot', 0.3], ['portal:infernal_depths', 0.05]],
+});
+
+// --- dungeon enemies
+enemy('goblin_grunt', {
+  name: 'Goblin Grunt', sprite: 'goblin', hp: 90, def: 1, xp: 10, speed: 4.5, size: 0.85,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 9, speed: 9, range: 5, count: 1, spread: 0, rate: 1.4 },
+  loot: [['hppot', 0.08]],
+});
+enemy('goblin_king', {
+  name: 'Goblin King', sprite: 'goblin_king', hp: 1500, def: 8, xp: 150, speed: 3.5, size: 1.8,
+  behavior: 'boss', band: -1,
+  shots: { dmg: 22, speed: 10, range: 7, count: 5, spread: 1.2, rate: 1.4, ring: 8, ringRate: 0.3 },
+  loot: [['weapon:1-3', 0.8], ['armor:1-3', 0.8], ['pot_def', 0.4], ['pot_spd', 0.3], ['ringhp1', 0.1]],
+});
+enemy('spiderling', {
+  name: 'Spiderling', sprite: 'spider', hp: 160, def: 3, xp: 18, speed: 5.5, size: 0.7,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 13, speed: 11, range: 5, count: 1, spread: 0, rate: 1.6 },
+  loot: [['mppot', 0.08]],
+});
+enemy('brood_mother', {
+  name: 'Brood Mother', sprite: 'brood_mother', hp: 3000, def: 12, xp: 280, speed: 3, size: 2,
+  behavior: 'boss', band: -1, spawns: { type: 'spiderling', max: 4, rate: 0.15 },
+  shots: { dmg: 28, speed: 10, range: 7.5, count: 3, spread: 0.7, rate: 1.6, ring: 12, ringRate: 0.25 },
+  loot: [['weapon:2-4', 0.8], ['armor:2-4', 0.8], ['pot_dex', 0.5], ['pot_att', 0.4], ['ringmp1', 0.1]],
+});
+enemy('keep_knight', {
+  name: 'Cursed Knight', sprite: 'keep_knight', hp: 500, def: 12, xp: 45, speed: 4, size: 1,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 26, speed: 10, range: 5.5, count: 2, spread: 0.3, rate: 1.5 },
+  loot: [['hppot', 0.1], ['weapon:2-3', 0.05]],
+});
+enemy('keep_lord', {
+  name: 'Lord of the Cursed Keep', sprite: 'keep_lord', hp: 6000, def: 18, xp: 500, speed: 3.5, size: 2,
+  behavior: 'boss', band: -1, spawns: { type: 'keep_knight', max: 3, rate: 0.1 },
+  shots: { dmg: 40, speed: 11, range: 8, count: 5, spread: 1, rate: 1.8, ring: 16, ringRate: 0.3 },
+  loot: [['weapon:3-4', 0.9], ['armor:3-4', 0.9], ['pot_vit', 0.6], ['pot_wis', 0.6], ['statpot', 0.8], ['ringall0', 0.15]],
+});
+enemy('imp', {
+  name: 'Infernal Imp', sprite: 'imp', hp: 700, def: 14, xp: 70, speed: 5.5, size: 0.9,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 35, speed: 12, range: 6, count: 1, spread: 0, rate: 2 },
+  loot: [['mppot', 0.1], ['hppot', 0.1]],
+});
+enemy('inferno_lord', {
+  name: 'Lord of the Inferno', sprite: 'inferno_lord', hp: 14000, def: 25, xp: 1500, speed: 4, size: 2.4,
+  behavior: 'boss', band: -1, spawns: { type: 'imp', max: 4, rate: 0.12 },
+  shots: { dmg: 60, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 20, ringRate: 0.4 },
+  loot: [['weapon:4-5', 0.9], ['armor:4-5', 0.9], ['pot_life', 0.5], ['pot_mana', 0.5], ['statpot', 1], ['ringall0', 0.3]],
+});
+
+// ---------------------------------------------------------------- dungeons
+const DUNGEONS = {
+  goblin_warren: {
+    name: 'Goblin Warren', theme: 'cave', size: 80, rooms: 8,
+    minions: ['goblin_grunt'], minionCount: 26, boss: 'goblin_king',
+  },
+  spider_grotto: {
+    name: 'Spider Grotto', theme: 'cave', size: 90, rooms: 9,
+    minions: ['spiderling', 'spider'], minionCount: 30, boss: 'brood_mother',
+  },
+  cursed_keep: {
+    name: 'Cursed Keep', theme: 'keep', size: 100, rooms: 10,
+    minions: ['keep_knight', 'wraith'], minionCount: 32, boss: 'keep_lord',
+  },
+  infernal_depths: {
+    name: 'Infernal Depths', theme: 'inferno', size: 110, rooms: 11,
+    minions: ['imp', 'flame_titan'], minionCount: 34, boss: 'inferno_lord',
+  },
+};
+
+const STAT_POTS = ['pot_att', 'pot_def', 'pot_spd', 'pot_dex', 'pot_vit', 'pot_wis'];
+
+module.exports = { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS };

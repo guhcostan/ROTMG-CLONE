@@ -1,0 +1,14 @@
+{
+  "name": "rotmg-clone",
+  "version": "1.0.0",
+  "description": "Browser MMO bullet-hell inspired by Realm of the Mad God - multiplayer, permadeath, dungeons and loot",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node test/smoke.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.21.0"
+  }
+}

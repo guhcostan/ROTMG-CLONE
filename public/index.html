@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Realm Reborn - MMO Bullet Hell</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="screen-auth" class="screen">
+  <div class="panel auth-panel">
+    <h1 class="logo">REALM<span>REBORN</span></h1>
+    <p class="tagline">MMO bullet-hell cooperativo &middot; morte permanente &middot; dungeons &middot; loot</p>
+    <div class="form">
+      <input id="auth-user" type="text" placeholder="Usuario" maxlength="16" autocomplete="username">
+      <input id="auth-pass" type="password" placeholder="Senha" autocomplete="current-password">
+      <div class="row">
+        <button id="btn-login" class="btn primary">Entrar</button>
+        <button id="btn-register" class="btn">Criar conta</button>
+      </div>
+      <div id="auth-error" class="error"></div>
+    </div>
+    <div class="help">
+      <b>Como jogar:</b> WASD move &middot; mouse mira e atira &middot; ESPACO habilidade &middot;
+      1-8 usa itens &middot; ENTER chat &middot; ESC/R volta ao Nexus
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CHARACTER SELECT ===================== -->
+<div id="screen-chars" class="screen hidden">
+  <div class="panel chars-panel">
+    <div class="chars-head">
+      <h2 id="chars-title">Personagens</h2>
+      <button id="btn-logout" class="btn small">Sair</button>
+    </div>
+    <div id="char-list" class="char-list"></div>
+    <h3>Criar novo personagem</h3>
+    <div id="class-list" class="class-list"></div>
+    <h3>Cemiterio</h3>
+    <div id="graveyard" class="graveyard"></div>
+  </div>
+</div>
+
+<!-- ===================== GAME ===================== -->
+<div id="screen-game" class="screen hidden">
+  <canvas id="canvas"></canvas>
+  <div id="hud">
+    <div id="hud-right">
+      <div id="hud-name"></div>
+      <div class="bar"><div id="bar-hp" class="fill hp"></div><span id="txt-hp"></span></div>
+      <div class="bar"><div id="bar-mp" class="fill mp"></div><span id="txt-mp"></span></div>
+      <div class="bar"><div id="bar-xp" class="fill xp"></div><span id="txt-xp"></span></div>
+      <div id="hud-stats"></div>
+      <div class="inv-label">Equipamento</div>
+      <div id="equip-slots" class="slots"></div>
+      <div class="inv-label">Inventario</div>
+      <div id="inv-slots" class="slots"></div>
+      <div class="inv-label" id="bag-label" style="display:none">Loot</div>
+      <div id="bag-slots" class="slots" style="display:none"></div>
+      <canvas id="minimap" width="160" height="160"></canvas>
+    </div>
+    <div id="chat">
+      <div id="chat-log"></div>
+      <input id="chat-input" type="text" maxlength="200" placeholder="ENTER para falar..." class="hidden">
+    </div>
+    <div id="notice"></div>
+    <div id="tooltip" class="hidden"></div>
+  </div>
+  <div id="death-overlay" class="hidden">
+    <div class="panel death-panel">
+      <h2>VOCE MORREU</h2>
+      <p id="death-info"></p>
+      <p class="death-note">A morte e permanente. Seu personagem agora descansa no cemiterio.</p>
+      <button id="btn-death-ok" class="btn primary">Voltar aos personagens</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/sprites.js"></script>
+<script src="js/net.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
