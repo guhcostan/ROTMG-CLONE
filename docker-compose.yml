@@ -1,0 +1,15 @@
+services:
+  game:
+    build: .
+    image: realm-reborn
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      DATA_DIR: /app/data
+    volumes:
+      - realm-data:/app/data
+
+volumes:
+  realm-data:

@@ -4,7 +4,7 @@
 const { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS } = require('./data');
 const { T, generateNexus, generateRealm, generateDungeon, bandAt } = require('./world');
 const { buryCharacter } = require('./auth');
-const { save } = require('./db');
+const storage = require('./db');
 
 const TICK = 1000 / 20;          // 20 ticks/s
 const VIEW = 22;                 // entity broadcast radius in tiles
@@ -183,6 +183,7 @@ class Game {
 
   // ------------------------------------------------ player lifecycle
   joinPlayer(ws, acc, char) {
+    const guild = storage.getGuildOf(acc.id);
     const player = {
       id: uid(), ws, acc, char,
       name: acc.username,
@@ -192,10 +193,19 @@ class Game {
       lastHit: 0, lastMoveAt: Date.now(),
       berserkUntil: 0, invisUntil: 0,
       dead: false,
+      guild: guild ? { id: guild.id, name: guild.name, rank: guild.rank } : null,
+      guildInviteId: null,
+      pet: acc.pet || null,
+      vault: storage.getVault(acc.id),
+      trade: null, tradeReqFrom: null,
     };
     this.players.set(player.id, player);
     this.enterInstance(player, this.nexus);
     return player;
+  }
+
+  persist(player) {
+    if (!player.dead) storage.saveChar(player.char);
   }
 
   enterInstance(player, inst, spot) {
@@ -217,9 +227,10 @@ class Game {
   }
 
   leavePlayer(player) {
+    this.cancelTrade(player, true);
     if (player.instance) player.instance.players.delete(player.id);
     this.players.delete(player.id);
-    if (!player.dead) save();
+    this.persist(player);
     this.cleanupInstances();
   }
 
@@ -247,6 +258,142 @@ class Game {
       case 'dropitem': this.onDropItem(player, msg); break;
       case 'portal': this.onPortal(player); break;
       case 'nexus': this.toNexus(player); break;
+      case 'vault': this.onVault(player, msg); break;
+      case 'trade': this.onTrade(player, msg); break;
+    }
+  }
+
+  // ------------------------------------------------ vault (nexus chest)
+  nearVault(player) {
+    const inst = player.instance;
+    if (inst.kind !== 'nexus' || !inst.map.vaultSpot) return false;
+    return dist2(player.x, player.y, inst.map.vaultSpot.x, inst.map.vaultSpot.y) < 4;
+  }
+
+  onVault(player, msg) {
+    if (!this.nearVault(player)) return;
+    if (msg.cmd === 'deposit') {
+      const slot = msg.slot | 0;
+      if (slot < 4 || slot > 11) return; // inventory slots only
+      const itemId = this.getSlot(player, slot);
+      if (!itemId) return;
+      const free = player.vault.indexOf(null);
+      if (free === -1) return send(player.ws, { t: 'notice', text: 'Cofre cheio!' });
+      player.vault[free] = itemId;
+      this.setSlot(player, slot, null);
+    } else if (msg.cmd === 'withdraw') {
+      const idx = msg.idx | 0;
+      if (idx < 0 || idx > 15) return;
+      const itemId = player.vault[idx];
+      if (!itemId) return;
+      const free = player.char.inventory.indexOf(null);
+      if (free === -1) return send(player.ws, { t: 'notice', text: 'Inventario cheio!' });
+      player.char.inventory[free] = itemId;
+      player.vault[idx] = null;
+    } else return;
+    storage.setVault(player.acc.id, player.vault);
+    this.persist(player);
+  }
+
+  // ------------------------------------------------ trading
+  onTrade(player, msg) {
+    switch (msg.cmd) {
+      case 'request': {
+        const name = String(msg.name || '').toLowerCase();
+        const target = [...player.instance.players.values()]
+          .find(p => p !== player && p.name.toLowerCase() === name);
+        if (!target) return send(player.ws, { t: 'notice', text: 'Jogador nao encontrado aqui' });
+        if (target.trade) return send(player.ws, { t: 'notice', text: 'Jogador ja esta negociando' });
+        target.tradeReqFrom = player.id;
+        send(target.ws, { t: 'tradereq', from: player.name });
+        send(player.ws, { t: 'notice', text: `Proposta de troca enviada para ${target.name}` });
+        break;
+      }
+      case 'accept': {
+        const from = this.players.get(player.tradeReqFrom);
+        player.tradeReqFrom = null;
+        if (!from || from.dead || from.instance !== player.instance) return;
+        if (from.trade || player.trade) return;
+        if (dist2(from.x, from.y, player.x, player.y) > 64) {
+          return send(player.ws, { t: 'notice', text: 'Muito longe para negociar' });
+        }
+        from.trade = { partnerId: player.id, offer: [], confirmed: false };
+        player.trade = { partnerId: from.id, offer: [], confirmed: false };
+        this.sendTradeState(from);
+        this.sendTradeState(player);
+        break;
+      }
+      case 'offer': {
+        if (!player.trade) return;
+        const slots = Array.isArray(msg.slots) ? msg.slots : [];
+        const offer = [];
+        for (const s of slots) {
+          const i = s | 0;
+          if (i >= 0 && i < 8 && player.char.inventory[i] && !offer.includes(i)) offer.push(i);
+        }
+        player.trade.offer = offer;
+        player.trade.confirmed = false;
+        const partner = this.players.get(player.trade.partnerId);
+        if (partner && partner.trade) partner.trade.confirmed = false;
+        this.sendTradeState(player);
+        if (partner) this.sendTradeState(partner);
+        break;
+      }
+      case 'confirm': {
+        if (!player.trade) return;
+        player.trade.confirmed = true;
+        const partner = this.players.get(player.trade.partnerId);
+        if (!partner || !partner.trade) return this.cancelTrade(player, true);
+        if (partner.trade.confirmed) this.executeTrade(player, partner);
+        else { this.sendTradeState(player); this.sendTradeState(partner); }
+        break;
+      }
+      case 'cancel': this.cancelTrade(player, true); break;
+    }
+  }
+
+  sendTradeState(player) {
+    if (!player.trade) return;
+    const partner = this.players.get(player.trade.partnerId);
+    if (!partner || !partner.trade) return;
+    send(player.ws, {
+      t: 'tradestate',
+      partner: partner.name,
+      mine: player.trade.offer,
+      theirs: partner.trade.offer.map(i => partner.char.inventory[i]),
+      myConfirm: player.trade.confirmed,
+      theirConfirm: partner.trade.confirmed,
+    });
+  }
+
+  executeTrade(a, b) {
+    const itemsA = a.trade.offer.map(i => a.char.inventory[i]).filter(Boolean);
+    const itemsB = b.trade.offer.map(i => b.char.inventory[i]).filter(Boolean);
+    const freeA = a.char.inventory.filter(x => !x).length + itemsA.length;
+    const freeB = b.char.inventory.filter(x => !x).length + itemsB.length;
+    if (freeA < itemsB.length || freeB < itemsA.length) {
+      send(a.ws, { t: 'notice', text: 'Inventario sem espaco para a troca' });
+      send(b.ws, { t: 'notice', text: 'Inventario sem espaco para a troca' });
+      return this.cancelTrade(a, true);
+    }
+    for (const i of a.trade.offer) a.char.inventory[i] = null;
+    for (const i of b.trade.offer) b.char.inventory[i] = null;
+    for (const item of itemsB) a.char.inventory[a.char.inventory.indexOf(null)] = item;
+    for (const item of itemsA) b.char.inventory[b.char.inventory.indexOf(null)] = item;
+    a.trade = null; b.trade = null;
+    this.persist(a); this.persist(b);
+    send(a.ws, { t: 'tradedone' });
+    send(b.ws, { t: 'tradedone' });
+  }
+
+  cancelTrade(player, notifyPartner) {
+    if (!player.trade) return;
+    const partner = this.players.get(player.trade.partnerId);
+    player.trade = null;
+    send(player.ws, { t: 'tradecancel' });
+    if (partner && partner.trade && partner.trade.partnerId === player.id) {
+      partner.trade = null;
+      if (notifyPartner) send(partner.ws, { t: 'tradecancel' });
     }
   }
 
@@ -369,9 +516,76 @@ class Game {
     if (text === '/nexus') return this.toNexus(player);
     if (text === '/who') {
       const names = [...player.instance.players.values()].map(p => p.name).join(', ');
-      return send(player.ws, { t: 'chat', from: '', text: `Online aqui: ${names}`, sys: 1 });
+      return this.sysMsg(player, `Online aqui: ${names}`);
     }
+    if (text.startsWith('/trade ')) {
+      return this.onTrade(player, { cmd: 'request', name: text.slice(7).trim() });
+    }
+    if (text.startsWith('/g ')) return this.guildChat(player, text.slice(3));
+    if (text.startsWith('/guilda')) return this.guildCommand(player, text.split(/\s+/).slice(1));
     player.instance.broadcast({ t: 'chat', from: player.name, text });
+  }
+
+  sysMsg(player, text) { send(player.ws, { t: 'chat', from: '', text, sys: 1 }); }
+
+  guildChat(player, text) {
+    if (!player.guild) return this.sysMsg(player, 'Voce nao esta em uma guilda');
+    text = text.slice(0, 200).trim();
+    if (!text) return;
+    for (const p of this.players.values()) {
+      if (p.guild && p.guild.id === player.guild.id) {
+        send(p.ws, { t: 'chat', from: `[${player.guild.name}] ${player.name}`, text });
+      }
+    }
+  }
+
+  guildCommand(player, args) {
+    const sub = (args[0] || '').toLowerCase();
+    const acc = player.acc;
+    if (sub === 'criar') {
+      const name = args.slice(1).join(' ').trim();
+      if (player.guild) return this.sysMsg(player, 'Voce ja esta em uma guilda');
+      if (!/^[a-zA-Z0-9_ ]{3,20}$/.test(name)) return this.sysMsg(player, 'Nome de guilda invalido (3-20 caracteres)');
+      if (storage.getGuildByName(name)) return this.sysMsg(player, 'Ja existe uma guilda com esse nome');
+      const id = storage.createGuild(name, acc.id);
+      player.guild = { id, name, rank: 'leader' };
+      return this.sysMsg(player, `Guilda "${name}" criada! Convide com /guilda convidar <usuario>`);
+    }
+    if (sub === 'convidar') {
+      if (!player.guild) return this.sysMsg(player, 'Voce nao esta em uma guilda');
+      if (player.guild.rank !== 'leader') return this.sysMsg(player, 'Apenas o lider convida');
+      const name = (args[1] || '').toLowerCase();
+      const target = [...this.players.values()].find(p => p.name.toLowerCase() === name);
+      if (!target) return this.sysMsg(player, 'Jogador nao esta online');
+      if (target.guild) return this.sysMsg(player, 'Jogador ja tem guilda');
+      target.guildInviteId = player.guild.id;
+      this.sysMsg(target, `${player.name} convidou voce para a guilda "${player.guild.name}". Digite /guilda aceitar`);
+      return this.sysMsg(player, 'Convite enviado');
+    }
+    if (sub === 'aceitar') {
+      if (player.guild) return this.sysMsg(player, 'Voce ja esta em uma guilda');
+      if (!player.guildInviteId) return this.sysMsg(player, 'Nenhum convite pendente');
+      try { storage.joinGuild(player.guildInviteId, acc.id); } catch { return this.sysMsg(player, 'Convite invalido'); }
+      const g = storage.getGuildOf(acc.id);
+      player.guild = g ? { id: g.id, name: g.name, rank: g.rank } : null;
+      player.guildInviteId = null;
+      if (player.guild) this.guildChat(player, 'entrou na guilda!');
+      return;
+    }
+    if (sub === 'sair') {
+      if (!player.guild) return this.sysMsg(player, 'Voce nao esta em uma guilda');
+      storage.leaveGuild(acc.id);
+      this.sysMsg(player, `Voce saiu da guilda "${player.guild.name}"`);
+      player.guild = null;
+      return;
+    }
+    if (sub === 'info') {
+      if (!player.guild) return this.sysMsg(player, 'Voce nao esta em uma guilda');
+      const members = storage.guildMembers(player.guild.id)
+        .map(m => `${m.username}${m.rank === 'leader' ? ' (lider)' : ''}`).join(', ');
+      return this.sysMsg(player, `Guilda "${player.guild.name}": ${members}`);
+    }
+    this.sysMsg(player, 'Comandos: /guilda criar <nome> | convidar <usuario> | aceitar | sair | info — chat: /g <msg>');
   }
 
   onPickup(player, msg) {
@@ -424,6 +638,12 @@ class Game {
     const cls = CLASSES[ch.classId];
     if (item.heal) ch.hp = Math.min(effectiveMaxHp(player), ch.hp + item.heal);
     else if (item.restore) ch.mp = Math.min(effectiveMaxMp(player), ch.mp + item.restore);
+    else if (item.pet) {
+      const types = ['pet_wolf', 'pet_imp', 'pet_sprite'];
+      player.pet = types[Math.floor(Math.random() * types.length)];
+      storage.setPet(player.acc.id, player.pet);
+      send(player.ws, { t: 'notice', text: 'O ovo chocou! Um pet agora segue voce (cura ao longo do tempo).' });
+    }
     else if (item.stat) {
       const s = item.stat;
       const cap = cls.max[s];
@@ -431,7 +651,7 @@ class Game {
       ch.stats[s] = Math.min(cap, ch.stats[s] + item.amount);
     }
     this.setSlot(player, slot, null);
-    save();
+    this.persist(player);
   }
 
   onDropItem(player, msg) {
@@ -549,7 +769,7 @@ class Game {
       ch.mp = effectiveMaxMp(player);
       player.instance.broadcastNear({ t: 'fx', k: 'levelup', x: player.x, y: player.y, r: 1 }, player.x, player.y);
       send(player.ws, { t: 'notice', text: `Voce alcancou o nivel ${ch.level}!` });
-      save();
+      this.persist(player);
     }
   }
 
@@ -605,16 +825,24 @@ class Game {
   tickInstance(inst, now) {
     const dt = TICK / 1000;
 
-    // --- players: regen, tile damage
+    // --- players: regen, tile damage, trade proximity
     for (const p of inst.players.values()) {
       const stats = effectiveStats(p);
       const inCombat = now - p.lastHit < 4000;
       const regenMul = inst.kind === 'nexus' ? 10 : (inCombat ? 0.4 : 1);
-      p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + (1 + stats.vit * 0.24) * dt * regenMul);
-      p.char.mp = Math.min(effectiveMaxMp(p), p.char.mp + (0.5 + stats.wis * 0.12) * dt * regenMul);
+      const petBonus = p.pet ? 1.3 : 1;
+      p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + (1 + stats.vit * 0.24) * dt * regenMul * petBonus);
+      p.char.mp = Math.min(effectiveMaxMp(p), p.char.mp + (0.5 + stats.wis * 0.12) * dt * regenMul * petBonus);
       if (inst.map.damages(p.x, p.y)) {
         if (!p._lavaT || now - p._lavaT > 500) { p._lavaT = now; this.damagePlayer(p, 40, 'lava'); }
         if (p.dead) continue;
+      }
+      // cancel trades when players walk apart or change instance
+      if (p.trade) {
+        const partner = this.players.get(p.trade.partnerId);
+        if (!partner || partner.instance !== inst || dist2(p.x, p.y, partner.x, partner.y) > 100) {
+          this.cancelTrade(p, true);
+        }
       }
     }
 
@@ -763,9 +991,15 @@ class Game {
       const r2 = VIEW * VIEW;
       for (const o of inst.players.values()) {
         if (dist2(o.x, o.y, p.x, p.y) > r2) continue;
-        ents.push(['p', o.id, o.name, o.classId || o.char.classId, round1(o.x), round1(o.y),
+        ents.push(['p', o.id, o.name, o.char.classId, round1(o.x), round1(o.y),
           Math.round(o.char.hp), effectiveMaxHp(o), o.char.level,
-          o.invisUntil > now ? 1 : 0]);
+          o.invisUntil > now ? 1 : 0,
+          o.guild ? o.guild.name : '', o.pet || '']);
+      }
+      // account vault chest in the nexus (contents are per-player)
+      if (inst.kind === 'nexus' && inst.map.vaultSpot) {
+        const v = inst.map.vaultSpot;
+        ents.push(['v', 0, v.x, v.y, this.nearVault(p) ? p.vault : null]);
       }
       for (const e of inst.enemies.values()) {
         if (dist2(e.x, e.y, p.x, p.y) > r2) continue;
@@ -793,7 +1027,9 @@ class Game {
     }
   }
 
-  autosave() { save(); }
+  autosave() {
+    for (const p of this.players.values()) this.persist(p);
+  }
 }
 
 function effectiveMaxHp(player) {

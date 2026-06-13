@@ -73,11 +73,11 @@ const GameClient = (() => {
     for (const e of msg.e) {
       const kind = e[0];
       if (kind === 'p') {
-        const [, id, name, classId, x, y, hp, maxHp, level, invis] = e;
+        const [, id, name, classId, x, y, hp, maxHp, level, invis, guild, pet] = e;
         seen.add(id);
         let ent = entities.get(id);
         if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
-        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis });
+        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis, guild, pet });
         if (id === myId) {
           // server correction only when badly out of sync
           if (Math.hypot(me.x - x, me.y - y) > 3) { me.x = x; me.y = y; }
@@ -97,9 +97,15 @@ const GameClient = (() => {
         const [, id, pkind, x, y, name] = e;
         seen.add(id);
         entities.set(id, { kind, id, pkind, x, y, tx: x, ty: y, name });
+      } else if (kind === 'v') {
+        const [, , x, y, vault] = [e[0], e[1], e[2], e[3], e[4]];
+        seen.add('vault');
+        entities.set('vault', { kind: 'v', id: 'vault', x, y, tx: x, ty: y });
+        UI.showVault(vault);
       }
     }
     for (const id of entities.keys()) if (!seen.has(id)) entities.delete(id);
+    if (!seen.has('vault')) UI.showVault(null);
 
     // loot bag under the player?
     let bag = null;
@@ -260,13 +266,19 @@ const GameClient = (() => {
     ctx.translate(-camX, -camY);
     ctx.drawImage(mapCanvas, 0, 0, mapCanvas.width * scale, mapCanvas.height * scale);
 
-    // entity draw order: bags, portals, enemies, players
+    // entity draw order: vault, bags, portals, enemies, players
     const ordered = [...entities.values()].sort((a, b) =>
-      ({ b: 0, o: 1, e: 2, p: 3 }[a.kind] - { b: 0, o: 1, e: 2, p: 3 }[b.kind]));
+      ({ v: 0, b: 1, o: 2, e: 3, p: 4 }[a.kind] - { v: 0, b: 1, o: 2, e: 3, p: 4 }[b.kind]));
 
     for (const ent of ordered) {
       const px = ent.x * TILE, py = ent.y * TILE;
-      if (ent.kind === 'b') {
+      if (ent.kind === 'v') {
+        drawSprite('chest', px, py, TILE * 1.1);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('Cofre', px, py - TILE * 0.7);
+      } else if (ent.kind === 'b') {
         const name = ent.tier >= 4 ? 'bag_gold' : (ent.tier >= 2 ? 'bag_purple' : 'bag_brown');
         drawSprite(name, px, py, TILE * 0.8);
       } else if (ent.kind === 'o') {
@@ -284,10 +296,15 @@ const GameClient = (() => {
         ctx.globalAlpha = ent.invis ? 0.35 : 1;
         drawSprite(ent.classId, px, py, TILE * 0.95);
         ctx.globalAlpha = 1;
+        if (ent.pet) {
+          const t = performance.now() / 600 + ent.id;
+          drawSprite(ent.pet, px + Math.cos(t) * TILE * 0.9, py + Math.sin(t) * TILE * 0.9, TILE * 0.5);
+        }
         ctx.fillStyle = ent.id === myId ? '#f0c040' : '#fff';
         ctx.font = '11px Courier New';
         ctx.textAlign = 'center';
-        ctx.fillText(`${ent.name} ${ent.level}`, px, py - TILE * 0.65);
+        const tag = ent.guild ? `[${ent.guild}] ` : '';
+        ctx.fillText(`${tag}${ent.name} ${ent.level}`, px, py - TILE * 0.65);
         if (ent.id !== myId) drawHpBar(px, py, ent.hp, ent.maxHp, 0.9);
       }
     }
@@ -407,26 +424,45 @@ const GameClient = (() => {
   }
 
   // ------------------------------------------------ public
+  let reconnectTries = 0;
   function start(charId, callbacks) {
     onDeath = callbacks.onDeath;
     running = true;
     keys = {}; shooting = false;
-    Net.connect(charId, {
-      world: loadWorld,
+    const handlers = {
+      world: (m) => { reconnectTries = 0; loadWorld(m); },
       tick: onTick,
       shot: onShot,
       dmg: onDmg,
       fx: onFx,
       notice: m => UI.notice(m.text),
       chat: m => UI.chat(m.from, m.text, m.sys),
+      tradereq: m => UI.tradeRequest(m.from),
+      tradestate: m => UI.tradeState(m),
+      tradedone: () => UI.tradeEnd(true),
+      tradecancel: () => UI.tradeEnd(false),
       death: (m) => {
         running = false;
         callbacks.onDeath(m);
       },
-      _close: () => {
-        if (running) { running = false; callbacks.onDisconnect(); }
+      _close: (ev) => {
+        if (!running) return;
+        // intentional server rejections: don't retry
+        if (ev && ev.code >= 4001 && ev.code <= 4003) {
+          running = false;
+          return callbacks.onDisconnect();
+        }
+        // transient drop: try to reconnect with the same character
+        if (reconnectTries++ < 10) {
+          UI.notice('Conexao perdida, reconectando...');
+          setTimeout(() => { if (running) Net.connect(charId, handlers); }, 1500);
+        } else {
+          running = false;
+          callbacks.onDisconnect();
+        }
       },
-    });
+    };
+    Net.connect(charId, handlers);
     setupInput();
     lastFrame = performance.now();
     requestAnimationFrame(frame);

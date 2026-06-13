@@ -1,14 +1,23 @@
 'use strict';
-// Account registration/login with scrypt password hashing and in-memory
-// session tokens.
+// Account registration/login with scrypt password hashing. Sessions are
+// persisted in SQLite so logins survive server restarts.
 const crypto = require('crypto');
-const { db, save } = require('./db');
+const storage = require('./db');
 const { CLASSES } = require('./data');
-
-const sessions = new Map(); // token -> username
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, 32).toString('hex');
+}
+
+// crude per-IP throttle for the auth endpoints
+const attempts = new Map(); // ip -> { n, resetAt }
+function throttled(ip) {
+  const now = Date.now();
+  let a = attempts.get(ip);
+  if (!a || now > a.resetAt) { a = { n: 0, resetAt: now + 5 * 60 * 1000 }; attempts.set(ip, a); }
+  a.n++;
+  if (attempts.size > 5000) attempts.clear();
+  return a.n > 30;
 }
 
 function register(username, password) {
@@ -19,36 +28,27 @@ function register(username, password) {
   if (String(password || '').length < 4) {
     return { error: 'Senha deve ter pelo menos 4 caracteres' };
   }
-  const key = username.toLowerCase();
-  if (db.accounts[key]) return { error: 'Nome de usuario ja existe' };
+  if (storage.getAccountByName(username)) return { error: 'Nome de usuario ja existe' };
   const salt = crypto.randomBytes(16).toString('hex');
-  db.accounts[key] = {
-    username, salt,
-    hash: hashPassword(password, salt),
-    createdAt: Date.now(),
-    characters: [],
-    graveyard: [],
-    nextCharId: 1,
-  };
-  save();
+  storage.createAccount(username, salt, hashPassword(password, salt));
   return login(username, password);
 }
 
 function login(username, password) {
-  const acc = db.accounts[String(username || '').trim().toLowerCase()];
+  const acc = storage.getAccountByName(String(username || '').trim());
   if (!acc) return { error: 'Usuario ou senha invalidos' };
   const hash = hashPassword(String(password || ''), acc.salt);
   if (!crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(acc.hash))) {
     return { error: 'Usuario ou senha invalidos' };
   }
   const token = crypto.randomBytes(24).toString('hex');
-  sessions.set(token, acc.username.toLowerCase());
+  storage.createSession(token, acc.id);
   return { token, username: acc.username };
 }
 
 function authed(token) {
-  const key = sessions.get(token);
-  return key ? db.accounts[key] : null;
+  const session = storage.getSession(token);
+  return session ? storage.getAccountById(session.account_id) : null;
 }
 
 const MAX_CHARS = 3;
@@ -56,39 +56,28 @@ const MAX_CHARS = 3;
 function createCharacter(acc, classId) {
   const cls = CLASSES[classId];
   if (!cls) return { error: 'Classe invalida' };
-  if (acc.characters.length >= MAX_CHARS) return { error: 'Limite de personagens atingido' };
+  if (storage.countChars(acc.id) >= MAX_CHARS) return { error: 'Limite de personagens atingido' };
   const ch = {
-    id: acc.nextCharId++,
     classId,
     level: 1, xp: 0, fame: 0,
     stats: Object.assign({}, cls.base),
     hp: cls.base.hp, mp: cls.base.mp,
     equipment: cls.starter.slice(),
     inventory: [null, null, null, null, null, null, null, null],
-    createdAt: Date.now(),
   };
-  acc.characters.push(ch);
-  save();
+  ch.id = storage.createChar(acc.id, ch);
+  ch.accountId = acc.id;
   return { character: ch };
 }
 
 function deleteCharacter(acc, charId) {
-  const i = acc.characters.findIndex(c => c.id === charId);
-  if (i === -1) return { error: 'Personagem nao encontrado' };
-  acc.characters.splice(i, 1);
-  save();
-  return { ok: true };
+  return storage.deleteChar(charId, acc.id)
+    ? { ok: true }
+    : { error: 'Personagem nao encontrado' };
 }
 
 function buryCharacter(acc, ch, killedBy) {
-  const i = acc.characters.findIndex(c => c.id === ch.id);
-  if (i !== -1) acc.characters.splice(i, 1);
-  acc.graveyard.push({
-    classId: ch.classId, level: ch.level, fame: ch.fame,
-    killedBy, diedAt: Date.now(),
-  });
-  if (acc.graveyard.length > 50) acc.graveyard.shift();
-  save();
+  storage.bury(acc.id, ch, killedBy);
 }
 
-module.exports = { register, login, authed, createCharacter, deleteCharacter, buryCharacter, MAX_CHARS };
+module.exports = { register, login, authed, createCharacter, deleteCharacter, buryCharacter, throttled, MAX_CHARS };

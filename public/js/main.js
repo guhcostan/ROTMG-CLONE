@@ -104,6 +104,24 @@
       div.textContent = `☠ ${data.classes[g.classId] ? data.classes[g.classId].name : g.classId} nivel ${g.level}, fama ${g.fame} - morto por ${g.killedBy} (${when})`;
       gy.appendChild(div);
     }
+
+    loadLeaderboard(data.classes);
+  }
+
+  async function loadLeaderboard(classes) {
+    try {
+      const lb = await Net.api('GET', '/api/leaderboard');
+      $('online-count').textContent = `(${lb.online} online)`;
+      const el = $('leaderboard');
+      el.innerHTML = '';
+      if (!lb.alive.length) { el.textContent = 'Nenhum heroi no ranking ainda.'; return; }
+      lb.alive.slice(0, 10).forEach((r, i) => {
+        const div = document.createElement('div');
+        const cls = classes[r.class_id] ? classes[r.class_id].name : r.class_id;
+        div.textContent = `${i + 1}. ${r.username} - ${cls} nivel ${r.level}, fama ${r.fame}`;
+        el.appendChild(div);
+      });
+    } catch { /* leaderboard is cosmetic */ }
   }
 
   function classCanvas(classId) {

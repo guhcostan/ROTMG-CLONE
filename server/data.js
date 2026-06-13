@@ -152,6 +152,7 @@ for (const s of ['att', 'def', 'spd', 'dex', 'vit', 'wis']) {
 }
 def('pot_life', { name: 'Potion of Life', type: 'consumable', tier: 6, stat: 'hp', amount: 20 });
 def('pot_mana', { name: 'Potion of Mana', type: 'consumable', tier: 6, stat: 'mp', amount: 20 });
+def('pet_egg', { name: 'Mysterious Egg', type: 'consumable', tier: 5, pet: true });
 
 // ---------------------------------------------------------------- enemies
 // behavior: wander | chase | orbit | turret | boss
@@ -273,7 +274,7 @@ enemy('brood_mother', {
   name: 'Brood Mother', sprite: 'brood_mother', hp: 3000, def: 12, xp: 280, speed: 3, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'spiderling', max: 4, rate: 0.15 },
   shots: { dmg: 28, speed: 10, range: 7.5, count: 3, spread: 0.7, rate: 1.6, ring: 12, ringRate: 0.25 },
-  loot: [['weapon:2-4', 0.8], ['armor:2-4', 0.8], ['pot_dex', 0.5], ['pot_att', 0.4], ['ringmp1', 0.1]],
+  loot: [['weapon:2-4', 0.8], ['armor:2-4', 0.8], ['pot_dex', 0.5], ['pot_att', 0.4], ['ringmp1', 0.1], ['pet_egg', 0.05]],
 });
 enemy('keep_knight', {
   name: 'Cursed Knight', sprite: 'keep_knight', hp: 500, def: 12, xp: 45, speed: 4, size: 1,
@@ -285,7 +286,7 @@ enemy('keep_lord', {
   name: 'Lord of the Cursed Keep', sprite: 'keep_lord', hp: 6000, def: 18, xp: 500, speed: 3.5, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'keep_knight', max: 3, rate: 0.1 },
   shots: { dmg: 40, speed: 11, range: 8, count: 5, spread: 1, rate: 1.8, ring: 16, ringRate: 0.3 },
-  loot: [['weapon:3-4', 0.9], ['armor:3-4', 0.9], ['pot_vit', 0.6], ['pot_wis', 0.6], ['statpot', 0.8], ['ringall0', 0.15]],
+  loot: [['weapon:3-4', 0.9], ['armor:3-4', 0.9], ['pot_vit', 0.6], ['pot_wis', 0.6], ['statpot', 0.8], ['ringall0', 0.15], ['pet_egg', 0.08]],
 });
 enemy('imp', {
   name: 'Infernal Imp', sprite: 'imp', hp: 700, def: 14, xp: 70, speed: 5.5, size: 0.9,
@@ -297,7 +298,7 @@ enemy('inferno_lord', {
   name: 'Lord of the Inferno', sprite: 'inferno_lord', hp: 14000, def: 25, xp: 1500, speed: 4, size: 2.4,
   behavior: 'boss', band: -1, spawns: { type: 'imp', max: 4, rate: 0.12 },
   shots: { dmg: 60, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 20, ringRate: 0.4 },
-  loot: [['weapon:4-5', 0.9], ['armor:4-5', 0.9], ['pot_life', 0.5], ['pot_mana', 0.5], ['statpot', 1], ['ringall0', 0.3]],
+  loot: [['weapon:4-5', 0.9], ['armor:4-5', 0.9], ['pot_life', 0.5], ['pot_mana', 0.5], ['statpot', 1], ['ringall0', 0.3], ['pet_egg', 0.15]],
 });
 
 // ---------------------------------------------------------------- dungeons
