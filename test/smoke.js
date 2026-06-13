@@ -28,17 +28,19 @@ async function api(method, p, body, token) {
 }
 
 function dataSanity() {
-  const { ENEMIES, DUNGEONS, ITEMS } = require('../server/data');
+  const { ENEMIES, DUNGEONS, ITEMS, LEGENDARIES } = require('../server/data');
   let bad = [];
+  for (const id of LEGENDARIES) if (!ITEMS[id]) bad.push(`legendary ${id} missing`);
   for (const [id, e] of Object.entries(ENEMIES)) {
     for (const [spec] of e.loot || []) {
-      if (spec === 'statpot') continue;
+      if (spec === 'statpot' || spec === 'legendary') continue;
       if (spec.startsWith('weapon:') || spec.startsWith('armor:')) continue;
       if (spec.startsWith('portal:')) {
         if (!DUNGEONS[spec.slice(7)]) bad.push(`${id}: portal ${spec}`);
       } else if (!ITEMS[spec]) bad.push(`${id}: item ${spec}`);
     }
     if (e.spawns && !ENEMIES[e.spawns.type]) bad.push(`${id}: spawns ${e.spawns.type}`);
+    if (e.entourage && !ENEMIES[e.entourage.type]) bad.push(`${id}: entourage ${e.entourage.type}`);
   }
   for (const [key, d] of Object.entries(DUNGEONS)) {
     if (!ENEMIES[d.boss]) bad.push(`${key}: boss ${d.boss}`);
@@ -55,6 +57,11 @@ function realmCycleSanity() {
   check(g.realm !== oldRealm && g.realm.kind === 'realm' && g.realm.enemies.size > 0, 'realm regenerates after closing');
   check([...g.instances.values()].some(i => i.kind === 'dungeon' && i.name === 'Castelo do Rei Demente'), 'mad castle created on realm close');
   check(!g.instances.has(oldRealm.id), 'old realm removed');
+
+  // mini-boss escort: leader spawns with its pack following it
+  const lead = g.spawnEnemy(g.realm, 'wolf_alpha', g.realm.map.center.x, g.realm.map.center.y);
+  const pack = [...g.realm.enemies.values()].filter(e => e.parentId === lead.id);
+  check(pack.length === 4, 'mini-boss spawns with escort pack');
 }
 
 async function main() {

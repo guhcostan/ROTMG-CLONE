@@ -51,10 +51,17 @@ todos compartilham o mesmo Nexus e o mesmo Reino.
   personagens da conta; o que está no cofre sobrevive à morte.
 - **Troca entre jogadores** — `/trade nome` no Nexus abre uma janela segura com
   confirmação dupla; qualquer mudança na oferta reseta as confirmações.
-- **Loot** — sacolas (marrom/roxa/dourada por raridade) com armas, armaduras,
-  anéis e poções em 6 tiers; bosses garantem drops bons.
-- **Combate bullet-hell** — servidor autoritativo a 20 ticks/s: padrões de tiro,
-  defesa que reduz dano, regeneração por VIT/WIS e cadência por DEX.
+- **Loot e raridades** — sacolas marrom/roxa/dourada/branca por raridade
+  (Comum, Incomum, Raro, Épico, Lendário); armas, armaduras, anéis e poções em
+  7 tiers, incluindo lendários únicos (Cajado do Cataclisma, Arco da
+  Tempestade, Lâmina dos Reis...); bosses garantem drops bons.
+- **Combate bullet-hell** — servidor autoritativo a 20 ticks/s: padrões de tiro
+  variados por mob (rajadas, escopetas, snipers, metralhadoras, orbes lentos,
+  anéis e espirais), defesa que reduz dano, regeneração por VIT/WIS e cadência
+  por DEX.
+- **Mini-bosses com escolta** — Bandit Lord, Alpha Dire Wolf, Forest Witch,
+  Highland Lich e Demon Prince vagam pelo reino com seu séquito de lacaios e
+  derrubam loot acima da média.
 - **Som e reconexão** — efeitos sonoros procedurais via WebAudio (tecla `M`
   silencia) e reconexão automática em caso de queda de conexão.
 - **Ciclo do reino** — a cada 25 deuses mortos o Reino cai: todos os heróis

@@ -145,6 +145,14 @@ for (const [kind, tiers] of Object.entries(ARMOR_TIERS)) {
   ['ringking', 'Coroa do Rei Demente', { hp: 100, mp: 60, att: 5, def: 5, spd: 5 }, 6],
 ].forEach(([id, name, bonus, tier]) => def(id, { name, type: 'ring', slot: 'ring', tier, bonus }));
 
+// Legendary uniques (tier 6, white bag drops from gods and bosses)
+def('staff_cataclysm', { name: 'Cajado do Cataclisma', type: 'staff', slot: 'weapon', tier: 6, proj: { dmg: [70, 110], speed: 19, range: 8.5, count: 3, spread: 0.22, pierce: false, rateMul: 1 } });
+def('bow_tempest', { name: 'Arco da Tempestade', type: 'bow', slot: 'weapon', tier: 6, proj: { dmg: [60, 95], speed: 17, range: 7.5, count: 3, spread: 0.16, pierce: true, rateMul: 1.1 } });
+def('sword_kings', { name: 'Lamina dos Reis', type: 'sword', slot: 'weapon', tier: 6, proj: { dmg: [110, 150], speed: 15, range: 3.8, count: 1, spread: 0, pierce: false, rateMul: 1 } });
+def('wand_eclipse', { name: 'Varinha do Eclipse', type: 'wand', slot: 'weapon', tier: 6, proj: { dmg: [85, 130], speed: 19, range: 10, count: 1, spread: 0, pierce: false, rateMul: 0.9 } });
+def('dagger_void', { name: 'Adaga do Vazio', type: 'dagger', slot: 'weapon', tier: 6, proj: { dmg: [75, 115], speed: 17, range: 5.8, count: 1, spread: 0, pierce: false, rateMul: 1.45 } });
+const LEGENDARIES = ['staff_cataclysm', 'bow_tempest', 'sword_kings', 'wand_eclipse', 'dagger_void', 'ringking'];
+
 // Consumables
 def('hppot', { name: 'Health Potion', type: 'consumable', tier: 0, heal: 100 });
 def('mppot', { name: 'Magic Potion', type: 'consumable', tier: 0, restore: 100 });
@@ -165,96 +173,162 @@ function enemy(id, e) { e.id = id; ENEMIES[id] = e; return e; }
 enemy('crab', {
   name: 'Scuttler Crab', sprite: 'crab', hp: 60, def: 0, xp: 5, speed: 2.5, size: 0.8,
   behavior: 'wander', band: 0,
-  shots: { dmg: 6, speed: 7, range: 5, count: 1, spread: 0, rate: 0.8 },
-  loot: [['hppot', 0.06]],
+  shots: { dmg: 8, speed: 6, range: 5, count: 1, spread: 0, rate: 0.7 }, // slow heavy orb
+  loot: [['hppot', 0.15]],
 });
 enemy('sandling', {
   name: 'Sandling', sprite: 'sandling', hp: 45, def: 0, xp: 4, speed: 3.5, size: 0.7,
   behavior: 'chase', band: 0,
-  shots: { dmg: 5, speed: 8, range: 4.5, count: 1, spread: 0, rate: 1 },
-  loot: [['weapon:0-0', 0.05], ['hppot', 0.05]],
+  shots: { dmg: 5, speed: 12, range: 4.5, count: 1, spread: 0, rate: 1.8 }, // fast pea shooter
+  loot: [['weapon:0-0', 0.12], ['hppot', 0.12]],
+});
+enemy('gull', {
+  name: 'Razor Gull', sprite: 'gull', hp: 40, def: 0, xp: 5, speed: 6, size: 0.7,
+  behavior: 'orbit', band: 0,
+  shots: { dmg: 4, speed: 14, range: 5, count: 1, spread: 0, rate: 2.5 }, // very fast, weak
+  loot: [['hppot', 0.1], ['mppot', 0.1]],
+});
+enemy('tide_caller', {
+  name: 'Tide Caller', sprite: 'tide_caller', hp: 100, def: 1, xp: 8, speed: 2,
+  size: 1, behavior: 'wander', band: 0,
+  shots: { dmg: 16, speed: 5, range: 6, count: 3, spread: 0.7, rate: 0.5 }, // slow wide wave
+  loot: [['weapon:0-0', 0.12], ['armor:0-0', 0.12], ['hppot', 0.12]],
 });
 // --- band 1: plains
 enemy('goblin', {
   name: 'Goblin Raider', sprite: 'goblin', hp: 110, def: 2, xp: 12, speed: 4, size: 0.9,
   behavior: 'chase', band: 1,
-  shots: { dmg: 10, speed: 9, range: 5, count: 1, spread: 0, rate: 1.2 },
-  loot: [['weapon:0-1', 0.08], ['armor:0-1', 0.08], ['hppot', 0.08], ['portal:goblin_warren', 0.025]],
+  shots: { dmg: 9, speed: 10, range: 5, count: 1, spread: 0, rate: 1, burst: 2 }, // double tap
+  loot: [['weapon:0-1', 0.2], ['armor:0-1', 0.2], ['hppot', 0.18], ['portal:goblin_warren', 0.04]],
 });
 enemy('wolf', {
   name: 'Dire Wolf', sprite: 'wolf', hp: 130, def: 3, xp: 14, speed: 5.5, size: 0.9,
   behavior: 'chase', band: 1, melee: { dmg: 14, rate: 1 },
   shots: null,
-  loot: [['armor:0-1', 0.08], ['hppot', 0.08]],
+  loot: [['armor:0-1', 0.2], ['hppot', 0.18]],
 });
 enemy('bandit', {
   name: 'Bandit', sprite: 'bandit', hp: 100, def: 2, xp: 12, speed: 4, size: 0.9,
   behavior: 'orbit', band: 1,
-  shots: { dmg: 12, speed: 10, range: 6, count: 1, spread: 0, rate: 1.5 },
-  loot: [['weapon:0-1', 0.08], ['ringhp0', 0.03], ['mppot', 0.06]],
+  shots: { dmg: 16, speed: 14, range: 7.5, count: 1, spread: 0, rate: 0.8 }, // sniper
+  loot: [['weapon:0-1', 0.2], ['ringhp0', 0.08], ['mppot', 0.15]],
+});
+enemy('scorpion', {
+  name: 'Dune Scorpion', sprite: 'scorpion', hp: 140, def: 4, xp: 15, speed: 4.5, size: 0.9,
+  behavior: 'chase', band: 1,
+  shots: { dmg: 8, speed: 11, range: 5.5, count: 1, spread: 0, rate: 0.9, burst: 3, burstGap: 90 }, // sting burst
+  loot: [['weapon:0-1', 0.18], ['hppot', 0.15]],
+});
+enemy('bandit_lord', {
+  name: 'Bandit Lord', sprite: 'bandit_lord', hp: 600, def: 6, xp: 80, speed: 4, size: 1.3,
+  behavior: 'chase', band: 1, rare: true, entourage: { type: 'bandit', count: 3 },
+  shots: { dmg: 18, speed: 12, range: 7, count: 2, spread: 0.25, rate: 1, burst: 2 },
+  loot: [['weapon:1-2', 0.5], ['armor:1-2', 0.5], ['ringhp0', 0.2], ['portal:goblin_warren', 0.12], ['hppot', 0.3]],
+});
+enemy('wolf_alpha', {
+  name: 'Alpha Dire Wolf', sprite: 'wolf_alpha', hp: 700, def: 8, xp: 90, speed: 6.5, size: 1.4,
+  behavior: 'chase', band: 1, rare: true, entourage: { type: 'wolf', count: 4 },
+  melee: { dmg: 26, rate: 1.4 }, shots: null,
+  loot: [['weapon:1-2', 0.5], ['armor:1-2', 0.5], ['ringspd0', 0.15], ['hppot', 0.3]],
 });
 // --- band 2: forest
 enemy('treant', {
   name: 'Elder Treant', sprite: 'treant', hp: 350, def: 6, xp: 30, speed: 1.5, size: 1.3,
   behavior: 'wander', band: 2,
-  shots: { dmg: 18, speed: 8, range: 6, count: 3, spread: 0.5, rate: 1 },
-  loot: [['weapon:1-2', 0.1], ['armor:1-2', 0.1], ['ringdef0', 0.03], ['portal:spider_grotto', 0.03]],
+  shots: { dmg: 22, speed: 6, range: 6, count: 4, spread: 0.8, rate: 0.6 }, // slow shotgun
+  loot: [['weapon:1-2', 0.22], ['armor:1-2', 0.22], ['ringdef0', 0.08], ['portal:spider_grotto', 0.05]],
 });
 enemy('spider', {
   name: 'Venom Spider', sprite: 'spider', hp: 200, def: 4, xp: 22, speed: 5, size: 0.9,
   behavior: 'chase', band: 2,
   shots: { dmg: 15, speed: 11, range: 5.5, count: 2, spread: 0.35, rate: 1.4 },
-  loot: [['weapon:1-2', 0.08], ['mppot', 0.08]],
+  loot: [['weapon:1-2', 0.2], ['mppot', 0.18]],
 });
 enemy('shaman', {
   name: 'Dark Shaman', sprite: 'shaman', hp: 240, def: 5, xp: 28, speed: 3, size: 1,
   behavior: 'orbit', band: 2,
-  shots: { dmg: 20, speed: 9, range: 7, count: 1, spread: 0, rate: 1.2, ring: 6, ringRate: 0.25 },
-  loot: [['armor:1-2', 0.1], ['ringmp0', 0.03], ['ringatt0', 0.025]],
+  shots: { dmg: 24, speed: 7, range: 7, count: 1, spread: 0, rate: 1, ring: 6, ringRate: 0.25 }, // slow orbs + ring
+  loot: [['armor:1-2', 0.22], ['ringmp0', 0.08], ['ringatt0', 0.06]],
+});
+enemy('harpy', {
+  name: 'Shrieking Harpy', sprite: 'harpy', hp: 180, def: 3, xp: 24, speed: 6.5, size: 0.9,
+  behavior: 'orbit', band: 2,
+  shots: { dmg: 12, speed: 13, range: 6, count: 1, spread: 0, rate: 2.2 }, // fast strafer
+  loot: [['weapon:1-2', 0.18], ['mppot', 0.15], ['ringdex0', 0.05]],
+});
+enemy('forest_witch', {
+  name: 'Forest Witch', sprite: 'witch', hp: 1000, def: 8, xp: 130, speed: 3.5, size: 1.3,
+  behavior: 'orbit', band: 2, rare: true, entourage: { type: 'spider', count: 3 },
+  shots: { dmg: 26, speed: 9, range: 7.5, count: 3, spread: 0.6, rate: 1.2, ring: 8, ringRate: 0.3 },
+  loot: [['weapon:2-3', 0.5], ['armor:2-3', 0.5], ['ringmp0', 0.2], ['portal:spider_grotto', 0.15], ['mppot', 0.3]],
 });
 // --- band 3: highlands
 enemy('ogre', {
   name: 'Highland Ogre', sprite: 'ogre', hp: 700, def: 10, xp: 60, speed: 3, size: 1.4,
   behavior: 'chase', band: 3,
-  shots: { dmg: 30, speed: 9, range: 5.5, count: 3, spread: 0.6, rate: 1 },
-  loot: [['weapon:2-3', 0.12], ['armor:2-3', 0.12], ['ringspd0', 0.03], ['portal:cursed_keep', 0.035]],
+  shots: { dmg: 34, speed: 8, range: 5.5, count: 4, spread: 0.8, rate: 0.8 }, // brutal shotgun
+  loot: [['weapon:2-3', 0.25], ['armor:2-3', 0.25], ['ringspd0', 0.08], ['portal:cursed_keep', 0.06]],
 });
 enemy('gargoyle', {
   name: 'Gargoyle', sprite: 'gargoyle', hp: 550, def: 14, xp: 55, speed: 4.5, size: 1.1,
   behavior: 'orbit', band: 3,
-  shots: { dmg: 28, speed: 12, range: 7, count: 2, spread: 0.25, rate: 1.5 },
-  loot: [['weapon:2-3', 0.1], ['ringdex0', 0.03], ['mppot', 0.1]],
+  shots: { dmg: 22, speed: 13, range: 7, count: 1, spread: 0, rate: 1.2, burst: 3, burstGap: 100 }, // triple burst
+  loot: [['weapon:2-3', 0.22], ['ringdex0', 0.08], ['mppot', 0.2]],
 });
 enemy('wraith', {
   name: 'Hollow Wraith', sprite: 'wraith', hp: 450, def: 8, xp: 50, speed: 5.5, size: 1,
   behavior: 'chase', band: 3,
-  shots: { dmg: 24, speed: 10, range: 6, count: 1, spread: 0, rate: 2 },
-  loot: [['armor:2-3', 0.1], ['hppot', 0.1], ['ringall0', 0.01]],
+  shots: { dmg: 18, speed: 11, range: 6, count: 1, spread: 0, rate: 3 }, // machine gun
+  loot: [['armor:2-3', 0.22], ['hppot', 0.2], ['ringall0', 0.03]],
+});
+enemy('golem', {
+  name: 'Granite Golem', sprite: 'golem', hp: 1000, def: 18, xp: 75, speed: 2, size: 1.4,
+  behavior: 'wander', band: 3,
+  shots: { dmg: 40, speed: 6, range: 6.5, count: 5, spread: 1, rate: 0.5 }, // wall of slow rocks
+  loot: [['weapon:2-3', 0.25], ['armor:2-3', 0.25], ['ringdef0', 0.1], ['hppot', 0.2]],
+});
+enemy('skeleton', {
+  name: 'Restless Skeleton', sprite: 'skeleton', hp: 320, def: 6, xp: 35, speed: 4.5, size: 0.9,
+  behavior: 'chase', band: 3,
+  shots: { dmg: 20, speed: 12, range: 6, count: 1, spread: 0, rate: 1.8 },
+  loot: [['weapon:2-3', 0.15], ['mppot', 0.15]],
+});
+enemy('lich', {
+  name: 'Highland Lich', sprite: 'lich', hp: 2000, def: 14, xp: 250, speed: 3, size: 1.5,
+  behavior: 'orbit', band: 3, rare: true, entourage: { type: 'skeleton', count: 4 },
+  shots: { dmg: 36, speed: 10, range: 8, count: 3, spread: 0.5, rate: 1.4, ring: 10, ringRate: 0.3, spiral: true },
+  loot: [['weapon:3-4', 0.5], ['armor:3-4', 0.5], ['statpot', 0.3], ['portal:cursed_keep', 0.18], ['portal:sunken_tomb', 0.12]],
 });
 // --- band 4: mountains / gods
 enemy('flame_titan', {
   name: 'Flame Titan', sprite: 'flame_titan', hp: 2200, def: 18, xp: 180, speed: 3, size: 1.6,
   behavior: 'orbit', band: 4, god: true,
-  shots: { dmg: 45, speed: 11, range: 8, count: 4, spread: 0.8, rate: 1.6, ring: 10, ringRate: 0.2 },
-  loot: [['weapon:3-4', 0.14], ['armor:3-4', 0.14], ['statpot', 0.25], ['portal:infernal_depths', 0.04]],
+  shots: { dmg: 45, speed: 11, range: 8, count: 5, spread: 0.9, rate: 1.6, ring: 10, ringRate: 0.2 },
+  loot: [['weapon:3-4', 0.3], ['armor:3-4', 0.3], ['statpot', 0.5], ['portal:infernal_depths', 0.07], ['legendary', 0.015]],
 });
 enemy('storm_seraph', {
   name: 'Storm Seraph', sprite: 'storm_seraph', hp: 1800, def: 15, xp: 170, speed: 5, size: 1.4,
   behavior: 'orbit', band: 4, god: true,
-  shots: { dmg: 50, speed: 14, range: 9, count: 2, spread: 0.2, rate: 2 },
-  loot: [['weapon:3-4', 0.14], ['ringall0', 0.03], ['statpot', 0.25]],
+  shots: { dmg: 50, speed: 16, range: 9.5, count: 1, spread: 0, rate: 1.4, burst: 3, burstGap: 120 }, // lightning sniper
+  loot: [['weapon:3-4', 0.3], ['ringall0', 0.08], ['statpot', 0.5], ['legendary', 0.015]],
 });
 enemy('void_keeper', {
   name: 'Void Keeper', sprite: 'void_keeper', hp: 2500, def: 20, xp: 200, speed: 2.5, size: 1.6,
   behavior: 'orbit', band: 4, god: true,
-  shots: { dmg: 55, speed: 9, range: 8, count: 1, spread: 0, rate: 1.2, ring: 14, ringRate: 0.35 },
-  loot: [['armor:3-4', 0.14], ['statpot', 0.3], ['portal:infernal_depths', 0.05], ['portal:abyssal_rift', 0.035]],
+  shots: { dmg: 55, speed: 8, range: 8, count: 1, spread: 0, rate: 1, ring: 14, ringRate: 0.35 },
+  loot: [['armor:3-4', 0.3], ['statpot', 0.55], ['portal:infernal_depths', 0.08], ['portal:abyssal_rift', 0.06], ['legendary', 0.02]],
 });
 enemy('ancient_colossus', {
   name: 'Ancient Colossus', sprite: 'colossus', hp: 3000, def: 22, xp: 220, speed: 2, size: 1.8,
   behavior: 'orbit', band: 4, god: true,
   shots: { dmg: 50, speed: 10, range: 9, count: 3, spread: 0.5, rate: 1.4, ring: 12, ringRate: 0.3, spiral: true },
-  loot: [['weapon:3-4', 0.14], ['armor:3-4', 0.14], ['statpot', 0.3], ['portal:sunken_tomb', 0.04]],
+  loot: [['weapon:3-4', 0.3], ['armor:3-4', 0.3], ['statpot', 0.55], ['portal:sunken_tomb', 0.07], ['legendary', 0.02]],
+});
+enemy('demon_prince', {
+  name: 'Demon Prince', sprite: 'demon_prince', hp: 5000, def: 24, xp: 400, speed: 4, size: 1.8,
+  behavior: 'chase', band: 4, god: true, rare: true, entourage: { type: 'imp', count: 3 },
+  shots: { dmg: 55, speed: 12, range: 8.5, count: 3, spread: 0.4, rate: 1.2, burst: 2, ring: 12, ringRate: 0.35, spiral: true },
+  loot: [['weapon:3-4', 0.5], ['armor:3-4', 0.5], ['statpot', 0.8], ['portal:abyssal_rift', 0.12], ['legendary', 0.05]],
 });
 
 // --- dungeon enemies
@@ -262,92 +336,92 @@ enemy('goblin_grunt', {
   name: 'Goblin Grunt', sprite: 'goblin', hp: 90, def: 1, xp: 10, speed: 4.5, size: 0.85,
   behavior: 'chase', band: -1,
   shots: { dmg: 9, speed: 9, range: 5, count: 1, spread: 0, rate: 1.4 },
-  loot: [['hppot', 0.08]],
+  loot: [['hppot', 0.18], ['weapon:0-1', 0.1]],
 });
 enemy('goblin_king', {
   name: 'Goblin King', sprite: 'goblin_king', hp: 1500, def: 8, xp: 150, speed: 3.5, size: 1.8,
   behavior: 'boss', band: -1,
   shots: { dmg: 22, speed: 10, range: 7, count: 5, spread: 1.2, rate: 1.4, ring: 8, ringRate: 0.3 },
-  loot: [['weapon:1-3', 0.8], ['armor:1-3', 0.8], ['pot_def', 0.4], ['pot_spd', 0.3], ['ringhp1', 0.1]],
+  loot: [['weapon:1-3', 1], ['armor:1-3', 1], ['pot_def', 0.6], ['pot_spd', 0.5], ['ringhp1', 0.2], ['legendary', 0.02]],
 });
 enemy('spiderling', {
   name: 'Spiderling', sprite: 'spider', hp: 160, def: 3, xp: 18, speed: 5.5, size: 0.7,
   behavior: 'chase', band: -1,
   shots: { dmg: 13, speed: 11, range: 5, count: 1, spread: 0, rate: 1.6 },
-  loot: [['mppot', 0.08]],
+  loot: [['mppot', 0.18], ['weapon:1-2', 0.1]],
 });
 enemy('brood_mother', {
   name: 'Brood Mother', sprite: 'brood_mother', hp: 3000, def: 12, xp: 280, speed: 3, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'spiderling', max: 4, rate: 0.15 },
   shots: { dmg: 28, speed: 10, range: 7.5, count: 3, spread: 0.7, rate: 1.6, ring: 12, ringRate: 0.25 },
-  loot: [['weapon:2-4', 0.8], ['armor:2-4', 0.8], ['pot_dex', 0.5], ['pot_att', 0.4], ['ringmp1', 0.1]],
+  loot: [['weapon:2-4', 1], ['armor:2-4', 1], ['pot_dex', 0.7], ['pot_att', 0.6], ['ringmp1', 0.2], ['legendary', 0.03]],
 });
 enemy('keep_knight', {
   name: 'Cursed Knight', sprite: 'keep_knight', hp: 500, def: 12, xp: 45, speed: 4, size: 1,
   behavior: 'chase', band: -1,
   shots: { dmg: 26, speed: 10, range: 5.5, count: 2, spread: 0.3, rate: 1.5 },
-  loot: [['hppot', 0.1], ['weapon:2-3', 0.05]],
+  loot: [['hppot', 0.2], ['weapon:2-3', 0.12]],
 });
 enemy('keep_lord', {
   name: 'Lord of the Cursed Keep', sprite: 'keep_lord', hp: 6000, def: 18, xp: 500, speed: 3.5, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'keep_knight', max: 3, rate: 0.1 },
   shots: { dmg: 40, speed: 11, range: 8, count: 5, spread: 1, rate: 1.8, ring: 16, ringRate: 0.3 },
-  loot: [['weapon:3-4', 0.9], ['armor:3-4', 0.9], ['pot_vit', 0.6], ['pot_wis', 0.6], ['statpot', 0.8], ['ringall0', 0.15]],
+  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_vit', 0.8], ['pot_wis', 0.8], ['statpot', 1], ['ringall0', 0.25], ['legendary', 0.05]],
 });
 enemy('imp', {
   name: 'Infernal Imp', sprite: 'imp', hp: 700, def: 14, xp: 70, speed: 5.5, size: 0.9,
   behavior: 'chase', band: -1,
   shots: { dmg: 35, speed: 12, range: 6, count: 1, spread: 0, rate: 2 },
-  loot: [['mppot', 0.1], ['hppot', 0.1]],
+  loot: [['mppot', 0.2], ['hppot', 0.2], ['weapon:3-4', 0.08]],
 });
 enemy('inferno_lord', {
   name: 'Lord of the Inferno', sprite: 'inferno_lord', hp: 14000, def: 25, xp: 1500, speed: 4, size: 2.4,
   behavior: 'boss', band: -1, spawns: { type: 'imp', max: 4, rate: 0.12 },
   shots: { dmg: 60, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 20, ringRate: 0.4 },
-  loot: [['weapon:4-5', 0.9], ['armor:4-5', 0.9], ['pot_life', 0.5], ['pot_mana', 0.5], ['statpot', 1], ['ringall0', 0.3]],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.7], ['pot_mana', 0.7], ['statpot', 1], ['ringall0', 0.4], ['legendary', 0.08]],
 });
 
 enemy('mummy', {
   name: 'Restless Mummy', sprite: 'mummy', hp: 600, def: 10, xp: 55, speed: 3.5, size: 1,
   behavior: 'chase', band: -1,
   shots: { dmg: 28, speed: 9, range: 5.5, count: 2, spread: 0.4, rate: 1.3 },
-  loot: [['hppot', 0.1]],
+  loot: [['hppot', 0.2], ['armor:2-3', 0.1]],
 });
 enemy('tomb_sentinel', {
   name: 'Tomb Sentinel', sprite: 'gargoyle', hp: 800, def: 16, xp: 75, speed: 4, size: 1.1,
   behavior: 'orbit', band: -1,
   shots: { dmg: 32, speed: 11, range: 7, count: 1, spread: 0, rate: 1.8 },
-  loot: [['mppot', 0.1]],
+  loot: [['mppot', 0.2], ['weapon:2-3', 0.1]],
 });
 enemy('pharaoh', {
   name: 'Pharaoh of the Sands', sprite: 'pharaoh', hp: 9000, def: 20, xp: 800, speed: 3.5, size: 2.1,
   behavior: 'boss', band: -1, spawns: { type: 'mummy', max: 3, rate: 0.1 },
   shots: { dmg: 45, speed: 11, range: 8.5, count: 5, spread: 1.1, rate: 1.8, ring: 14, ringRate: 0.35, spiral: true },
-  loot: [['weapon:3-4', 0.9], ['armor:3-4', 0.9], ['pot_life', 0.35], ['statpot', 0.9], ['ringhp1', 0.15]],
+  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_life', 0.5], ['statpot', 1], ['ringhp1', 0.25], ['legendary', 0.06]],
 });
 enemy('void_spawn', {
   name: 'Void Spawn', sprite: 'void_spawn', hp: 900, def: 16, xp: 90, speed: 5, size: 0.9,
   behavior: 'chase', band: -1,
   shots: { dmg: 38, speed: 12, range: 6, count: 1, spread: 0, rate: 2 },
-  loot: [['mppot', 0.1], ['hppot', 0.1]],
+  loot: [['mppot', 0.2], ['hppot', 0.2], ['armor:3-4', 0.08]],
 });
 enemy('royal_guard', {
   name: 'Royal Guard', sprite: 'keep_knight', hp: 1200, def: 18, xp: 110, speed: 4.5, size: 1.1,
   behavior: 'chase', band: -1,
   shots: { dmg: 40, speed: 11, range: 6, count: 2, spread: 0.3, rate: 1.8 },
-  loot: [['hppot', 0.12], ['mppot', 0.12]],
+  loot: [['hppot', 0.25], ['mppot', 0.25], ['weapon:3-4', 0.1]],
 });
 enemy('mad_king', {
   name: 'O Rei Demente', sprite: 'mad_king', hp: 30000, def: 30, xp: 4000, speed: 4, size: 2.6,
   behavior: 'boss', band: -1, spawns: { type: 'royal_guard', max: 5, rate: 0.15 },
   shots: { dmg: 70, speed: 13, range: 10, count: 9, spread: 1.6, rate: 2.2, ring: 26, ringRate: 0.45, spiral: true },
-  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.8], ['pot_mana', 0.8], ['statpot', 1], ['ringking', 0.4], ['ringall0', 0.5]],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.8], ['pot_mana', 0.8], ['statpot', 1], ['ringking', 0.4], ['ringall0', 0.5], ['legendary', 0.25]],
 });
 enemy('abyss_horror', {
   name: 'Horror of the Abyss', sprite: 'abyss_horror', hp: 18000, def: 28, xp: 2000, speed: 3.5, size: 2.4,
   behavior: 'boss', band: -1, spawns: { type: 'void_spawn', max: 4, rate: 0.12 },
   shots: { dmg: 65, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 22, ringRate: 0.4, spiral: true },
-  loot: [['weapon:4-5', 0.9], ['armor:4-5', 0.9], ['pot_life', 0.6], ['pot_mana', 0.6], ['statpot', 1], ['ringall0', 0.35]],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.8], ['pot_mana', 0.8], ['statpot', 1], ['ringall0', 0.5], ['legendary', 0.12]],
 });
 
 // ---------------------------------------------------------------- dungeons
@@ -385,4 +459,4 @@ const DUNGEONS = {
 
 const STAT_POTS = ['pot_att', 'pot_def', 'pot_spd', 'pot_dex', 'pot_vit', 'pot_wis'];
 
-module.exports = { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS };
+module.exports = { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES };

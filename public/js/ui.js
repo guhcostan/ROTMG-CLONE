@@ -226,11 +226,21 @@ const UI = (() => {
   }
 
   // ---------------- tooltip
+  function rarity(tier) {
+    if (tier >= 6) return ['Lendario', '#ffffff'];
+    if (tier >= 4) return ['Epico', '#f0a040'];
+    if (tier >= 2) return ['Raro', '#a860d8'];
+    if (tier >= 1) return ['Incomum', '#48b048'];
+    return ['Comum', '#aaaaaa'];
+  }
+
   function showTooltip(e, itemId) {
     const tip = $('tooltip');
     if (!itemId || !ITEMS[itemId]) { tip.classList.add('hidden'); return; }
     const it = ITEMS[itemId];
-    let html = `<div class="tname">${it.name}${it.tier > 0 ? ' (T' + it.tier + ')' : ''}</div>`;
+    const [rname, rcolor] = rarity(it.tier);
+    let html = `<div class="tname" style="color:${rcolor}">${it.name}${it.tier > 0 && it.tier < 6 ? ' (T' + it.tier + ')' : ''}</div>`;
+    html += `<div style="color:${rcolor};font-size:10px">${rname}</div>`;
     if (it.proj) html += `Dano: ${it.proj.dmg[0]}-${it.proj.dmg[1]}<br>Alcance: ${it.proj.range}<br>${it.proj.count > 1 ? 'Tiros: ' + it.proj.count + '<br>' : ''}${it.proj.pierce ? 'Perfurante<br>' : ''}`;
     if (it.def) html += `Defesa: +${it.def}<br>`;
     if (it.mpCost) html += `Custo: ${it.mpCost} MP<br>`;

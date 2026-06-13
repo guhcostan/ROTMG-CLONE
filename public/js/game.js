@@ -273,7 +273,7 @@ const GameClient = (() => {
     for (const ent of ordered) {
       const px = ent.x * TILE, py = ent.y * TILE;
       if (ent.kind === 'b') {
-        const name = ent.tier >= 4 ? 'bag_gold' : (ent.tier >= 2 ? 'bag_purple' : 'bag_brown');
+        const name = ent.tier >= 6 ? 'bag_white' : (ent.tier >= 4 ? 'bag_gold' : (ent.tier >= 2 ? 'bag_purple' : 'bag_brown'));
         drawSprite(name, px, py, TILE * 0.8);
       } else if (ent.kind === 'o') {
         const isVault = ent.pkind === 'vault';
@@ -354,7 +354,7 @@ const GameClient = (() => {
   }
 
   function spriteScale(type) {
-    const big = { goblin_king: 1.7, brood_mother: 1.9, keep_lord: 1.9, inferno_lord: 2.2, flame_titan: 1.5, void_keeper: 1.5, storm_seraph: 1.4, ogre: 1.3, treant: 1.25, colossus: 1.7, pharaoh: 2, abyss_horror: 2.3, mad_king: 2.5 };
+    const big = { goblin_king: 1.7, brood_mother: 1.9, keep_lord: 1.9, inferno_lord: 2.2, flame_titan: 1.5, void_keeper: 1.5, storm_seraph: 1.4, ogre: 1.3, treant: 1.25, colossus: 1.7, pharaoh: 2, abyss_horror: 2.3, mad_king: 2.5, bandit_lord: 1.4, wolf_alpha: 1.4, witch: 1.35, lich: 1.5, golem: 1.35, demon_prince: 1.8, tide_caller: 1.1 };
     return big[type] || 0.95;
   }
 

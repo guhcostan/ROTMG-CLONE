@@ -1,7 +1,7 @@
 'use strict';
 // Authoritative game simulation: instances (nexus / realm / dungeons),
 // enemy AI and bullet patterns, combat, XP/levels, loot and permadeath.
-const { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS } = require('./data');
+const { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES } = require('./data');
 const { T, generateNexus, generateRealm, generateDungeon, bandAt } = require('./world');
 const { buryCharacter } = require('./auth');
 const { save } = require('./db');
@@ -23,6 +23,8 @@ function rollLoot(lootTable, rng) {
     if (Math.random() >= chance) continue;
     if (spec === 'statpot') {
       items.push(STAT_POTS[Math.floor(Math.random() * STAT_POTS.length)]);
+    } else if (spec === 'legendary') {
+      items.push(LEGENDARIES[Math.floor(Math.random() * LEGENDARIES.length)]);
     } else if (spec.startsWith('weapon:') || spec.startsWith('armor:')) {
       const [group, range] = spec.split(':');
       const [lo, hi] = range.split('-').map(Number);
@@ -140,11 +142,40 @@ class Game {
   addInstance(inst) { this.instances.set(inst.id, inst); return inst; }
 
   // ------------------------------------------------ realm population
-  populateRealm() {
-    const m = this.realm.map;
-    const counts = [60, 90, 90, 70, 26]; // enemies per band
+  bandTypes() {
     const byBand = [[], [], [], [], []];
     for (const e of Object.values(ENEMIES)) if (e.band >= 0) byBand[e.band].push(e.id);
+    return byBand;
+  }
+
+  // mini-bosses (rare: true) show up much less often than common mobs
+  randomBandType(byBand, band) {
+    let type = byBand[band][Math.floor(Math.random() * byBand[band].length)];
+    if (ENEMIES[type].rare && Math.random() < 0.78) {
+      type = byBand[band][Math.floor(Math.random() * byBand[band].length)];
+    }
+    return type;
+  }
+
+  // spawns the enemy plus its escort pack (entourage follows the leader)
+  spawnEnemy(inst, type, x, y) {
+    const e = new Enemy(type, x, y);
+    inst.enemies.set(e.id, e);
+    const ent = e.def.entourage;
+    if (ent) {
+      for (let i = 0; i < ent.count; i++) {
+        const m = new Enemy(ent.type, x + (Math.random() - 0.5) * 3, y + (Math.random() - 0.5) * 3);
+        m.parentId = e.id;
+        inst.enemies.set(m.id, m);
+      }
+    }
+    return e;
+  }
+
+  populateRealm() {
+    const m = this.realm.map;
+    const counts = [90, 140, 140, 110, 40]; // enemies per band
+    const byBand = this.bandTypes();
     for (let band = 0; band < 5; band++) {
       let placed = 0, tries = 0;
       while (placed < counts[band] && tries++ < counts[band] * 60) {
@@ -154,9 +185,7 @@ class Game {
         const y = m.center.y + Math.sin(a) * m.maxR * Math.max(0.02, fr);
         if (m.blocks(x, y) || m.get(x, y) === T.WATER || m.get(x, y) === T.LAVA) continue;
         if (bandAt(Math.hypot(x - m.center.x, y - m.center.y), m.maxR) !== band) continue;
-        const type = byBand[band][Math.floor(Math.random() * byBand[band].length)];
-        const e = new Enemy(type, x, y);
-        this.realm.enemies.set(e.id, e);
+        this.spawnEnemy(this.realm, this.randomBandType(byBand, band), x, y);
         placed++;
       }
     }
@@ -164,11 +193,10 @@ class Game {
 
   // keep realm population topped up
   respawnRealm() {
-    if (this.realm.enemies.size > 250) return;
+    if (this.realm.enemies.size > 450) return;
     const m = this.realm.map;
-    const byBand = [[], [], [], [], []];
-    for (const e of Object.values(ENEMIES)) if (e.band >= 0) byBand[e.band].push(e.id);
-    for (let i = 0; i < 4; i++) {
+    const byBand = this.bandTypes();
+    for (let i = 0; i < 10; i++) {
       const band = Math.floor(Math.random() * 5);
       const a = Math.random() * Math.PI * 2;
       const fr = [0.94, 0.75, 0.5, 0.27, 0.08][band];
@@ -179,9 +207,7 @@ class Game {
       let near = false;
       for (const p of this.realm.players.values()) if (dist2(p.x, p.y, x, y) < 144) { near = true; break; }
       if (near) continue;
-      const type = byBand[band][Math.floor(Math.random() * byBand[band].length)];
-      const e = new Enemy(type, x, y);
-      this.realm.enemies.set(e.id, e);
+      this.spawnEnemy(this.realm, this.randomBandType(byBand, band), x, y);
     }
   }
 
@@ -861,8 +887,15 @@ class Game {
         mx = Math.cos(a) * speed * 0.4; my = Math.sin(a) * speed * 0.4;
       }
     } else {
-      if (now > e.wanderUntil) { e.angle = Math.random() * Math.PI * 2; e.wanderUntil = now + 1000 + Math.random() * 2000; }
-      mx = Math.cos(e.angle) * speed * 0.5; my = Math.sin(e.angle) * speed * 0.5;
+      // escorts stick close to their leader; everyone else wanders
+      const leader = e.parentId && inst.enemies.get(e.parentId);
+      if (leader && dist2(e.x, e.y, leader.x, leader.y) > 9) {
+        const a = Math.atan2(leader.y - e.y, leader.x - e.x);
+        mx = Math.cos(a) * speed * 0.9; my = Math.sin(a) * speed * 0.9;
+      } else {
+        if (now > e.wanderUntil) { e.angle = Math.random() * Math.PI * 2; e.wanderUntil = now + 1000 + Math.random() * 2000; }
+        mx = Math.cos(e.angle) * speed * 0.5; my = Math.sin(e.angle) * speed * 0.5;
+      }
     }
     // leash dungeons enemies to their room area
     if (e.leash && dist2(e.x + mx, e.y + my, e.spawnX, e.spawnY) > e.leash * e.leash) { mx = -mx; my = -my; }
@@ -877,10 +910,15 @@ class Game {
       e.nextMelee = now + 1000 / d.melee.rate;
       this.damagePlayer(target, d.melee.dmg, d.name);
     }
-    // shooting
+    // shooting (burst: several quick volleys, then the full cooldown)
     if (d.shots && now > e.nextShot && bestD2 < (d.shots.range * 1.1) ** 2) {
-      e.nextShot = now + 1000 / d.shots.rate;
       const s = d.shots;
+      if (s.burst) {
+        e.burstLeft = (e.burstLeft || 0) > 0 ? e.burstLeft - 1 : s.burst - 1;
+        e.nextShot = now + (e.burstLeft > 0 ? (s.burstGap || 110) : 1000 / s.rate);
+      } else {
+        e.nextShot = now + 1000 / s.rate;
+      }
       const base = Math.atan2(target.y - e.y, target.x - e.x);
       const angles = [];
       for (let i = 0; i < s.count; i++) {
