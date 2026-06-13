@@ -102,6 +102,16 @@ h3 { margin: 18px 0 8px; color: #f0c040; font-size: 14px; }
 }
 #tooltip .tname { color: #f0c040; font-size: 12px; }
 
+#trade-overlay {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 90; pointer-events: auto;
+}
+.trade-panel { width: 320px; padding: 18px; }
+.trade-panel h3 { margin: 0 0 4px; }
+.trade-slots { grid-template-columns: repeat(8, 1fr); }
+.slot.offered { border-color: #50ff50; background: #10241a; }
+#trade-status { font-size: 11px; color: #50ff50; margin: 8px 0; min-height: 14px; }
+
 #death-overlay {
   position: absolute; inset: 0; background: rgba(0,0,0,.85);
   display: flex; align-items: center; justify-content: center; z-index: 100;

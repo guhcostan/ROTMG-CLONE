@@ -9,6 +9,7 @@ const UI = (() => {
   const EQUIP_LABELS = ['Arma', 'Habilid.', 'Armadura', 'Anel'];
   let slotEls = [];   // 12 slots: 0-3 equip, 4-11 inventory
   let bagEls = [];
+  let vaultEls = [];  // 16 vault slots (server indexes 12-27)
   let currentBagId = null;
   let dragFrom = null;
 
@@ -18,9 +19,9 @@ const UI = (() => {
   }
 
   function buildSlots() {
-    const eq = $('equip-slots'), inv = $('inv-slots'), bag = $('bag-slots');
-    eq.innerHTML = ''; inv.innerHTML = ''; bag.innerHTML = '';
-    slotEls = []; bagEls = [];
+    const eq = $('equip-slots'), inv = $('inv-slots'), bag = $('bag-slots'), vault = $('vault-slots');
+    eq.innerHTML = ''; inv.innerHTML = ''; bag.innerHTML = ''; vault.innerHTML = '';
+    slotEls = []; bagEls = []; vaultEls = [];
     for (let i = 0; i < 12; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
@@ -34,7 +35,8 @@ const UI = (() => {
         e.preventDefault(); el.classList.remove('drag-over');
         if (!dragFrom) return;
         if (dragFrom.type === 'slot' && dragFrom.i !== i) Net.send({ t: 'invswap', from: dragFrom.i, to: i });
-        if (dragFrom.type === 'bag') Net.send({ t: 'pickup', bag: currentBagId, idx: dragFrom.i });
+        if (dragFrom.type === 'bag') { Net.send({ t: 'pickup', bag: currentBagId, idx: dragFrom.i }); Sfx.pickup(); }
+        if (dragFrom.type === 'vault') Net.send({ t: 'vaultswap', from: 12 + dragFrom.i, to: i });
         dragFrom = null;
       });
       el.addEventListener('dblclick', () => useOrEquip(i));
@@ -49,16 +51,69 @@ const UI = (() => {
       el.className = 'slot';
       el.draggable = true;
       el.addEventListener('dragstart', () => { dragFrom = { type: 'bag', i }; });
-      el.addEventListener('dblclick', () => Net.send({ t: 'pickup', bag: currentBagId, idx: i }));
+      el.addEventListener('dblclick', () => { Net.send({ t: 'pickup', bag: currentBagId, idx: i }); Sfx.pickup(); });
       el.addEventListener('mousemove', e => showTooltip(e, currentBagItems && currentBagItems[i]));
       el.addEventListener('mouseleave', hideTooltip);
       bag.appendChild(el);
       bagEls.push(el);
     }
+    const tm = $('trade-mine'), tt = $('trade-theirs');
+    tm.innerHTML = ''; tt.innerHTML = '';
+    tradeMineEls = []; tradeTheirEls = [];
+    for (let i = 0; i < 8; i++) {
+      const el = document.createElement('div');
+      el.className = 'slot';
+      el.addEventListener('click', () => {
+        if (!lastTrade) return;
+        const mine = lastTrade.mine.slice();
+        mine[i] = !mine[i];
+        Net.send({ t: 'tradeoffer', slots: mine });
+      });
+      el.addEventListener('mousemove', e => showTooltip(e, currentSelf && currentSelf.inv[i]));
+      el.addEventListener('mouseleave', hideTooltip);
+      tm.appendChild(el);
+      tradeMineEls.push(el);
+      const el2 = document.createElement('div');
+      el2.className = 'slot';
+      el2.addEventListener('mousemove', e => showTooltip(e, lastTrade && lastTrade.theirs[i]));
+      el2.addEventListener('mouseleave', hideTooltip);
+      tt.appendChild(el2);
+      tradeTheirEls.push(el2);
+    }
+    $('btn-trade-ok').onclick = () => Net.send({ t: 'tradeconfirm' });
+    $('btn-trade-cancel').onclick = () => Net.send({ t: 'tradecancel' });
+    for (let i = 0; i < 16; i++) {
+      const el = document.createElement('div');
+      el.className = 'slot';
+      el.draggable = true;
+      el.addEventListener('dragstart', () => { dragFrom = { type: 'vault', i }; });
+      el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', e => {
+        e.preventDefault(); el.classList.remove('drag-over');
+        if (!dragFrom) return;
+        if (dragFrom.type === 'slot') Net.send({ t: 'vaultswap', from: dragFrom.i, to: 12 + i });
+        if (dragFrom.type === 'vault' && dragFrom.i !== i) Net.send({ t: 'vaultswap', from: 12 + dragFrom.i, to: 12 + i });
+        dragFrom = null;
+      });
+      el.addEventListener('dblclick', () => {
+        // move to first free inventory slot
+        if (!currentSelf || !currentVault || !currentVault[i]) return;
+        const free = currentSelf.inv.indexOf(null);
+        if (free !== -1) Net.send({ t: 'vaultswap', from: 12 + i, to: free + 4 });
+      });
+      el.addEventListener('mousemove', e => showTooltip(e, currentVault && currentVault[i]));
+      el.addEventListener('mouseleave', hideTooltip);
+      vault.appendChild(el);
+      vaultEls.push(el);
+    }
   }
 
   let currentSelf = null;
   let currentBagItems = null;
+  let currentVault = null;
+  let tradeMineEls = [], tradeTheirEls = [];
+  let lastTrade = null;
 
   function getSlotItem(i) {
     if (!currentSelf) return null;
@@ -139,6 +194,37 @@ const UI = (() => {
     for (let i = 0; i < 8; i++) renderSlot(bagEls[i], bag.items[i]);
   }
 
+  function showVault(vault) {
+    if (!vault) {
+      currentVault = null;
+      $('vault-label').style.display = 'none';
+      $('vault-slots').style.display = 'none';
+      return;
+    }
+    currentVault = vault;
+    $('vault-label').style.display = '';
+    $('vault-slots').style.display = '';
+    for (let i = 0; i < 16; i++) renderSlot(vaultEls[i], vault[i]);
+  }
+
+  function showTrade(msg) {
+    lastTrade = msg;
+    $('trade-overlay').classList.remove('hidden');
+    $('trade-title').textContent = 'Troca com ' + msg.partner;
+    for (let i = 0; i < 8; i++) {
+      renderSlot(tradeMineEls[i], currentSelf ? currentSelf.inv[i] : null);
+      tradeMineEls[i].classList.toggle('offered', !!msg.mine[i]);
+      renderSlot(tradeTheirEls[i], msg.theirs[i]);
+    }
+    $('trade-status').textContent =
+      (msg.ok ? 'Voce confirmou. ' : '') + (msg.theirOk ? `${msg.partner} confirmou.` : '');
+  }
+
+  function hideTrade() {
+    lastTrade = null;
+    $('trade-overlay').classList.add('hidden');
+  }
+
   // ---------------- tooltip
   function showTooltip(e, itemId) {
     const tip = $('tooltip');
@@ -188,5 +274,5 @@ const UI = (() => {
 
   function setName(text) { $('hud-name').textContent = text; }
 
-  return { init, update, showBag, chat, notice, setName, get items() { return ITEMS; } };
+  return { init, update, showBag, showVault, showTrade, hideTrade, chat, notice, setName, get items() { return ITEMS; } };
 })();

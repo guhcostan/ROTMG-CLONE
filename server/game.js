@@ -128,6 +128,10 @@ class Game {
     this.nexus = this.addInstance(new Instance('nexus', 'Nexus', generateNexus()));
     this.realmSeed = (Math.random() * 1e9) | 0;
     this.realm = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(this.realmSeed)));
+    const vs = this.nexus.map.vaultSpot;
+    this.spawnPortal(this.nexus, vs.x, vs.y, 'vault', 'Cofre', null, 1e15);
+    this.godKills = 0;
+    this.godKillTarget = 25; // gods slain before the realm closes
     this.populateRealm();
     setInterval(() => this.tick(), TICK);
     setInterval(() => this.autosave(), 30000);
@@ -191,6 +195,7 @@ class Game {
       lastShot: 0, lastAbility: 0,
       lastHit: 0, lastMoveAt: Date.now(),
       berserkUntil: 0, invisUntil: 0,
+      trade: null, tradeInviteTo: 0,
       dead: false,
     };
     this.players.set(player.id, player);
@@ -199,6 +204,7 @@ class Game {
   }
 
   enterInstance(player, inst, spot) {
+    if (player.trade) this.cancelTrade(player.trade);
     if (player.instance) player.instance.players.delete(player.id);
     player.instance = inst;
     inst.players.set(player.id, player);
@@ -217,6 +223,7 @@ class Game {
   }
 
   leavePlayer(player) {
+    if (player.trade) this.cancelTrade(player.trade);
     if (player.instance) player.instance.players.delete(player.id);
     this.players.delete(player.id);
     if (!player.dead) save();
@@ -243,6 +250,10 @@ class Game {
       case 'chat': this.onChat(player, msg); break;
       case 'pickup': this.onPickup(player, msg); break;
       case 'invswap': this.onInvSwap(player, msg); break;
+      case 'vaultswap': this.onVaultSwap(player, msg); break;
+      case 'tradeoffer': this.onTradeOffer(player, msg); break;
+      case 'tradeconfirm': this.onTradeConfirm(player); break;
+      case 'tradecancel': if (player.trade) this.cancelTrade(player.trade); break;
       case 'useitem': this.onUseItem(player, msg); break;
       case 'dropitem': this.onDropItem(player, msg); break;
       case 'portal': this.onPortal(player); break;
@@ -263,6 +274,11 @@ class Game {
     if (d > maxD) return; // reject teleport-like moves
     if (inst.tileBlocked(x, y)) return;
     player.x = x; player.y = y;
+    if (player.trade) {
+      const s = player.trade;
+      const other = s.a === player ? s.b : s.a;
+      if (dist2(player.x, player.y, other.x, other.y) > 81) this.cancelTrade(s, 'Troca cancelada: muito longe');
+    }
   }
 
   onShoot(player, msg) {
@@ -367,6 +383,10 @@ class Game {
     const text = String(msg.text || '').slice(0, 200).trim();
     if (!text) return;
     if (text === '/nexus') return this.toNexus(player);
+    if (text.startsWith('/trade ')) return this.requestTrade(player, text.slice(7).trim());
+    if (text === '/help') {
+      return send(player.ws, { t: 'chat', from: '', text: 'Comandos: /nexus volta ao Nexus, /who lista jogadores, /trade nome troca itens, /help', sys: 1 });
+    }
     if (text === '/who') {
       const names = [...player.instance.players.values()].map(p => p.name).join(', ');
       return send(player.ws, { t: 'chat', from: '', text: `Online aqui: ${names}`, sys: 1 });
@@ -412,6 +432,122 @@ class Game {
     this.setSlot(player, from, b);
     this.setSlot(player, to, a);
     player.char.hp = Math.min(player.char.hp, effectiveMaxHp(player));
+  }
+
+  // ------------------------------------------------ trade
+  requestTrade(player, name) {
+    const inst = player.instance;
+    if (inst.kind !== 'nexus') return send(player.ws, { t: 'notice', text: 'Trocas apenas no Nexus' });
+    const target = [...inst.players.values()].find(p => p !== player && p.name.toLowerCase() === name.toLowerCase());
+    if (!target) return send(player.ws, { t: 'notice', text: 'Jogador nao encontrado no Nexus' });
+    if (player.trade || target.trade) return send(player.ws, { t: 'notice', text: 'Jogador ocupado em outra troca' });
+    if (dist2(player.x, player.y, target.x, target.y) > 64) return send(player.ws, { t: 'notice', text: 'Aproxime-se do jogador para trocar' });
+    if (target.tradeInviteTo === player.id) {
+      target.tradeInviteTo = 0;
+      player.tradeInviteTo = 0;
+      return this.openTrade(player, target);
+    }
+    player.tradeInviteTo = target.id;
+    send(player.ws, { t: 'notice', text: `Convite de troca enviado para ${target.name}` });
+    send(target.ws, { t: 'chat', from: '', text: `${player.name} quer trocar. Digite /trade ${player.name} para aceitar.`, sys: 1 });
+  }
+
+  openTrade(a, b) {
+    const s = {
+      a, b,
+      offer: new Map([[a.id, new Array(8).fill(false)], [b.id, new Array(8).fill(false)]]),
+      ok: new Map([[a.id, false], [b.id, false]]),
+    };
+    a.trade = s; b.trade = s;
+    this.sendTrade(s);
+  }
+
+  sendTrade(s) {
+    for (const [me, them] of [[s.a, s.b], [s.b, s.a]]) {
+      send(me.ws, {
+        t: 'trade', partner: them.name,
+        mine: s.offer.get(me.id),
+        theirs: them.char.inventory.map((it, i) => (s.offer.get(them.id)[i] ? it : null)),
+        ok: s.ok.get(me.id), theirOk: s.ok.get(them.id),
+      });
+    }
+  }
+
+  onTradeOffer(player, msg) {
+    const s = player.trade;
+    if (!s || !Array.isArray(msg.slots)) return;
+    s.offer.set(player.id, player.char.inventory.map((it, i) => !!(it && msg.slots[i])));
+    s.ok.set(s.a.id, false); // any change resets both confirmations
+    s.ok.set(s.b.id, false);
+    this.sendTrade(s);
+  }
+
+  onTradeConfirm(player) {
+    const s = player.trade;
+    if (!s) return;
+    s.ok.set(player.id, true);
+    if (s.ok.get(s.a.id) && s.ok.get(s.b.id)) return this.executeTrade(s);
+    this.sendTrade(s);
+  }
+
+  executeTrade(s) {
+    const { a, b } = s;
+    const offA = s.offer.get(a.id), offB = s.offer.get(b.id);
+    const giveA = a.char.inventory.filter((it, i) => it && offA[i]);
+    const giveB = b.char.inventory.filter((it, i) => it && offB[i]);
+    const newA = a.char.inventory.map((it, i) => (offA[i] ? null : it));
+    const newB = b.char.inventory.map((it, i) => (offB[i] ? null : it));
+    if (newA.filter(x => !x).length < giveB.length || newB.filter(x => !x).length < giveA.length) {
+      return this.cancelTrade(s, 'Troca cancelada: inventario sem espaco');
+    }
+    for (const it of giveB) newA[newA.indexOf(null)] = it;
+    for (const it of giveA) newB[newB.indexOf(null)] = it;
+    a.char.inventory = newA;
+    b.char.inventory = newB;
+    a.trade = null; b.trade = null;
+    for (const p of [a, b]) {
+      send(p.ws, { t: 'tradeend', done: 1 });
+      send(p.ws, { t: 'notice', text: 'Troca concluida!' });
+    }
+    save();
+  }
+
+  cancelTrade(s, reason) {
+    s.a.trade = null; s.b.trade = null;
+    for (const p of [s.a, s.b]) {
+      send(p.ws, { t: 'tradeend', done: 0 });
+      send(p.ws, { t: 'notice', text: reason || 'Troca cancelada' });
+    }
+  }
+
+  // vault: account-wide storage, only usable near the nexus chest
+  nearVault(player) {
+    const inst = player.instance;
+    if (inst.kind !== 'nexus' || !inst.map.vaultSpot) return false;
+    const vs = inst.map.vaultSpot;
+    return dist2(vs.x, vs.y, player.x, player.y) < 9;
+  }
+
+  vaultOf(acc) {
+    if (!acc.vault) acc.vault = new Array(16).fill(null);
+    return acc.vault;
+  }
+
+  // indexes: 0-3 equipment, 4-11 inventory, 12-27 vault
+  onVaultSwap(player, msg) {
+    if (!this.nearVault(player)) return;
+    const vault = this.vaultOf(player.acc);
+    const from = msg.from | 0, to = msg.to | 0;
+    if (from < 0 || from > 27 || to < 0 || to > 27 || from === to) return;
+    const get = i => i < 12 ? this.getSlot(player, i) : vault[i - 12];
+    const set = (i, v) => { if (i < 12) this.setSlot(player, i, v); else vault[i - 12] = v; };
+    const a = get(from), b = get(to);
+    if (to < 4 && !this.canEquip(player, to, a)) return;
+    if (from < 4 && !this.canEquip(player, from, b)) return;
+    set(from, b);
+    set(to, a);
+    player.char.hp = Math.min(player.char.hp, effectiveMaxHp(player));
+    save();
   }
 
   onUseItem(player, msg) {
@@ -489,6 +625,22 @@ class Game {
     return inst;
   }
 
+  // realm closes: everyone inside is summoned to the final castle and a
+  // brand-new realm is generated
+  closeRealm() {
+    const old = this.realm;
+    const castle = this.createDungeon('mad_castle', DUNGEONS.mad_castle);
+    for (const p of this.players.values()) {
+      send(p.ws, { t: 'chat', from: '', text: 'O Reino caiu! O Rei Demente convoca os herois ao seu castelo!', sys: 1 });
+    }
+    for (const p of [...old.players.values()]) this.enterInstance(p, castle);
+    this.realmSeed = (Math.random() * 1e9) | 0;
+    this.realm = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(this.realmSeed)));
+    this.godKills = 0;
+    this.populateRealm();
+    this.instances.delete(old.id);
+  }
+
   // ------------------------------------------------ combat helpers
   damageEnemy(inst, enemy, rawDmg, player) {
     const dmg = applyDefense(rawDmg, enemy.def.def);
@@ -517,6 +669,15 @@ class Game {
       } else bagItems.push(d);
     }
     if (bagItems.length) this.spawnBag(inst, enemy.x, enemy.y, bagItems);
+    // realm cycle: enough gods slain -> the realm closes into the final castle
+    if (inst === this.realm && enemy.def.god) {
+      this.godKills++;
+      const left = this.godKillTarget - this.godKills;
+      if (left > 0 && left % 5 === 0) {
+        inst.broadcast({ t: 'chat', from: '', text: `Os deuses enfraquecem: restam ${left} para o Reino cair!`, sys: 1 });
+      }
+      if (left <= 0) this.closeRealm();
+    }
     // dungeon completion: boss dies -> open a portal back + announce
     if (inst.kind === 'dungeon' && enemy.id === inst.bossId) {
       inst.bossDead = true;
@@ -563,6 +724,7 @@ class Game {
   }
 
   killPlayer(player, killedBy) {
+    if (player.trade) this.cancelTrade(player.trade);
     player.dead = true;
     const ch = player.char;
     const inst = player.instance;
@@ -661,7 +823,7 @@ class Game {
     for (const [id, bag] of inst.bags) if (now > bag.expires) inst.bags.delete(id);
     for (const [id, portal] of inst.portals) if (now > portal.expires) inst.portals.delete(id);
     // nexus always has a realm portal
-    if (inst.kind === 'nexus' && inst.portals.size === 0) {
+    if (inst.kind === 'nexus' && ![...inst.portals.values()].some(o => o.kind === 'realm')) {
       this.spawnPortal(inst, inst.map.portalSpot.x, inst.map.portalSpot.y, 'realm', 'Portal do Reino', null, 1e15);
     }
 
@@ -729,13 +891,14 @@ class Game {
       }
       inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed, rg: s.range, k: 'enemy', f: 0, o: e.id }, e.x, e.y);
     }
-    // ring attacks
+    // ring attacks (spiral rings rotate a bit each volley)
     if (d.shots && d.shots.ring && now > e.nextRing) {
       e.nextRing = now + 1000 / d.shots.ringRate;
       const s = d.shots;
+      const base = s.spiral ? (e.spiralA = (e.spiralA || 0) + 0.37) : 0;
       const angles = [];
       for (let i = 0; i < s.ring; i++) {
-        const a = (i / s.ring) * Math.PI * 2;
+        const a = base + (i / s.ring) * Math.PI * 2;
         angles.push(Math.round(a * 1000) / 1000);
         inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed * 0.8, left: s.range, dmg: Math.round(s.dmg * 0.8), src: d.name });
       }
@@ -769,7 +932,7 @@ class Game {
       }
       for (const e of inst.enemies.values()) {
         if (dist2(e.x, e.y, p.x, p.y) > r2) continue;
-        ents.push(['e', e.id, e.type, round1(e.x), round1(e.y), Math.round(e.hp), e.maxHp]);
+        ents.push(['e', e.id, e.def.sprite || e.type, round1(e.x), round1(e.y), Math.round(e.hp), e.maxHp]);
       }
       for (const b of inst.bags.values()) {
         if (dist2(b.x, b.y, p.x, p.y) > r2) continue;
@@ -780,16 +943,14 @@ class Game {
         ents.push(['o', o.id, o.kind, round1(o.x), round1(o.y), o.name]);
       }
       const ch = p.char;
-      send(p.ws, {
-        t: 'tick',
-        e: ents,
-        self: {
-          hp: Math.round(ch.hp), maxHp: effectiveMaxHp(p),
-          mp: Math.round(ch.mp), maxMp: effectiveMaxMp(p),
-          xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame,
-          stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
-        },
-      });
+      const self = {
+        hp: Math.round(ch.hp), maxHp: effectiveMaxHp(p),
+        mp: Math.round(ch.mp), maxMp: effectiveMaxMp(p),
+        xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame,
+        stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
+      };
+      if (this.nearVault(p)) self.vault = this.vaultOf(p.acc);
+      send(p.ws, { t: 'tick', e: ents, self });
     }
   }
 

@@ -8,7 +8,7 @@ const { WebSocketServer } = require('ws');
 const auth = require('./auth');
 const { Game } = require('./game');
 const { CLASSES, ITEMS } = require('./data');
-const { saveNow } = require('./db');
+const { db, saveNow } = require('./db');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC = path.join(__dirname, '..', 'public');
@@ -84,6 +84,15 @@ const server = http.createServer(async (req, res) => {
         const r = auth.deleteCharacter(acc, id);
         return json(res, r.error ? 400 : 200, r);
       }
+    }
+    if (p === '/api/leaderboard' && req.method === 'GET') {
+      const rows = [];
+      for (const acc of Object.values(db.accounts)) {
+        for (const ch of acc.characters) rows.push({ name: acc.username, classId: ch.classId, level: ch.level, fame: ch.fame, alive: true });
+        for (const g of acc.graveyard) rows.push({ name: acc.username, classId: g.classId, level: g.level, fame: g.fame, alive: false });
+      }
+      rows.sort((a, b) => b.fame - a.fame);
+      return json(res, 200, rows.slice(0, 10));
     }
     if (p === '/api/items' && req.method === 'GET') {
       // client needs item metadata for rendering/tooltips

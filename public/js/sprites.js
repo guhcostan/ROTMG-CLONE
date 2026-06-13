@@ -269,6 +269,65 @@ p.PPPPPPPP.p
 ...f.OO.f...
 ...f....f...`,
 
+  mad_king: `
+.y.y.yy.y.y.
+.yyyyyyyyyy.
+..rrRRRRrr..
+.rRkRRRRkRr.
+.rRRRRRRRRr.
+.rRRyyyyRRr.
+.rRRRRRRRRr.
+..rRRRRRRr..
+...r.RR.r...
+...r....r...`,
+  colossus: `
+..G..GG..G..
+..GGGGGGGG..
+.GGgkGGkgGG.
+.GGGGGGGGGG.
+.GgGGGGGGgG.
+.GGGyyyyGGG.
+..GGGGGGGG..
+...G.GG.G...
+...G....G...`,
+  mummy: `
+....ssss....
+...sSSSSs...
+..sSkSSkSs..
+..sSSssSSs..
+...sSSSSs...
+..s.SSSS.s..
+...sSSSSs...
+...s.SS.s...
+...s....s...`,
+  pharaoh: `
+..y..yy..y..
+..yyyyyyyy..
+..ybbbbbby..
+.ySSkSSkSSy.
+.ySSSSSSSSy.
+.ySSyyyySSy.
+..ySSSSSSy..
+...y.SS.y...
+...y....y...`,
+  void_spawn: `
+....pPPp....
+...pPPPPp...
+..pPkPPkPp..
+..pPPPPPPp..
+...pPPPPp...
+....p..p....`,
+  abyss_horror: `
+.d.d.dd.d.d.
+..ddPPPPdd..
+.dPPkPPkPPd.
+.dPPPPPPPPd.
+.dPPddddPPd.
+.dPPPPPPPPd.
+..dPPPPPPd..
+...d.PP.d...
+...d....d...`,
+
   // ----- objects
   bag_brown: `
 ....nnnn....
@@ -309,6 +368,15 @@ p.PPPPPPPP.p
 .rOr....rOr.
 ..rOOrrOOr..
 ....rOOr....`,
+  vault_chest: `
+..nnnnnnnn..
+.nNNNNNNNNn.
+.nNNNyyNNNn.
+.nnnnnnnnnn.
+.nNNNyYNNNn.
+.nNNNyyNNNn.
+.nNNNNNNNNn.
+..nnnnnnnn..`,
 
   // ----- items (12x12 icons)
   staff: `

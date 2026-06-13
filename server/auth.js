@@ -28,6 +28,7 @@ function register(username, password) {
     createdAt: Date.now(),
     characters: [],
     graveyard: [],
+    vault: new Array(16).fill(null),
     nextCharId: 1,
   };
   save();

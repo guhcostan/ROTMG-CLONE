@@ -67,6 +67,7 @@ function generateNexus() {
   }
   m.spawn = { x: c, y: c + 6 };
   m.portalSpot = { x: c, y: c - 6 }; // realm portal location
+  m.vaultSpot = { x: c - 6, y: c };  // account vault chest
   return m;
 }
 

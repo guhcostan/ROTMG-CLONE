@@ -69,6 +69,7 @@ const GameClient = (() => {
   function onTick(msg) {
     self = msg.self;
     UI.update(self);
+    UI.showVault(self.vault || null);
     const seen = new Set();
     for (const e of msg.e) {
       const kind = e[0];
@@ -110,6 +111,7 @@ const GameClient = (() => {
   }
 
   function onShot(msg) {
+    if (msg.f === 1 && msg.o === myId) Sfx.shoot();
     for (const a of msg.as) {
       bullets.push({
         x: msg.x, y: msg.y, a,
@@ -120,6 +122,7 @@ const GameClient = (() => {
   }
 
   function onDmg(msg) {
+    if (msg.id === myId && msg.n > 0) Sfx.hit();
     const ent = entities.get(msg.id);
     const x = ent ? (ent.x ?? ent.tx) : null;
     if (x === null && msg.id !== myId) return;
@@ -133,6 +136,8 @@ const GameClient = (() => {
   }
 
   function onFx(msg) {
+    if (msg.k === 'die') Sfx.kill();
+    if (msg.k === 'levelup') Sfx.levelup();
     effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, t: 0, ttl: 0.6 });
   }
 
@@ -167,6 +172,7 @@ const GameClient = (() => {
         e.preventDefault();
       }
       if (e.key === 'Escape' || e.key.toLowerCase() === 'r') Net.send({ t: 'nexus' });
+      if (e.key.toLowerCase() === 'm') UI.notice(Sfx.toggleMute() ? 'Som desligado' : 'Som ligado');
       if (e.key >= '1' && e.key <= '8') Net.send({ t: 'useitem', slot: 3 + parseInt(e.key, 10) });
       if (e.key.toLowerCase() === 'f') Net.send({ t: 'portal' });
     };
@@ -270,13 +276,14 @@ const GameClient = (() => {
         const name = ent.tier >= 4 ? 'bag_gold' : (ent.tier >= 2 ? 'bag_purple' : 'bag_brown');
         drawSprite(name, px, py, TILE * 0.8);
       } else if (ent.kind === 'o') {
-        const spr = ent.pkind === 'dungeon' ? 'portal_red' : 'portal_blue';
-        const pulse = 1 + Math.sin(performance.now() / 300) * 0.08;
+        const isVault = ent.pkind === 'vault';
+        const spr = isVault ? 'vault_chest' : (ent.pkind === 'dungeon' ? 'portal_red' : 'portal_blue');
+        const pulse = isVault ? 1 : 1 + Math.sin(performance.now() / 300) * 0.08;
         drawSprite(spr, px, py, TILE * 1.2 * pulse);
         ctx.fillStyle = '#fff';
         ctx.font = '12px Courier New';
         ctx.textAlign = 'center';
-        ctx.fillText(ent.name + ' [F]', px, py - TILE * 0.8);
+        ctx.fillText(isVault ? ent.name : ent.name + ' [F]', px, py - TILE * 0.8);
       } else if (ent.kind === 'e') {
         drawSprite(ent.type, px, py, TILE * (spriteScale(ent.type)));
         drawHpBar(px, py, ent.hp, ent.maxHp, spriteScale(ent.type));
@@ -347,7 +354,7 @@ const GameClient = (() => {
   }
 
   function spriteScale(type) {
-    const big = { goblin_king: 1.7, brood_mother: 1.9, keep_lord: 1.9, inferno_lord: 2.2, flame_titan: 1.5, void_keeper: 1.5, storm_seraph: 1.4, ogre: 1.3, treant: 1.25 };
+    const big = { goblin_king: 1.7, brood_mother: 1.9, keep_lord: 1.9, inferno_lord: 2.2, flame_titan: 1.5, void_keeper: 1.5, storm_seraph: 1.4, ogre: 1.3, treant: 1.25, colossus: 1.7, pharaoh: 2, abyss_horror: 2.3, mad_king: 2.5 };
     return big[type] || 0.95;
   }
 
@@ -407,26 +414,40 @@ const GameClient = (() => {
   }
 
   // ------------------------------------------------ public
+  let reconnectTries = 0;
   function start(charId, callbacks) {
     onDeath = callbacks.onDeath;
     running = true;
+    reconnectTries = 0;
     keys = {}; shooting = false;
-    Net.connect(charId, {
-      world: loadWorld,
+    const handlers = {
+      world: (m) => { reconnectTries = 0; loadWorld(m); },
       tick: onTick,
       shot: onShot,
       dmg: onDmg,
       fx: onFx,
       notice: m => UI.notice(m.text),
       chat: m => UI.chat(m.from, m.text, m.sys),
+      trade: m => UI.showTrade(m),
+      tradeend: () => UI.hideTrade(),
       death: (m) => {
         running = false;
+        Sfx.death();
         callbacks.onDeath(m);
       },
       _close: () => {
-        if (running) { running = false; callbacks.onDisconnect(); }
+        if (!running) return;
+        if (reconnectTries < 3) {
+          reconnectTries++;
+          UI.notice(`Conexao perdida, reconectando (${reconnectTries}/3)...`);
+          setTimeout(() => { if (running) Net.connect(charId, handlers); }, 800 * reconnectTries);
+        } else {
+          running = false;
+          callbacks.onDisconnect();
+        }
       },
-    });
+    };
+    Net.connect(charId, handlers);
     setupInput();
     lastFrame = performance.now();
     requestAnimationFrame(frame);

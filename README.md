@@ -27,8 +27,9 @@ todos compartilham o mesmo Nexus e o mesmo Reino.
 | Duplo clique no item | Equipar / usar |
 | Arrastar itens | Mover entre inventário, equipamento e loot |
 | Botão direito no item | Soltar no chão |
-| `ENTER` | Chat (`/nexus`, `/who`) |
+| `ENTER` | Chat (`/nexus`, `/who`, `/trade nome`) |
 | `ESC` ou `R` | Voltar ao Nexus (fuga de emergência) |
+| `M` | Liga/desliga som |
 
 ## Mecânicas
 
@@ -43,12 +44,24 @@ todos compartilham o mesmo Nexus e o mesmo Reino.
   floresta → montanhas → terras dos deuses no centro. Os inimigos respawnam e
   o reino é compartilhado por todos os jogadores online.
 - **Dungeons instanciadas** — inimigos derrubam portais (Goblin Warren, Spider
-  Grotto, Cursed Keep e Infernal Depths), cada uma gerada proceduralmente com
-  minions e um chefe com padrões de tiro em anel e invocação de lacaios.
+  Grotto, Cursed Keep, Infernal Depths, Sunken Tomb e Abyssal Rift), cada uma
+  gerada proceduralmente com minions e um chefe com padrões de tiro em anel,
+  espiral e invocação de lacaios.
+- **Cofre da conta** — baú no Nexus com 16 espaços compartilhados entre os
+  personagens da conta; o que está no cofre sobrevive à morte.
+- **Troca entre jogadores** — `/trade nome` no Nexus abre uma janela segura com
+  confirmação dupla; qualquer mudança na oferta reseta as confirmações.
 - **Loot** — sacolas (marrom/roxa/dourada por raridade) com armas, armaduras,
   anéis e poções em 6 tiers; bosses garantem drops bons.
 - **Combate bullet-hell** — servidor autoritativo a 20 ticks/s: padrões de tiro,
   defesa que reduz dano, regeneração por VIT/WIS e cadência por DEX.
+- **Som e reconexão** — efeitos sonoros procedurais via WebAudio (tecla `M`
+  silencia) e reconexão automática em caso de queda de conexão.
+- **Ciclo do reino** — a cada 25 deuses mortos o Reino cai: todos os heróis
+  dentro dele são convocados ao Castelo do Rei Demente para a luta final, e um
+  novo Reino é gerado com outro seed.
+- **Ranking de fama** — top 10 de heróis (vivos e caídos) na tela de
+  personagens.
 
 ## Arquitetura
 
@@ -70,5 +83,4 @@ servidor valida velocidade, cadência de tiro, dano e drops.
 ## Limitações conhecidas
 
 - Persistência em arquivo JSON — suficiente para um servidor de hobby.
-- Sem trade entre jogadores, pets ou guildas (boas próximas features).
-- Sem reconexão automática: caiu, volta pela tela de personagens.
+- Sem pets ou guildas (boas próximas features).

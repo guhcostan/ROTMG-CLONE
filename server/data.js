@@ -142,6 +142,7 @@ for (const [kind, tiers] of Object.entries(ARMOR_TIERS)) {
   ['ringspd0', 'Ring of Speed', { spd: 5 }, 2],
   ['ringdex0', 'Ring of Dexterity', { dex: 5 }, 2],
   ['ringall0', 'Ring of the Realm', { hp: 60, mp: 40, att: 3, def: 3 }, 5],
+  ['ringking', 'Coroa do Rei Demente', { hp: 100, mp: 60, att: 5, def: 5, spd: 5 }, 6],
 ].forEach(([id, name, bonus, tier]) => def(id, { name, type: 'ring', slot: 'ring', tier, bonus }));
 
 // Consumables
@@ -247,7 +248,13 @@ enemy('void_keeper', {
   name: 'Void Keeper', sprite: 'void_keeper', hp: 2500, def: 20, xp: 200, speed: 2.5, size: 1.6,
   behavior: 'orbit', band: 4, god: true,
   shots: { dmg: 55, speed: 9, range: 8, count: 1, spread: 0, rate: 1.2, ring: 14, ringRate: 0.35 },
-  loot: [['armor:3-4', 0.14], ['statpot', 0.3], ['portal:infernal_depths', 0.05]],
+  loot: [['armor:3-4', 0.14], ['statpot', 0.3], ['portal:infernal_depths', 0.05], ['portal:abyssal_rift', 0.035]],
+});
+enemy('ancient_colossus', {
+  name: 'Ancient Colossus', sprite: 'colossus', hp: 3000, def: 22, xp: 220, speed: 2, size: 1.8,
+  behavior: 'orbit', band: 4, god: true,
+  shots: { dmg: 50, speed: 10, range: 9, count: 3, spread: 0.5, rate: 1.4, ring: 12, ringRate: 0.3, spiral: true },
+  loot: [['weapon:3-4', 0.14], ['armor:3-4', 0.14], ['statpot', 0.3], ['portal:sunken_tomb', 0.04]],
 });
 
 // --- dungeon enemies
@@ -300,6 +307,49 @@ enemy('inferno_lord', {
   loot: [['weapon:4-5', 0.9], ['armor:4-5', 0.9], ['pot_life', 0.5], ['pot_mana', 0.5], ['statpot', 1], ['ringall0', 0.3]],
 });
 
+enemy('mummy', {
+  name: 'Restless Mummy', sprite: 'mummy', hp: 600, def: 10, xp: 55, speed: 3.5, size: 1,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 28, speed: 9, range: 5.5, count: 2, spread: 0.4, rate: 1.3 },
+  loot: [['hppot', 0.1]],
+});
+enemy('tomb_sentinel', {
+  name: 'Tomb Sentinel', sprite: 'gargoyle', hp: 800, def: 16, xp: 75, speed: 4, size: 1.1,
+  behavior: 'orbit', band: -1,
+  shots: { dmg: 32, speed: 11, range: 7, count: 1, spread: 0, rate: 1.8 },
+  loot: [['mppot', 0.1]],
+});
+enemy('pharaoh', {
+  name: 'Pharaoh of the Sands', sprite: 'pharaoh', hp: 9000, def: 20, xp: 800, speed: 3.5, size: 2.1,
+  behavior: 'boss', band: -1, spawns: { type: 'mummy', max: 3, rate: 0.1 },
+  shots: { dmg: 45, speed: 11, range: 8.5, count: 5, spread: 1.1, rate: 1.8, ring: 14, ringRate: 0.35, spiral: true },
+  loot: [['weapon:3-4', 0.9], ['armor:3-4', 0.9], ['pot_life', 0.35], ['statpot', 0.9], ['ringhp1', 0.15]],
+});
+enemy('void_spawn', {
+  name: 'Void Spawn', sprite: 'void_spawn', hp: 900, def: 16, xp: 90, speed: 5, size: 0.9,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 38, speed: 12, range: 6, count: 1, spread: 0, rate: 2 },
+  loot: [['mppot', 0.1], ['hppot', 0.1]],
+});
+enemy('royal_guard', {
+  name: 'Royal Guard', sprite: 'keep_knight', hp: 1200, def: 18, xp: 110, speed: 4.5, size: 1.1,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 40, speed: 11, range: 6, count: 2, spread: 0.3, rate: 1.8 },
+  loot: [['hppot', 0.12], ['mppot', 0.12]],
+});
+enemy('mad_king', {
+  name: 'O Rei Demente', sprite: 'mad_king', hp: 30000, def: 30, xp: 4000, speed: 4, size: 2.6,
+  behavior: 'boss', band: -1, spawns: { type: 'royal_guard', max: 5, rate: 0.15 },
+  shots: { dmg: 70, speed: 13, range: 10, count: 9, spread: 1.6, rate: 2.2, ring: 26, ringRate: 0.45, spiral: true },
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.8], ['pot_mana', 0.8], ['statpot', 1], ['ringking', 0.4], ['ringall0', 0.5]],
+});
+enemy('abyss_horror', {
+  name: 'Horror of the Abyss', sprite: 'abyss_horror', hp: 18000, def: 28, xp: 2000, speed: 3.5, size: 2.4,
+  behavior: 'boss', band: -1, spawns: { type: 'void_spawn', max: 4, rate: 0.12 },
+  shots: { dmg: 65, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 22, ringRate: 0.4, spiral: true },
+  loot: [['weapon:4-5', 0.9], ['armor:4-5', 0.9], ['pot_life', 0.6], ['pot_mana', 0.6], ['statpot', 1], ['ringall0', 0.35]],
+});
+
 // ---------------------------------------------------------------- dungeons
 const DUNGEONS = {
   goblin_warren: {
@@ -317,6 +367,19 @@ const DUNGEONS = {
   infernal_depths: {
     name: 'Infernal Depths', theme: 'inferno', size: 110, rooms: 11,
     minions: ['imp', 'flame_titan'], minionCount: 34, boss: 'inferno_lord',
+  },
+  sunken_tomb: {
+    name: 'Sunken Tomb', theme: 'keep', size: 100, rooms: 10,
+    minions: ['mummy', 'tomb_sentinel'], minionCount: 30, boss: 'pharaoh',
+  },
+  abyssal_rift: {
+    name: 'Abyssal Rift', theme: 'inferno', size: 120, rooms: 12,
+    minions: ['void_spawn', 'imp'], minionCount: 36, boss: 'abyss_horror',
+  },
+  // final fight when the realm closes (never drops as a portal item)
+  mad_castle: {
+    name: 'Castelo do Rei Demente', theme: 'keep', size: 110, rooms: 10,
+    minions: ['royal_guard', 'keep_knight'], minionCount: 30, boss: 'mad_king',
   },
 };
 

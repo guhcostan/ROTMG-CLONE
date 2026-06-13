@@ -104,6 +104,19 @@
       div.textContent = `☠ ${data.classes[g.classId] ? data.classes[g.classId].name : g.classId} nivel ${g.level}, fama ${g.fame} - morto por ${g.killedBy} (${when})`;
       gy.appendChild(div);
     }
+
+    const lb = $('leaderboard');
+    lb.innerHTML = '';
+    try {
+      const rows = await Net.api('GET', '/api/leaderboard');
+      if (!rows.length) lb.textContent = 'Nenhum heroi famoso ainda.';
+      rows.forEach((r, i) => {
+        const div = document.createElement('div');
+        const cls = data.classes[r.classId] ? data.classes[r.classId].name : r.classId;
+        div.textContent = `${i + 1}. ${r.name} - ${cls} nivel ${r.level}, fama ${r.fame} ${r.alive ? '' : '☠'}`;
+        lb.appendChild(div);
+      });
+    } catch { lb.textContent = 'Ranking indisponivel.'; }
   }
 
   function classCanvas(classId) {
