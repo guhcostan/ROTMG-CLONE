@@ -90,6 +90,49 @@ const CLASSES = {
     max: { hp: 740, mp: 252, att: 75, def: 30, spd: 55, dex: 65, vit: 60, wis: 50 },
     starter: ['katana0', 'wakizashi0', 'heavy0', null],
   },
+  // ---- tier-3 classes: unlocked by maxing an advanced class to 20 ----
+  warlock: {
+    name: 'Warlock', weapon: 'staff', armor: 'robe', ability: 'cloak', unlock: 'necromancer',
+    base: { hp: 110, mp: 120, att: 16, def: 0, spd: 11, dex: 14, vit: 10, wis: 14 },
+    growth: { hp: [20, 30], mp: [6, 16], att: 1.5, def: 0, spd: 0.6, dex: 1.2, vit: 0.5, wis: 1.1 },
+    max: { hp: 700, mp: 450, att: 75, def: 25, spd: 55, dex: 75, vit: 40, wis: 75 },
+    starter: ['staff0', 'cloak0', 'robe0', null],
+  },
+  ranger: {
+    name: 'Ranger', weapon: 'bow', armor: 'leather', ability: 'seal', unlock: 'huntress',
+    base: { hp: 140, mp: 100, att: 13, def: 0, spd: 13, dex: 14, vit: 12, wis: 11 },
+    growth: { hp: [22, 32], mp: [4, 12], att: 1.3, def: 0, spd: 0.8, dex: 1.2, vit: 0.7, wis: 0.7 },
+    max: { hp: 720, mp: 300, att: 75, def: 25, spd: 60, dex: 65, vit: 45, wis: 55 },
+    starter: ['bow0', 'seal0', 'leather0', null],
+  },
+  crusader: {
+    name: 'Crusader', weapon: 'sword', armor: 'heavy', ability: 'tome', unlock: 'paladin',
+    base: { hp: 200, mp: 110, att: 15, def: 0, spd: 8, dex: 10, vit: 14, wis: 13 },
+    growth: { hp: [25, 35], mp: [4, 12], att: 1.4, def: 0, spd: 0.6, dex: 0.9, vit: 1, wis: 1 },
+    max: { hp: 780, mp: 360, att: 75, def: 35, spd: 50, dex: 50, vit: 70, wis: 65 },
+    starter: ['sword0', 'tome0', 'heavy0', null],
+  },
+  sage: {
+    name: 'Sage', weapon: 'wand', armor: 'robe', ability: 'prism', unlock: 'mystic',
+    base: { hp: 110, mp: 130, att: 12, def: 0, spd: 13, dex: 14, vit: 10, wis: 16 },
+    growth: { hp: [20, 30], mp: [6, 16], att: 1.2, def: 0, spd: 0.8, dex: 1.2, vit: 0.5, wis: 1.3 },
+    max: { hp: 690, mp: 470, att: 60, def: 25, spd: 60, dex: 65, vit: 40, wis: 75 },
+    starter: ['wand0', 'prism0', 'robe0', null],
+  },
+  shadow: {
+    name: 'Shadow', weapon: 'dagger', armor: 'leather', ability: 'trap', unlock: 'trickster',
+    base: { hp: 150, mp: 100, att: 13, def: 0, spd: 15, dex: 16, vit: 12, wis: 10 },
+    growth: { hp: [20, 30], mp: [3, 9], att: 1.3, def: 0, spd: 1, dex: 1.3, vit: 0.7, wis: 0.6 },
+    max: { hp: 730, mp: 280, att: 55, def: 25, spd: 75, dex: 75, vit: 45, wis: 55 },
+    starter: ['dagger0', 'trap0', 'leather0', null],
+  },
+  ronin: {
+    name: 'Ronin', weapon: 'katana', armor: 'heavy', ability: 'helm', unlock: 'samurai',
+    base: { hp: 170, mp: 100, att: 16, def: 0, spd: 10, dex: 14, vit: 13, wis: 9 },
+    growth: { hp: [23, 33], mp: [3, 9], att: 1.5, def: 0, spd: 0.8, dex: 1.2, vit: 0.9, wis: 0.5 },
+    max: { hp: 760, mp: 252, att: 80, def: 30, spd: 60, dex: 70, vit: 60, wis: 50 },
+    starter: ['katana0', 'helm0', 'heavy0', null],
+  },
 };
 
 // Classes available to every account from the start; the rest are unlocked.

@@ -48,6 +48,16 @@ function dataSanity() {
   const bandDmg = b => Math.max(...realmMobs.filter(e => e.band === b).map(e => e.shots.dmg));
   check(bandDmg(0) < bandDmg(1) && bandDmg(1) < bandDmg(2) && bandDmg(2) < bandDmg(3) && bandDmg(3) < bandDmg(4),
     'band damage rises from beach to center');
+
+  // classes: at least 18, every starter item exists, unlock chains reference real classes
+  const { CLASSES } = require('../server/data');
+  const classBad = [];
+  for (const [id, c] of Object.entries(CLASSES)) {
+    for (const it of c.starter) if (it && !ITEMS[it]) classBad.push(`${id}: starter ${it}`);
+    if (c.unlock && !CLASSES[c.unlock]) classBad.push(`${id}: unlock ${c.unlock}`);
+  }
+  check(Object.keys(CLASSES).length >= 18, `>= 18 classes (have ${Object.keys(CLASSES).length})`);
+  check(classBad.length === 0, 'class defs consistent' + (classBad.length ? ' -> ' + classBad.join(', ') : ''));
 }
 
 function realmCycleSanity() {
@@ -238,11 +248,12 @@ async function main() {
     // --- characters
     r = await api('GET', '/api/chars', null, token1);
     check(r.status === 200 && r.data.characters.length === 0, 'char list starts empty');
-    check(Object.keys(r.data.classes).length === 12, 'twelve classes available');
+    check(Object.keys(r.data.classes).length === 18, 'eighteen classes available');
     check(r.data.classes.wizard.locked === false, 'starter class wizard unlocked');
     check(r.data.classes.necromancer.locked === true, 'advanced class necromancer locked initially');
     check(r.data.classes.necromancer.unlockName === 'Wizard', 'necromancer shows its unlock requirement');
     check(r.data.classes.samurai.locked === true && r.data.classes.samurai.unlockName === 'Knight', 'samurai locked behind Knight');
+    check(r.data.classes.warlock.locked === true && r.data.classes.warlock.unlockName === 'Necromancer', 'tier-3 Warlock locked behind Necromancer');
 
     r = await api('POST', '/api/chars', { classId: 'wizard' }, token1);
     check(r.status === 200 && r.data.character.classId === 'wizard', 'create wizard');
