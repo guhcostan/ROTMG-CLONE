@@ -88,6 +88,20 @@ function iceBiomeSanity() {
   check([...inst.enemies.values()].some(e => e.type === 'frost_monarch'), 'frost monarch present');
 }
 
+// world event: timed invasion spawns a named boss with a guaranteed legendary
+function worldEventSanity() {
+  const { Game } = require('../server/game');
+  const { ENEMIES } = require('../server/data');
+  const g = new Game();
+  const e = g.triggerWorldEvent();
+  check(g.eventBossId === e.id && g.realm.enemies.has(e.id), 'invasion boss spawned in realm');
+  check(e.def.event && e.def.loot.some(([s, c]) => s === 'legendary' && c === 1), 'invasion boss guarantees a legendary');
+  // killing it clears the active event
+  e.hp = 1;
+  g.damageEnemy(g.realm, e, 9999, { id: -3, char: { fame: 0 }, kills: 0, godsKilled: 0, dead: false });
+  check(g.eventBossId === null, 'defeating invasion boss clears the event');
+}
+
 async function api(method, p, body, token) {
   const res = await fetch(BASE + p, {
     method,
@@ -180,6 +194,7 @@ async function main() {
   realmCycleSanity();
   statusAndFameSanity();
   iceBiomeSanity();
+  worldEventSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

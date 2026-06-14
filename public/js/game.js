@@ -425,7 +425,7 @@ const GameClient = (() => {
   }
 
   function spriteScale(type) {
-    const big = { goblin_king: 1.7, brood_mother: 1.9, keep_lord: 1.9, inferno_lord: 2.2, flame_titan: 1.5, void_keeper: 1.5, storm_seraph: 1.4, ogre: 1.3, treant: 1.25, colossus: 1.7, pharaoh: 2, abyss_horror: 2.3, mad_king: 2.5, bandit_lord: 1.4, wolf_alpha: 1.4, witch: 1.35, lich: 1.5, golem: 1.35, demon_prince: 1.8, tide_caller: 1.1, tyrant: 2.8, ice_golem: 1.5, yeti: 1.6, frost_shaman: 1.2, frost_monarch: 2.5 };
+    const big = { goblin_king: 1.7, brood_mother: 1.9, keep_lord: 1.9, inferno_lord: 2.2, flame_titan: 1.5, void_keeper: 1.5, storm_seraph: 1.4, ogre: 1.3, treant: 1.25, colossus: 1.7, pharaoh: 2, abyss_horror: 2.3, mad_king: 2.5, bandit_lord: 1.4, wolf_alpha: 1.4, witch: 1.35, lich: 1.5, golem: 1.35, demon_prince: 1.8, tide_caller: 1.1, tyrant: 2.8, ice_golem: 1.5, yeti: 1.6, frost_shaman: 1.2, frost_monarch: 2.5, invader_warlord: 2.4, invader_archmage: 2.3 };
     return big[type] || 0.95;
   }
 

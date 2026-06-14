@@ -589,6 +589,30 @@ ccBBwwwwBBcc
 ..cBBBBBBc..
 ...c.BB.c...
 ...c....c...`,
+  invader_warlord: `
+.r.r.rr.r.r.
+.rfRRRRRRfr.
+.rRkRRRRkRr.
+.rRRRRRRRRr.
+rrRRyyyyRRrr
+.rRRRRRRRRr.
+.rRRffffRRr.
+.rRRRRRRRRr.
+..rRRRRRRr..
+...r.RR.r...
+...r....r...`,
+  invader_archmage: `
+.p.p.pp.p.p.
+.pmPPPPPPmp.
+.pPkPPPPkPp.
+.pPPPPPPPPp.
+ppPPccccPPpp
+.pPPPPPPPPp.
+.pPPmmmmPPp.
+.pPPPPPPPPp.
+..pPPPPPPp..
+...p.PP.p...
+...p....p...`,
 
   // ----- objects
   bag_brown: `

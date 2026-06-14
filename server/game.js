@@ -149,6 +149,8 @@ class Game {
     this.realm = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(this.realmSeed)));
     this.godKills = 0;
     this.godKillTarget = 25; // gods slain before the realm closes
+    this.eventBossId = null;
+    this.nextEvent = Date.now() + 3 * 60 * 1000; // first invasion 3 min after boot
     this.populateRealm();
     setInterval(() => this.tick(), TICK);
     setInterval(() => this.autosave(), 30000);
@@ -914,6 +916,12 @@ class Game {
       } else bagItems.push(d);
     }
     if (bagItems.length) this.spawnBag(inst, enemy.x, enemy.y, bagItems);
+    // world-event boss defeated: announce + clear so the next can spawn
+    if (enemy.def.event && enemy.id === this.eventBossId) {
+      this.eventBossId = null;
+      inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi repelido!` });
+      inst.broadcast({ t: 'chat', from: '', text: `A invasao foi repelida! ${enemy.def.name} caiu.`, sys: 1 });
+    }
     // realm cycle: enough gods slain -> the realm closes into the final castle
     if (inst === this.realm && enemy.def.god) {
       this.godKills++;
@@ -1042,7 +1050,35 @@ class Game {
       if (inst.players.size > 0 || inst.kind !== 'dungeon') this.tickInstance(inst, now);
     }
     if ((this._respawnT = (this._respawnT || 0) + 1) % 40 === 0) this.respawnRealm();
+    this.maybeWorldEvent(now);
     this.cleanupInstances();
+  }
+
+  // timed realm invasion: a named boss spawns; killing it drops a guaranteed
+  // white bag (legendary). One active at a time. ponytail: fixed 8-min cadence.
+  maybeWorldEvent(now) {
+    if (this.eventBossId && !this.realm.enemies.has(this.eventBossId)) this.eventBossId = null;
+    if (this.eventBossId || now < this.nextEvent) return;
+    if (this.realm.players.size === 0) { this.nextEvent = now + 30000; return; } // wait for players
+    this.triggerWorldEvent();
+    this.nextEvent = now + 8 * 60 * 1000;
+  }
+
+  triggerWorldEvent() {
+    const types = ['invader_warlord', 'invader_archmage'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const m = this.realm.map;
+    let x = m.center.x, y = m.center.y;
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * Math.PI * 2, r = m.maxR * (0.4 + Math.random() * 0.2);
+      const tx = m.center.x + Math.cos(a) * r, ty = m.center.y + Math.sin(a) * r;
+      if (!m.blocks(tx, ty) && m.get(tx, ty) !== T.WATER && m.get(tx, ty) !== T.LAVA) { x = tx; y = ty; break; }
+    }
+    const e = this.spawnEnemy(this.realm, type, x, y);
+    this.eventBossId = e.id;
+    this.realm.broadcast({ t: 'notice', text: `INVASAO: ${e.def.name}!` });
+    this.realm.broadcast({ t: 'chat', from: '', text: `${e.def.name} invadiu o Reino! Derrote-o por um item lendario. (siga a bussola)`, sys: 1 });
+    return e;
   }
 
   tickInstance(inst, now) {

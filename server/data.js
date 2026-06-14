@@ -502,6 +502,23 @@ enemy('the_tyrant', {
     ['ringtyrant', 0.5], ['statpot', 1], ['pot_life', 1], ['pot_mana', 1]],
 });
 
+// --- world-event invasion bosses (spawned in the realm on a timer) ---
+enemy('invader_warlord', {
+  name: 'Senhor da Guerra Invasor', sprite: 'invader_warlord', hp: 20000, def: 24, xp: 2400, speed: 4, size: 2.4,
+  behavior: 'chase', band: -1, event: true, spawns: { type: 'bandit', max: 5, rate: 0.16 },
+  enrage: { hpPct: 0.4, rateMul: 1.5, dmgMul: 1.25 },
+  shots: { dmg: 60, speed: 12, range: 9, count: 5, spread: 1, rate: 1.8, burst: 3, burstGap: 110, ring: 18, ringRate: 0.4 },
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['legendary', 1], ['statpot', 1], ['pot_life', 0.5], ['ringall0', 0.5]],
+});
+enemy('invader_archmage', {
+  name: 'Arquimago Invasor', sprite: 'invader_archmage', hp: 18000, def: 20, xp: 2400, speed: 3.5, size: 2.2,
+  behavior: 'orbit', band: -1, event: true, spawns: { type: 'imp', max: 4, rate: 0.14 },
+  enrage: { hpPct: 0.4, rateMul: 1.5, dmgMul: 1.25 },
+  shots: { dmg: 55, speed: 11, range: 10, count: 3, spread: 0.5, rate: 1.6, ring: 22, ringRate: 0.45, spiral: true,
+    status: { type: 'slow', dur: 2000, chance: 0.4 } },
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['legendary', 1], ['statpot', 1], ['pot_mana', 0.5], ['ringall0', 0.5]],
+});
+
 // --- ice biome: Frozen Depths dungeon (theme 'ice') ---
 enemy('frost_imp', {
   name: 'Frost Imp', sprite: 'frost_imp', hp: 320, def: 6, xp: 32, speed: 5.5, size: 0.8,
