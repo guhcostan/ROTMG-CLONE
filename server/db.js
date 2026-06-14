@@ -72,6 +72,17 @@ CREATE TABLE IF NOT EXISTS guild_members (
   joined_at INTEGER NOT NULL,
   PRIMARY KEY (guild_id, account_id)
 );
+CREATE TABLE IF NOT EXISTS achievements (
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  earned_at INTEGER NOT NULL,
+  PRIMARY KEY (account_id, code)
+);
+CREATE TABLE IF NOT EXISTS daily (
+  account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  last_day INTEGER NOT NULL,
+  streak INTEGER NOT NULL DEFAULT 1
+);
 `);
 
 // ---------------------------------------------------------------- migration
@@ -152,6 +163,12 @@ const q = {
   legends: db.prepare(`SELECT a.username, g.class_id, g.level, g.fame, g.killed_by, g.died_at
     FROM graveyard g JOIN accounts a ON a.id = g.account_id
     ORDER BY g.fame DESC LIMIT 20`),
+
+  earnAch: db.prepare('INSERT OR IGNORE INTO achievements (account_id, code, earned_at) VALUES (?,?,?)'),
+  achOf: db.prepare('SELECT code FROM achievements WHERE account_id = ?'),
+  getDaily: db.prepare('SELECT last_day, streak FROM daily WHERE account_id = ?'),
+  setDaily: db.prepare(`INSERT INTO daily (account_id, last_day, streak) VALUES (?,?,?)
+    ON CONFLICT(account_id) DO UPDATE SET last_day = excluded.last_day, streak = excluded.streak`),
 };
 
 function rowToChar(row) {
@@ -256,6 +273,20 @@ const storage = {
   // rankings
   leaderboard: () => q.leaderboard.all(),
   legends: () => q.legends.all(),
+
+  // achievements (account-wide, permanent)
+  earnAchievement: (accountId, code) => q.earnAch.run(accountId, code, Date.now()).changes > 0,
+  listAchievements: (accountId) => q.achOf.all(accountId).map(r => r.code),
+
+  // daily login: returns { claimed, streak } — claimed false if already claimed today
+  claimDaily: (accountId) => {
+    const today = Math.floor(Date.now() / 86400000);
+    const row = q.getDaily.get(accountId);
+    if (row && row.last_day === today) return { claimed: false, streak: row.streak };
+    const streak = row && row.last_day === today - 1 ? row.streak + 1 : 1;
+    q.setDaily.run(accountId, today, streak);
+    return { claimed: true, streak };
+  },
 
   close: () => { try { db.close(); } catch {} },
 };

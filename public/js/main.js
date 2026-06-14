@@ -106,6 +106,20 @@
       }
     }
 
+    const ach = $('achievements');
+    if (ach) {
+      ach.innerHTML = '';
+      const earned = (data.achievements || []).filter(a => a.earned).length;
+      const total = (data.achievements || []).length;
+      for (const a of data.achievements || []) {
+        const div = document.createElement('div');
+        div.style.color = a.earned ? '#f0c040' : '#666';
+        div.textContent = `${a.earned ? '★' : '☆'} ${a.name}`;
+        ach.appendChild(div);
+      }
+      if (total) ach.firstChild && (ach.insertBefore(Object.assign(document.createElement('div'), { textContent: `${earned}/${total} desbloqueadas`, style: 'color:#888;font-size:11px' }), ach.firstChild));
+    }
+
     const gy = $('graveyard');
     gy.innerHTML = '';
     if (!data.graveyard.length) gy.textContent = 'Nenhum heroi caido... ainda.';

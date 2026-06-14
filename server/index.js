@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const auth = require('./auth');
-const { Game } = require('./game');
+const { Game, ACHIEVEMENTS } = require('./game');
 const { CLASSES, ITEMS } = require('./data');
 const storage = require('./db');
 
@@ -85,6 +85,10 @@ const server = http.createServer(async (req, res) => {
           })),
           maxChars: auth.MAX_CHARS,
           classes: classMeta,
+          achievements: (() => {
+            const earned = new Set(storage.listAchievements(acc.id));
+            return Object.entries(ACHIEVEMENTS).map(([code, a]) => ({ code, name: a.name, earned: earned.has(code) }));
+          })(),
         });
       }
       if (req.method === 'POST') {

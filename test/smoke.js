@@ -131,6 +131,18 @@ function multiPhaseSanity() {
   inst.players.delete(fake.id); // don't leave a partial player in the still-ticking Game
 }
 
+// account progression: achievements are permanent + idempotent; daily once per day
+function progressionSanity() {
+  const storage = require('../server/db');
+  const acc = storage.createAccount('prog' + Math.floor(Math.random() * 1e9), 's', 'h');
+  check(storage.earnAchievement(acc, 'first_boss') === true, 'first achievement earn is new');
+  check(storage.earnAchievement(acc, 'first_boss') === false, 'duplicate achievement is idempotent');
+  check(storage.listAchievements(acc).includes('first_boss'), 'earned achievement is listed');
+  const d1 = storage.claimDaily(acc);
+  check(d1.claimed === true && d1.streak === 1, 'first daily claim grants streak 1');
+  check(storage.claimDaily(acc).claimed === false, 'second daily claim same day is blocked');
+}
+
 async function api(method, p, body, token) {
   const res = await fetch(BASE + p, {
     method,
@@ -225,6 +237,7 @@ async function main() {
   iceBiomeSanity();
   worldEventSanity();
   multiPhaseSanity();
+  progressionSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);
@@ -315,10 +328,12 @@ async function main() {
     c1.sendMsg({ t: 'vault', cmd: 'deposit', slot: 4 });
     await new Promise(r => setTimeout(r, 300));
     tick = c1.messages.filter(m => m.t === 'tick').pop();
-    check(tick.e.find(e => e[0] === 'v')[4][0] === 'staff0', 'item deposited in vault');
+    // vault may already hold a daily-login reward, so find staff0 at any slot
+    const vIdx = tick.e.find(e => e[0] === 'v')[4].indexOf('staff0');
+    check(vIdx !== -1, 'item deposited in vault');
     check(tick.self.inv[0] === null, 'item removed from inventory');
 
-    c1.sendMsg({ t: 'vault', cmd: 'withdraw', idx: 0 });
+    c1.sendMsg({ t: 'vault', cmd: 'withdraw', idx: vIdx });
     await new Promise(r => setTimeout(r, 300));
     tick = c1.messages.filter(m => m.t === 'tick').pop();
     check(tick.self.inv.includes('staff0'), 'item withdrawn from vault');

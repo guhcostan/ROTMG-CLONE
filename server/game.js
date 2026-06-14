@@ -17,6 +17,16 @@ const PORTAL_TTL = 45 * 1000;
 // weak: halved attack.
 const STATUS_KINDS = ['slow', 'paralyze', 'bleed', 'sick', 'quiet', 'weak'];
 
+// Permanent account achievements (codes referenced by awardAchievement).
+const ACHIEVEMENTS = {
+  first_boss: { name: 'Cacador de Chefes' },
+  godslayer: { name: 'Matador de Deuses' },
+  dungeoneer: { name: 'Explorador de Masmorras' },
+  max_level: { name: 'Nivel Maximo' },
+  invader_bane: { name: 'Repelente de Invasoes' },
+  tyrant_slayer: { name: 'Algoz do Tirano' },
+};
+
 let nextId = 1;
 const uid = () => nextId++;
 
@@ -252,7 +262,31 @@ class Game {
     };
     this.players.set(player.id, player);
     this.enterInstance(player, this.nexus);
+    this.grantDaily(player);
     return player;
+  }
+
+  // ------------------------------------------------ account progression
+  // award a permanent account achievement; notify only the first time
+  awardAchievement(player, code) {
+    if (!player.acc || !ACHIEVEMENTS[code]) return;
+    if (storage.earnAchievement(player.acc.id, code)) {
+      send(player.ws, { t: 'notice', text: `Conquista: ${ACHIEVEMENTS[code].name}!` });
+      send(player.ws, { t: 'chat', from: '', text: `${player.name} desbloqueou a conquista "${ACHIEVEMENTS[code].name}".`, sys: 1 });
+    }
+  }
+
+  // once per day: a vault reward that grows with the login streak
+  grantDaily(player) {
+    const { claimed, streak } = storage.claimDaily(player.acc.id);
+    if (!claimed) return;
+    const reward = ['hppot', 'mppot'];
+    if (streak % 3 === 0) reward.push(STAT_POTS[Math.floor(Math.random() * STAT_POTS.length)]);
+    if (streak % 7 === 0) reward.push('pet_egg');
+    const vault = player.vault;
+    for (const it of reward) { const i = vault.indexOf(null); if (i !== -1) vault[i] = it; }
+    storage.setVault(player.acc.id, vault);
+    send(player.ws, { t: 'notice', text: `Recompensa diaria (sequencia ${streak})! Veja o cofre.` });
   }
 
   // ------------------------------------------------ status effects
@@ -899,12 +933,18 @@ class Game {
     inst.enemies.delete(enemy.id);
     inst.broadcastNear({ t: 'fx', k: 'die', x: enemy.x, y: enemy.y, r: enemy.def.size }, enemy.x, enemy.y);
     // XP for everyone who contributed (full XP each, like the classic)
+    const d0 = enemy.def;
     for (const pid of enemy.damagers.keys()) {
       const p = this.players.get(pid);
       if (p && !p.dead) {
-        this.grantXp(p, enemy.def.xp);
+        this.grantXp(p, d0.xp);
         p.kills++;
-        if (enemy.def.god) p.godsKilled++;
+        if (d0.god) p.godsKilled++;
+        // account achievements for notable kills
+        if (d0.behavior === 'boss') this.awardAchievement(p, 'first_boss');
+        if (d0.god) this.awardAchievement(p, 'godslayer');
+        if (d0.event) this.awardAchievement(p, 'invader_bane');
+        if (enemy.type === 'the_tyrant') this.awardAchievement(p, 'tyrant_slayer');
       }
     }
     // loot
@@ -936,7 +976,7 @@ class Game {
     // dungeon completion: boss dies -> open a portal back + announce
     if (inst.kind === 'dungeon' && enemy.id === inst.bossId) {
       inst.bossDead = true;
-      for (const p of inst.players.values()) if (!p.dead) p.dungeons++;
+      for (const p of inst.players.values()) if (!p.dead) { p.dungeons++; this.awardAchievement(p, 'dungeoneer'); }
       this.spawnPortal(inst, enemy.x, enemy.y, 'nexus', 'Portal para o Nexus', null, 10 * 60 * 1000);
       inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi derrotado!` });
       inst.broadcast({ t: 'chat', from: '', text: `A masmorra ${inst.name} foi concluida!`, sys: 1 });
@@ -971,6 +1011,7 @@ class Game {
       ch.mp = effectiveMaxMp(player);
       player.instance.broadcastNear({ t: 'fx', k: 'levelup', x: player.x, y: player.y, r: 1 }, player.x, player.y);
       send(player.ws, { t: 'notice', text: `Voce alcancou o nivel ${ch.level}!` });
+      if (ch.level >= 20) this.awardAchievement(player, 'max_level');
       this.persist(player);
     }
   }
@@ -1387,4 +1428,4 @@ function effectiveMaxMp(player) {
 function round1(n) { return Math.round(n * 10) / 10; }
 function send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 
-module.exports = { Game };
+module.exports = { Game, ACHIEVEMENTS };
