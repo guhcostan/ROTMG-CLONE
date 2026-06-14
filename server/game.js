@@ -37,6 +37,15 @@ const BOUNTY_POOL = [
   { type: 'kill_count', label: 'Abata 80 inimigos', target: 80, reward: ['hppot', 'mppot'] },
 ];
 const DAY_MS = 86400000;
+const SEASON_MS = 7 * DAY_MS;
+// weekly rotating season modifiers (live-ops): one active per week
+const SEASON_MODIFIERS = [
+  { id: 'xp', name: 'Semana da Experiencia', xpMul: 1.5, fameMul: 1, lootMul: 1 },
+  { id: 'loot', name: 'Semana da Pilhagem', xpMul: 1, fameMul: 1, lootMul: 1.4 },
+  { id: 'fame', name: 'Semana da Gloria', xpMul: 1, fameMul: 1.5, lootMul: 1 },
+];
+const currentSeason = () => Math.floor(Date.now() / SEASON_MS);
+const seasonModifier = (season) => SEASON_MODIFIERS[((season % SEASON_MODIFIERS.length) + SEASON_MODIFIERS.length) % SEASON_MODIFIERS.length];
 
 let nextId = 1;
 const uid = () => nextId++;
@@ -44,10 +53,10 @@ const uid = () => nextId++;
 const dist2 = (ax, ay, bx, by) => (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
 
 // ---------------------------------------------------------------- loot
-function rollLoot(lootTable, rng) {
+function rollLoot(lootTable, rng, mult = 1) {
   const items = [];
   for (const [spec, chance] of lootTable) {
-    if (Math.random() >= chance) continue;
+    if (Math.random() >= chance * mult) continue;
     if (spec === 'statpot') {
       items.push(STAT_POTS[Math.floor(Math.random() * STAT_POTS.length)]);
     } else if (spec === 'legendary') {
@@ -179,6 +188,8 @@ class Game {
     this.godKillTarget = 25; // gods slain before the realm closes
     this.eventBossId = null;
     this.nextEvent = Date.now() + 3 * 60 * 1000; // first invasion 3 min after boot
+    this.season = currentSeason();
+    this.seasonMod = seasonModifier(this.season);
     this.populateRealm();
     setInterval(() => this.tick(), TICK);
     setInterval(() => this.autosave(), 30000);
@@ -283,6 +294,7 @@ class Game {
     else this.enterInstance(player, this.nexus);
     this.grantDaily(player);
     send(player.ws, { t: 'bounties', list: player.bounties });
+    send(player.ws, { t: 'chat', from: '', text: `Temporada ativa: ${this.seasonMod.name}.`, sys: 1 });
     return player;
   }
 
@@ -307,6 +319,20 @@ class Game {
       send(player.ws, { t: 'notice', text: `Conquista: ${ACHIEVEMENTS[code].name}!` });
       send(player.ws, { t: 'chat', from: '', text: `${player.name} desbloqueou a conquista "${ACHIEVEMENTS[code].name}".`, sys: 1 });
     }
+  }
+
+  // current season: active modifier, this season's leaderboard, and a hall of fame
+  seasonInfo() {
+    const s = this.season;
+    const hallOfFame = storage.pastSeasons(s)
+      .map(ps => ({ season: ps, winner: storage.seasonWinner(ps) }))
+      .filter(x => x.winner);
+    return {
+      season: s, modifier: this.seasonMod.name, modifierId: this.seasonMod.id,
+      endsAt: (s + 1) * SEASON_MS,
+      leaderboard: storage.seasonLeaderboard(s),
+      hallOfFame,
+    };
   }
 
   // build (or fetch) today's three bounties for an account, regenerating at day change
@@ -1044,7 +1070,7 @@ class Game {
       }
     }
     // loot
-    const drops = rollLoot(enemy.def.loot);
+    const drops = rollLoot(enemy.def.loot, null, this.seasonMod.lootMul);
     const bagItems = [];
     for (const d of drops) {
       if (d.startsWith('portal:')) {
@@ -1086,7 +1112,9 @@ class Game {
 
   grantXp(player, xp) {
     const ch = player.char;
-    ch.fame += Math.ceil(xp / 10);
+    xp = Math.round(xp * this.seasonMod.xpMul);
+    ch.fame += Math.ceil(xp / 10 * this.seasonMod.fameMul);
+    if (player.acc) storage.recordSeasonFame(player.acc.id, this.season, ch.fame);
     if (ch.level >= 20) return;
     ch.xp += xp;
     let leveled = false;
@@ -1155,6 +1183,7 @@ class Game {
     const bonuses = this.fameBonuses(player);
     const bonusFame = bonuses.reduce((s, b) => s + b.value, 0);
     ch.fame = baseFame + bonusFame;
+    if (player.acc) storage.recordSeasonFame(player.acc.id, this.season, ch.fame);
     inst.broadcast({ t: 'chat', from: '', text: `${player.name} (${CLASSES[ch.classId].name} nv ${ch.level}) morreu para ${killedBy}`, sys: 1 });
     buryCharacter(player.acc, ch, killedBy);
     send(player.ws, {
@@ -1188,7 +1217,14 @@ class Game {
     for (const inst of this.instances.values()) {
       if (inst.players.size > 0 || inst.kind !== 'dungeon') this.tickInstance(inst, now);
     }
-    if ((this._respawnT = (this._respawnT || 0) + 1) % 40 === 0) this.respawnRealm();
+    if ((this._respawnT = (this._respawnT || 0) + 1) % 40 === 0) {
+      this.respawnRealm();
+      const s = currentSeason();
+      if (s !== this.season) { // week rolled over: new season + modifier
+        this.season = s; this.seasonMod = seasonModifier(s);
+        this.nexus.broadcast({ t: 'chat', from: '', text: `Nova temporada: ${this.seasonMod.name}!`, sys: 1 });
+      }
+    }
     this.maybeWorldEvent(now);
     this.cleanupInstances();
   }

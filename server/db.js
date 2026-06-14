@@ -94,6 +94,13 @@ CREATE TABLE IF NOT EXISTS bounties (
   day INTEGER NOT NULL,
   data TEXT NOT NULL      -- JSON [{type,target,progress,done}, ...]
 );
+CREATE TABLE IF NOT EXISTS season_scores (
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  season INTEGER NOT NULL,
+  fame INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (account_id, season)
+);
+CREATE INDEX IF NOT EXISTS idx_season ON season_scores(season, fame DESC);
 `);
 
 // ---------------------------------------------------------------- migration
@@ -184,6 +191,13 @@ const q = {
   getBounties: db.prepare('SELECT day, data FROM bounties WHERE account_id = ?'),
   setBounties: db.prepare(`INSERT INTO bounties (account_id, day, data) VALUES (?,?,?)
     ON CONFLICT(account_id) DO UPDATE SET day = excluded.day, data = excluded.data`),
+  recordSeason: db.prepare(`INSERT INTO season_scores (account_id, season, fame) VALUES (?,?,?)
+    ON CONFLICT(account_id, season) DO UPDATE SET fame = MAX(fame, excluded.fame)`),
+  seasonTop: db.prepare(`SELECT a.username, s.fame FROM season_scores s JOIN accounts a ON a.id = s.account_id
+    WHERE s.season = ? ORDER BY s.fame DESC LIMIT 10`),
+  seasonWinner: db.prepare(`SELECT a.username, s.fame FROM season_scores s JOIN accounts a ON a.id = s.account_id
+    WHERE s.season = ? ORDER BY s.fame DESC LIMIT 1`),
+  pastSeasons: db.prepare('SELECT DISTINCT season FROM season_scores WHERE season < ? ORDER BY season DESC LIMIT 8'),
 };
 
 function rowToChar(row) {
@@ -295,6 +309,12 @@ const storage = {
   // daily bounties (account-wide, reset by day)
   getBounties: (accountId) => { const r = q.getBounties.get(accountId); return r ? { day: r.day, list: JSON.parse(r.data) } : null; },
   setBounties: (accountId, day, list) => q.setBounties.run(accountId, day, JSON.stringify(list)),
+
+  // seasons: best fame per account per season; leaderboard resets each season
+  recordSeasonFame: (accountId, season, fame) => q.recordSeason.run(accountId, season, fame),
+  seasonLeaderboard: (season) => q.seasonTop.all(season),
+  seasonWinner: (season) => q.seasonWinner.get(season),
+  pastSeasons: (currentSeason) => q.pastSeasons.all(currentSeason).map(r => r.season),
 
   // achievements (account-wide, permanent)
   earnAchievement: (accountId, code) => q.earnAch.run(accountId, code, Date.now()).changes > 0,

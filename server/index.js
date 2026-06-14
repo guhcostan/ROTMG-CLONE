@@ -62,6 +62,9 @@ const server = http.createServer(async (req, res) => {
         online: game.players.size,
       });
     }
+    if (p === '/api/season' && req.method === 'GET') {
+      return json(res, 200, game.seasonInfo());
+    }
     if (p.startsWith('/api/chars')) {
       const acc = auth.authed(req.headers['x-token']);
       if (!acc) return json(res, 401, { error: 'Sessao invalida' });

@@ -106,6 +106,8 @@
       }
     }
 
+    loadSeason();
+
     const bl = $('bounties-list');
     if (bl) {
       bl.innerHTML = '';
@@ -159,6 +161,32 @@
         el.appendChild(div);
       });
     } catch { /* leaderboard is cosmetic */ }
+  }
+
+  async function loadSeason() {
+    try {
+      const s = await Net.api('GET', '/api/season');
+      $('season-title').textContent = `Temporada ${s.season} - ${s.modifier}`;
+      const el = $('season-info');
+      el.innerHTML = '';
+      const days = Math.max(0, Math.ceil((s.endsAt - Date.now()) / 86400000));
+      const head = document.createElement('div');
+      head.style.color = '#f0c040';
+      head.textContent = `Acaba em ~${days} dia(s). Ranking da temporada:`;
+      el.appendChild(head);
+      if (!s.leaderboard.length) el.appendChild(Object.assign(document.createElement('div'), { textContent: 'Sem pontuacoes ainda.', style: 'color:#888' }));
+      s.leaderboard.forEach((r, i) => {
+        const div = document.createElement('div');
+        div.textContent = `${i + 1}. ${r.username} - fama ${r.fame}`;
+        el.appendChild(div);
+      });
+      if (s.hallOfFame.length) {
+        const hof = document.createElement('div');
+        hof.style.cssText = 'color:#a0a0ff;margin-top:6px';
+        hof.textContent = 'Hall da Fama: ' + s.hallOfFame.map(h => `T${h.season} ${h.winner.username}`).join(', ');
+        el.appendChild(hof);
+      }
+    } catch { /* season panel is cosmetic */ }
   }
 
   function classCanvas(classId) {

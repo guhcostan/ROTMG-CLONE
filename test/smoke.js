@@ -264,6 +264,23 @@ function bountySanity() {
   check(player.vault.some(s => s !== null), 'completed bounty drops a reward in the vault');
 }
 
+// seasons: a rotating weekly modifier + a per-season fame leaderboard
+function seasonSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const info = g.seasonInfo();
+  check(typeof info.season === 'number' && info.modifier && info.endsAt > Date.now(), 'season has an active modifier and end time');
+  check(['xp', 'loot', 'fame'].includes(info.modifierId), 'season modifier is one of the rotating set');
+
+  const id = storage.createAccount('seas' + Math.floor(Math.random() * 1e9), 's', 'h');
+  storage.recordSeasonFame(id, info.season, 500);
+  storage.recordSeasonFame(id, info.season, 300); // lower -> kept at max
+  const top = storage.seasonLeaderboard(info.season);
+  const row = top.find(r => r.fame === 500);
+  check(!!row, 'season leaderboard records the account best fame');
+}
+
 // balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
 function balanceSanity() {
   const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
@@ -392,6 +409,7 @@ async function main() {
   bleedSanity();
   tutorialSanity();
   bountySanity();
+  seasonSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);
@@ -579,6 +597,7 @@ async function main() {
     await c1b.waitFor('world');
     const tickB = await c1b.waitFor('tick');
     check(tickB.self.inv.includes('sword0'), 'traded item persisted in database');
+    c1b.messages.length = 0; // drop join-time system chatter (season/bounties)
     c1b.sendMsg({ t: 'chat', text: '/guilda info' });
     const ginfo = await c1b.waitFor('chat');
     check(ginfo.text.includes('Os Testers'), 'guild persisted in database');
