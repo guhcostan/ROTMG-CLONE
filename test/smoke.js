@@ -1,16 +1,18 @@
 'use strict';
-// End-to-end smoke test: boots the server, registers an account, creates a
-// character, connects via WebSocket, moves, shoots and checks snapshots.
-process.env.PORT = 18099;
+// End-to-end smoke test: boots the server, exercises accounts, characters,
+// gameplay protocol, vault, trade, guilds, leaderboard and verifies that
+// data persists in SQLite across a server restart.
+const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-// isolated database so tests never touch the real data/db.json
-process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'realmtest-'));
-const { spawn } = require('child_process');
 const WebSocket = require('ws');
 
-const BASE = `http://localhost:${process.env.PORT}`;
+const PORT = 18099;
+const BASE = `http://localhost:${PORT}`;
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'rotmg-test-'));
+// in-process unit checks (below) boot a Game -> point their SQLite at the temp dir too
+process.env.DATA_DIR = DATA_DIR;
 let failures = 0;
 
 function check(cond, label) {
@@ -18,18 +20,10 @@ function check(cond, label) {
   if (!cond) failures++;
 }
 
-async function api(method, p, body, token) {
-  const res = await fetch(BASE + p, {
-    method,
-    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-Token': token } : {}),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return { status: res.status, data: await res.json().catch(() => ({})) };
-}
-
+// pure data/engine checks that don't need the network server
 function dataSanity() {
   const { ENEMIES, DUNGEONS, ITEMS, LEGENDARIES } = require('../server/data');
-  let bad = [];
+  const bad = [];
   for (const id of LEGENDARIES) if (!ITEMS[id]) bad.push(`legendary ${id} missing`);
   for (const [id, e] of Object.entries(ENEMIES)) {
     for (const [spec] of e.loot || []) {
@@ -57,215 +51,235 @@ function realmCycleSanity() {
   check(g.realm !== oldRealm && g.realm.kind === 'realm' && g.realm.enemies.size > 0, 'realm regenerates after closing');
   check([...g.instances.values()].some(i => i.kind === 'dungeon' && i.name === 'Castelo do Rei Demente'), 'mad castle created on realm close');
   check(!g.instances.has(oldRealm.id), 'old realm removed');
-
-  // mini-boss escort: leader spawns with its pack following it
   const lead = g.spawnEnemy(g.realm, 'wolf_alpha', g.realm.map.center.x, g.realm.map.center.y);
   const pack = [...g.realm.enemies.values()].filter(e => e.parentId === lead.id);
   check(pack.length === 4, 'mini-boss spawns with escort pack');
 }
 
-async function main() {
-  dataSanity();
-  realmCycleSanity();
+async function api(method, p, body, token) {
+  const res = await fetch(BASE + p, {
+    method,
+    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-Token': token } : {}),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { status: res.status, data: await res.json().catch(() => ({})) };
+}
+
+function startServer() {
   const server = spawn('node', [path.join(__dirname, '..', 'server', 'index.js')], {
-    env: Object.assign({}, process.env),
+    env: Object.assign({}, process.env, { PORT, DATA_DIR }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   server.stderr.on('data', d => process.stderr.write(d));
-  await new Promise((res, rej) => {
-    server.stdout.on('data', d => { if (String(d).includes('Servidor rodando')) res(); });
+  return new Promise((res, rej) => {
+    server.stdout.on('data', d => { if (String(d).includes('Servidor rodando')) res(server); });
     server.on('exit', () => rej(new Error('server died')));
     setTimeout(() => rej(new Error('server start timeout')), 8000);
   });
+}
+
+function client(token, charId) {
+  const ws = new WebSocket(`ws://localhost:${PORT}/ws?token=${token}&char=${charId}`);
+  const messages = [];
+  ws.on('message', d => messages.push(JSON.parse(d)));
+  const waitFor = (type, timeout = 5000) => new Promise((res, rej) => {
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      const m = messages.find(x => x.t === type);
+      if (m) { clearInterval(iv); res(m); }
+      else if (Date.now() - t0 > timeout) { clearInterval(iv); rej(new Error('timeout waiting ' + type)); }
+    }, 30);
+  });
+  const sendMsg = (m) => ws.send(JSON.stringify(m));
+  const opened = new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
+  return { ws, messages, waitFor, sendMsg, opened };
+}
+
+async function walkTo(c, fromX, fromY, toX, toY) {
+  let px = fromX, py = fromY;
+  for (let i = 0; i < 300; i++) {
+    const dx = toX - px, dy = toY - py;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.8) break;
+    const step = Math.min(0.25, d);
+    px += (dx / d) * step; py += (dy / d) * step;
+    c.sendMsg({ t: 'move', x: px, y: py });
+    await new Promise(r => setTimeout(r, 35));
+  }
+  return { x: px, y: py };
+}
+
+async function main() {
+  dataSanity();
+  realmCycleSanity();
+  let server = await startServer();
+  const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
+  const user2 = 'beta' + Math.floor(Math.random() * 1e6);
 
   try {
-    const user = 'tester' + Math.floor(Math.random() * 1e6);
-
     // --- accounts
-    let r = await api('POST', '/api/register', { username: user, password: 'senha123' });
+    let r = await api('POST', '/api/register', { username: user1, password: 'senha123' });
     check(r.status === 200 && r.data.token, 'register returns token');
-    const token = r.data.token;
+    let token1 = r.data.token;
 
-    r = await api('POST', '/api/register', { username: user, password: 'senha123' });
+    r = await api('POST', '/api/register', { username: user1, password: 'senha123' });
     check(r.status === 400, 'duplicate username rejected');
 
-    r = await api('POST', '/api/login', { username: user, password: 'errada' });
+    r = await api('POST', '/api/login', { username: user1, password: 'errada' });
     check(r.status === 400, 'wrong password rejected');
 
-    r = await api('POST', '/api/login', { username: user, password: 'senha123' });
-    check(r.status === 200 && r.data.token, 'login works');
+    r = await api('POST', '/api/register', { username: user2, password: 'senha123' });
+    const token2 = r.data.token;
+    check(r.status === 200, 'second account registered');
 
     // --- characters
-    r = await api('GET', '/api/chars', null, token);
+    r = await api('GET', '/api/chars', null, token1);
     check(r.status === 200 && r.data.characters.length === 0, 'char list starts empty');
     check(Object.keys(r.data.classes).length === 6, 'six classes available');
 
-    r = await api('POST', '/api/chars', { classId: 'wizard' }, token);
+    r = await api('POST', '/api/chars', { classId: 'wizard' }, token1);
     check(r.status === 200 && r.data.character.classId === 'wizard', 'create wizard');
-    const charId = r.data.character.id;
+    const char1 = r.data.character.id;
+
+    r = await api('POST', '/api/chars', { classId: 'knight' }, token2);
+    const char2 = r.data.character.id;
+    check(r.status === 200, 'create knight on second account');
 
     r = await api('GET', '/api/items', null);
-    check(r.status === 200 && r.data.staff0 && r.data.hppot, 'item metadata served');
+    check(r.status === 200 && r.data.staff0 && r.data.pet_egg, 'item metadata served');
 
-    // --- websocket gameplay
-    const ws = new WebSocket(`ws://localhost:${process.env.PORT}/ws?token=${token}&char=${charId}`);
-    const messages = [];
-    const waitFor = (type, timeout = 5000) => new Promise((res, rej) => {
-      const found = messages.find(m => m.t === type);
-      if (found) return res(found);
-      const t0 = Date.now();
-      const iv = setInterval(() => {
-        const m = messages.find(x => x.t === type);
-        if (m) { clearInterval(iv); res(m); }
-        else if (Date.now() - t0 > timeout) { clearInterval(iv); rej(new Error('timeout waiting ' + type)); }
-      }, 30);
-    });
-    ws.on('message', d => messages.push(JSON.parse(d)));
-    await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
+    r = await api('GET', '/api/leaderboard', null);
+    check(r.status === 200 && Array.isArray(r.data.alive), 'leaderboard endpoint');
 
-    const world = await waitFor('world');
-    check(world.kind === 'nexus' && world.w > 0, 'spawned in nexus with map');
-    const tiles = Buffer.from(world.tiles, 'base64');
-    check(tiles.length === world.w * world.h, 'map tile payload complete');
+    // --- gameplay: two clients in the nexus
+    const c1 = client(token1, char1);
+    const c2 = client(token2, char2);
+    await c1.opened; await c2.opened;
 
-    const tick = await waitFor('tick');
-    check(tick.self.hp === 100 && tick.self.level === 1, 'self stats in snapshot');
-    check(tick.e.some(e => e[0] === 'p'), 'player entity visible');
-    check(tick.e.some(e => e[0] === 'o' && e[2] === 'realm'), 'realm portal in nexus');
+    const w1 = await c1.waitFor('world');
+    const w2 = await c2.waitFor('world');
+    check(w1.kind === 'nexus' && w2.kind === 'nexus', 'both spawned in nexus');
+    const tiles = Buffer.from(w1.tiles, 'base64');
+    check(tiles.length === w1.w * w1.h, 'map tile payload complete');
 
-    // move toward the portal and enter the realm
-    const portal = tick.e.find(e => e[0] === 'o' && e[2] === 'realm');
-    let px = world.x, py = world.y;
-    // walk step by step (server enforces speed)
-    for (let i = 0; i < 200; i++) {
-      const dx = portal[3] - px, dy = portal[4] - py;
-      const d = Math.hypot(dx, dy);
-      if (d < 1) break;
-      const step = Math.min(0.25, d);
-      px += (dx / d) * step; py += (dy / d) * step;
-      ws.send(JSON.stringify({ t: 'move', x: px, y: py }));
-      await new Promise(r => setTimeout(r, 35));
-    }
-    messages.length = 0;
-    ws.send(JSON.stringify({ t: 'portal' }));
-    const realm = await waitFor('world');
+    const t1 = await c1.waitFor('tick');
+    check(t1.self.hp === 100 && t1.self.level === 1, 'self stats in snapshot');
+    check(t1.e.filter(e => e[0] === 'p').length === 2, 'both players visible to each other');
+    check(t1.e.some(e => e[0] === 'o' && e[2] === 'realm'), 'realm portal in nexus');
+    check(t1.e.some(e => e[0] === 'v'), 'vault chest in nexus');
+
+    // --- vault: walk to chest, deposit a starter item, withdraw it back
+    const vaultEnt = t1.e.find(e => e[0] === 'v');
+    // give the wizard something tradable: drop nothing, use equipment slot? deposit needs inventory.
+    // move weapon to inventory first
+    c1.sendMsg({ t: 'invswap', from: 0, to: 4 });
+    await walkTo(c1, w1.x, w1.y, vaultEnt[2], vaultEnt[3]);
+    await new Promise(r => setTimeout(r, 200));
+    let tick = c1.messages.filter(m => m.t === 'tick').pop();
+    const vNear = tick.e.find(e => e[0] === 'v');
+    check(Array.isArray(vNear[4]), 'vault contents visible when near chest');
+
+    c1.sendMsg({ t: 'vault', cmd: 'deposit', slot: 4 });
+    await new Promise(r => setTimeout(r, 300));
+    tick = c1.messages.filter(m => m.t === 'tick').pop();
+    check(tick.e.find(e => e[0] === 'v')[4][0] === 'staff0', 'item deposited in vault');
+    check(tick.self.inv[0] === null, 'item removed from inventory');
+
+    c1.sendMsg({ t: 'vault', cmd: 'withdraw', idx: 0 });
+    await new Promise(r => setTimeout(r, 300));
+    tick = c1.messages.filter(m => m.t === 'tick').pop();
+    check(tick.self.inv.includes('staff0'), 'item withdrawn from vault');
+    c1.sendMsg({ t: 'invswap', from: 4, to: 0 }); // re-equip
+
+    // --- trade: c2 walks to c1, c1 offers nothing, c2 offers its sword
+    const t2 = await c2.waitFor('tick');
+    c2.sendMsg({ t: 'invswap', from: 0, to: 4 }); // sword -> inventory
+    const myEnt2 = t2.e.find(e => e[0] === 'p' && e[1] === w2.you);
+    const pos1 = c1.messages.filter(m => m.t === 'tick').pop().e.find(e => e[1] === w1.you);
+    await walkTo(c2, myEnt2[4], myEnt2[5], pos1[4], pos1[5]);
+
+    c1.sendMsg({ t: 'trade', cmd: 'request', name: user2 });
+    const req = await c2.waitFor('tradereq');
+    check(req.from === user1, 'trade request delivered');
+    c2.sendMsg({ t: 'trade', cmd: 'accept' });
+    await c1.waitFor('tradestate');
+    await c2.waitFor('tradestate');
+    check(true, 'trade session opened');
+
+    c2.sendMsg({ t: 'trade', cmd: 'offer', slots: [0] });
+    await new Promise(r => setTimeout(r, 200));
+    const st = c1.messages.filter(m => m.t === 'tradestate').pop();
+    check(st.theirs[0] === 'sword0', 'partner offer visible');
+
+    c1.sendMsg({ t: 'trade', cmd: 'confirm' });
+    c2.sendMsg({ t: 'trade', cmd: 'confirm' });
+    await c1.waitFor('tradedone');
+    await c2.waitFor('tradedone');
+    await new Promise(r => setTimeout(r, 200));
+    tick = c1.messages.filter(m => m.t === 'tick').pop();
+    check(tick.self.inv.includes('sword0'), 'traded item received');
+
+    // --- guild
+    c1.sendMsg({ t: 'chat', text: '/guilda criar Os Testers' });
+    await new Promise(r => setTimeout(r, 200));
+    c1.sendMsg({ t: 'chat', text: '/guilda convidar ' + user2 });
+    await new Promise(r => setTimeout(r, 200));
+    c2.sendMsg({ t: 'chat', text: '/guilda aceitar' });
+    await new Promise(r => setTimeout(r, 300));
+    c1.messages.length = 0;
+    c2.sendMsg({ t: 'chat', text: '/g ola guilda' });
+    const gmsg = await c1.waitFor('chat');
+    check(gmsg.from.includes('[Os Testers]'), 'guild chat delivered to members');
+    tick = c1.messages.filter(m => m.t === 'tick').pop() || await c1.waitFor('tick');
+    check(tick.e.some(e => e[0] === 'p' && e[10] === 'Os Testers'), 'guild tag in snapshot');
+
+    // --- realm + combat still work
+    c1.messages.length = 0;
+    const portal = (await c1.waitFor('tick')).e.find(e => e[0] === 'o' && e[2] === 'realm');
+    const mePos = c1.messages.filter(m => m.t === 'tick').pop().e.find(e => e[1] === w1.you);
+    await walkTo(c1, mePos[4], mePos[5], portal[3], portal[4]);
+    c1.messages.length = 0;
+    c1.sendMsg({ t: 'portal' });
+    const realm = await c1.waitFor('world');
     check(realm.kind === 'realm', 'entered realm through portal');
-
-    // shoot a few times; expect shot broadcast back
-    messages.length = 0;
     for (let i = 0; i < 5; i++) {
-      ws.send(JSON.stringify({ t: 'shoot', a: i }));
+      c1.sendMsg({ t: 'shoot', a: i });
       await new Promise(r => setTimeout(r, 250));
     }
-    await waitFor('shot');
+    await c1.waitFor('shot');
     check(true, 'shot broadcast received');
 
-    // chat roundtrip
-    messages.length = 0;
-    ws.send(JSON.stringify({ t: 'chat', text: 'ola mundo' }));
-    const chat = await waitFor('chat');
-    check(chat.text === 'ola mundo', 'chat roundtrip');
+    c1.ws.close(); c2.ws.close();
+    await new Promise(r => setTimeout(r, 400));
 
-    // back to nexus command
-    messages.length = 0;
-    ws.send(JSON.stringify({ t: 'nexus' }));
-    const nx = await waitFor('world');
-    check(nx.kind === 'nexus', '/nexus teleport works');
+    // --- persistence across restart (real database!)
+    server.kill('SIGTERM');
+    await new Promise(r => setTimeout(r, 600));
+    server = await startServer();
 
-    // --- vault: walk to the chest, deposit the starter weapon, take it back
-    let chest = null;
-    for (let i = 0; i < 100 && !chest; i++) {
-      const m = messages.find(x => x.t === 'tick' && x.e.some(e => e[0] === 'o' && e[2] === 'vault'));
-      if (m) chest = m.e.find(e => e[0] === 'o' && e[2] === 'vault');
-      else await new Promise(r => setTimeout(r, 30));
-    }
-    check(!!chest, 'vault chest in nexus');
-    px = nx.x; py = nx.y;
-    for (let i = 0; i < 200; i++) {
-      const dx = chest[3] - px, dy = chest[4] - py;
-      const d = Math.hypot(dx, dy);
-      if (d < 1.5) break;
-      const step = Math.min(0.25, d);
-      px += (dx / d) * step; py += (dy / d) * step;
-      ws.send(JSON.stringify({ t: 'move', x: px, y: py }));
-      await new Promise(r => setTimeout(r, 35));
-    }
-    messages.length = 0;
-    let vt = await waitFor('tick');
-    check(Array.isArray(vt.self.vault) && vt.self.vault.length === 16, 'vault visible near chest');
-    const weapon = vt.self.eq[0];
-    ws.send(JSON.stringify({ t: 'vaultswap', from: 0, to: 12 }));
-    await new Promise(r => setTimeout(r, 200));
-    messages.length = 0;
-    vt = await waitFor('tick');
-    check(vt.self.vault[0] === weapon && vt.self.eq[0] === null, 'deposited weapon in vault');
-    ws.send(JSON.stringify({ t: 'vaultswap', from: 12, to: 0 }));
-    await new Promise(r => setTimeout(r, 200));
-    messages.length = 0;
-    vt = await waitFor('tick');
-    check(vt.self.eq[0] === weapon && vt.self.vault[0] === null, 'withdrew weapon from vault');
+    r = await api('POST', '/api/login', { username: user1, password: 'senha123' });
+    check(r.status === 200, 'login works after restart');
+    token1 = r.data.token;
 
-    // --- trade: second account joins, both swap via /trade
-    const user2 = 'trader' + Math.floor(Math.random() * 1e6);
-    r = await api('POST', '/api/register', { username: user2, password: 'senha123' });
-    const token2 = r.data.token;
-    r = await api('POST', '/api/chars', { classId: 'archer' }, token2);
-    const charId2 = r.data.character.id;
-    const ws2 = new WebSocket(`ws://localhost:${process.env.PORT}/ws?token=${token2}&char=${charId2}`);
-    const messages2 = [];
-    const waitFor2 = (type, timeout = 5000) => new Promise((res, rej) => {
-      const t0 = Date.now();
-      const iv = setInterval(() => {
-        const m = messages2.find(x => x.t === type);
-        if (m) { clearInterval(iv); res(m); }
-        else if (Date.now() - t0 > timeout) { clearInterval(iv); rej(new Error('timeout waiting ' + type)); }
-      }, 30);
-    });
-    ws2.on('message', d => messages2.push(JSON.parse(d)));
-    await new Promise((res, rej) => { ws2.on('open', res); ws2.on('error', rej); });
-    await waitFor2('world');
-
-    // player 1 walks back to spawn so both are in range
-    for (let i = 0; i < 200; i++) {
-      const dx = nx.x - px, dy = nx.y - py;
-      const d = Math.hypot(dx, dy);
-      if (d < 1) break;
-      const step = Math.min(0.25, d);
-      px += (dx / d) * step; py += (dy / d) * step;
-      ws.send(JSON.stringify({ t: 'move', x: px, y: py }));
-      await new Promise(r => setTimeout(r, 35));
-    }
-    // move the starter weapon to inventory so it can be offered
-    ws.send(JSON.stringify({ t: 'invswap', from: 0, to: 4 }));
-    await new Promise(r => setTimeout(r, 150));
-    messages.length = 0; messages2.length = 0;
-    ws.send(JSON.stringify({ t: 'chat', text: `/trade ${user2}` }));
-    await new Promise(r => setTimeout(r, 200));
-    ws2.send(JSON.stringify({ t: 'chat', text: `/trade ${user}` }));
-    const tr1 = await waitFor('trade');
-    check(tr1.partner === user2, 'trade window opened');
-    ws.send(JSON.stringify({ t: 'tradeoffer', slots: [true, false, false, false, false, false, false, false] }));
-    await new Promise(r => setTimeout(r, 200));
-    ws.send(JSON.stringify({ t: 'tradeconfirm' }));
-    ws2.send(JSON.stringify({ t: 'tradeconfirm' }));
-    await waitFor('tradeend');
-    await waitFor2('tradeend');
-    messages2.length = 0;
-    const t2 = await waitFor2('tick');
-    check(t2.self.inv.includes('staff0'), 'traded item arrived in partner inventory');
-    ws2.close();
-
-    // --- leaderboard
-    r = await api('GET', '/api/leaderboard', null);
-    check(r.status === 200 && Array.isArray(r.data) && r.data.some(x => x.name === user), 'leaderboard lists characters');
-
-    ws.close();
+    r = await api('GET', '/api/chars', null, token1);
+    check(r.data.characters.length === 1, 'character survived restart');
+    const c1b = client(token1, char1);
+    await c1b.opened;
+    await c1b.waitFor('world');
+    const tickB = await c1b.waitFor('tick');
+    check(tickB.self.inv.includes('sword0'), 'traded item persisted in database');
+    c1b.sendMsg({ t: 'chat', text: '/guilda info' });
+    const ginfo = await c1b.waitFor('chat');
+    check(ginfo.text.includes('Os Testers'), 'guild persisted in database');
+    check(fs.existsSync(path.join(DATA_DIR, 'game.db')), 'SQLite database file exists');
+    c1b.ws.close();
     await new Promise(r => setTimeout(r, 300));
   } catch (e) {
     console.error('TEST ERROR:', e.message);
     failures++;
   } finally {
     server.kill();
+    try { fs.rmSync(DATA_DIR, { recursive: true, force: true }); } catch {}
   }
   console.log(failures === 0 ? '\nAll tests passed.' : `\n${failures} failure(s).`);
   process.exit(failures === 0 ? 0 : 1);

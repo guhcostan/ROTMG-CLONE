@@ -105,18 +105,23 @@
       gy.appendChild(div);
     }
 
-    const lb = $('leaderboard');
-    lb.innerHTML = '';
+    loadLeaderboard(data.classes);
+  }
+
+  async function loadLeaderboard(classes) {
     try {
-      const rows = await Net.api('GET', '/api/leaderboard');
-      if (!rows.length) lb.textContent = 'Nenhum heroi famoso ainda.';
-      rows.forEach((r, i) => {
+      const lb = await Net.api('GET', '/api/leaderboard');
+      $('online-count').textContent = `(${lb.online} online)`;
+      const el = $('leaderboard');
+      el.innerHTML = '';
+      if (!lb.alive.length) { el.textContent = 'Nenhum heroi no ranking ainda.'; return; }
+      lb.alive.slice(0, 10).forEach((r, i) => {
         const div = document.createElement('div');
-        const cls = data.classes[r.classId] ? data.classes[r.classId].name : r.classId;
-        div.textContent = `${i + 1}. ${r.name} - ${cls} nivel ${r.level}, fama ${r.fame} ${r.alive ? '' : '☠'}`;
-        lb.appendChild(div);
+        const cls = classes[r.class_id] ? classes[r.class_id].name : r.class_id;
+        div.textContent = `${i + 1}. ${r.username} - ${cls} nivel ${r.level}, fama ${r.fame}`;
+        el.appendChild(div);
       });
-    } catch { lb.textContent = 'Ranking indisponivel.'; }
+    } catch { /* leaderboard is cosmetic */ }
   }
 
   function classCanvas(classId) {

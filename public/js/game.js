@@ -69,16 +69,15 @@ const GameClient = (() => {
   function onTick(msg) {
     self = msg.self;
     UI.update(self);
-    UI.showVault(self.vault || null);
     const seen = new Set();
     for (const e of msg.e) {
       const kind = e[0];
       if (kind === 'p') {
-        const [, id, name, classId, x, y, hp, maxHp, level, invis] = e;
+        const [, id, name, classId, x, y, hp, maxHp, level, invis, guild, pet] = e;
         seen.add(id);
         let ent = entities.get(id);
         if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
-        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis });
+        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis, guild, pet });
         if (id === myId) {
           // server correction only when badly out of sync
           if (Math.hypot(me.x - x, me.y - y) > 3) { me.x = x; me.y = y; }
@@ -98,9 +97,15 @@ const GameClient = (() => {
         const [, id, pkind, x, y, name] = e;
         seen.add(id);
         entities.set(id, { kind, id, pkind, x, y, tx: x, ty: y, name });
+      } else if (kind === 'v') {
+        const [, , x, y, vault] = [e[0], e[1], e[2], e[3], e[4]];
+        seen.add('vault');
+        entities.set('vault', { kind: 'v', id: 'vault', x, y, tx: x, ty: y });
+        UI.showVault(vault);
       }
     }
     for (const id of entities.keys()) if (!seen.has(id)) entities.delete(id);
+    if (!seen.has('vault')) UI.showVault(null);
 
     // loot bag under the player?
     let bag = null;
@@ -111,7 +116,7 @@ const GameClient = (() => {
   }
 
   function onShot(msg) {
-    if (msg.f === 1 && msg.o === myId) Sfx.shoot();
+    if (msg.f === 1 && msg.o === myId && typeof Sfx !== 'undefined') Sfx.shoot();
     for (const a of msg.as) {
       bullets.push({
         x: msg.x, y: msg.y, a,
@@ -122,7 +127,7 @@ const GameClient = (() => {
   }
 
   function onDmg(msg) {
-    if (msg.id === myId && msg.n > 0) Sfx.hit();
+    if (msg.id === myId && msg.n > 0 && typeof Sfx !== 'undefined') Sfx.hit();
     const ent = entities.get(msg.id);
     const x = ent ? (ent.x ?? ent.tx) : null;
     if (x === null && msg.id !== myId) return;
@@ -136,8 +141,10 @@ const GameClient = (() => {
   }
 
   function onFx(msg) {
-    if (msg.k === 'die') Sfx.kill();
-    if (msg.k === 'levelup') Sfx.levelup();
+    if (typeof Sfx !== 'undefined') {
+      if (msg.k === 'die') Sfx.kill();
+      if (msg.k === 'levelup') Sfx.levelup();
+    }
     effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, t: 0, ttl: 0.6 });
   }
 
@@ -172,9 +179,9 @@ const GameClient = (() => {
         e.preventDefault();
       }
       if (e.key === 'Escape' || e.key.toLowerCase() === 'r') Net.send({ t: 'nexus' });
-      if (e.key.toLowerCase() === 'm') UI.notice(Sfx.toggleMute() ? 'Som desligado' : 'Som ligado');
       if (e.key >= '1' && e.key <= '8') Net.send({ t: 'useitem', slot: 3 + parseInt(e.key, 10) });
       if (e.key.toLowerCase() === 'f') Net.send({ t: 'portal' });
+      if (e.key.toLowerCase() === 'm' && typeof Sfx !== 'undefined') UI.notice(Sfx.toggleMute() ? 'Som desligado' : 'Som ligado');
     };
     onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
     canvas.onmousemove = (e) => { mouse.x = e.clientX; mouse.y = e.clientY; };
@@ -266,24 +273,29 @@ const GameClient = (() => {
     ctx.translate(-camX, -camY);
     ctx.drawImage(mapCanvas, 0, 0, mapCanvas.width * scale, mapCanvas.height * scale);
 
-    // entity draw order: bags, portals, enemies, players
+    // entity draw order: vault, bags, portals, enemies, players
     const ordered = [...entities.values()].sort((a, b) =>
-      ({ b: 0, o: 1, e: 2, p: 3 }[a.kind] - { b: 0, o: 1, e: 2, p: 3 }[b.kind]));
+      ({ v: 0, b: 1, o: 2, e: 3, p: 4 }[a.kind] - { v: 0, b: 1, o: 2, e: 3, p: 4 }[b.kind]));
 
     for (const ent of ordered) {
       const px = ent.x * TILE, py = ent.y * TILE;
-      if (ent.kind === 'b') {
+      if (ent.kind === 'v') {
+        drawSprite('chest', px, py, TILE * 1.1);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('Cofre', px, py - TILE * 0.7);
+      } else if (ent.kind === 'b') {
         const name = ent.tier >= 6 ? 'bag_white' : (ent.tier >= 4 ? 'bag_gold' : (ent.tier >= 2 ? 'bag_purple' : 'bag_brown'));
         drawSprite(name, px, py, TILE * 0.8);
       } else if (ent.kind === 'o') {
-        const isVault = ent.pkind === 'vault';
-        const spr = isVault ? 'vault_chest' : (ent.pkind === 'dungeon' ? 'portal_red' : 'portal_blue');
-        const pulse = isVault ? 1 : 1 + Math.sin(performance.now() / 300) * 0.08;
+        const spr = ent.pkind === 'dungeon' ? 'portal_red' : 'portal_blue';
+        const pulse = 1 + Math.sin(performance.now() / 300) * 0.08;
         drawSprite(spr, px, py, TILE * 1.2 * pulse);
         ctx.fillStyle = '#fff';
         ctx.font = '12px Courier New';
         ctx.textAlign = 'center';
-        ctx.fillText(isVault ? ent.name : ent.name + ' [F]', px, py - TILE * 0.8);
+        ctx.fillText(ent.name + ' [F]', px, py - TILE * 0.8);
       } else if (ent.kind === 'e') {
         drawSprite(ent.type, px, py, TILE * (spriteScale(ent.type)));
         drawHpBar(px, py, ent.hp, ent.maxHp, spriteScale(ent.type));
@@ -291,10 +303,15 @@ const GameClient = (() => {
         ctx.globalAlpha = ent.invis ? 0.35 : 1;
         drawSprite(ent.classId, px, py, TILE * 0.95);
         ctx.globalAlpha = 1;
+        if (ent.pet) {
+          const t = performance.now() / 600 + ent.id;
+          drawSprite(ent.pet, px + Math.cos(t) * TILE * 0.9, py + Math.sin(t) * TILE * 0.9, TILE * 0.5);
+        }
         ctx.fillStyle = ent.id === myId ? '#f0c040' : '#fff';
         ctx.font = '11px Courier New';
         ctx.textAlign = 'center';
-        ctx.fillText(`${ent.name} ${ent.level}`, px, py - TILE * 0.65);
+        const tag = ent.guild ? `[${ent.guild}] ` : '';
+        ctx.fillText(`${tag}${ent.name} ${ent.level}`, px, py - TILE * 0.65);
         if (ent.id !== myId) drawHpBar(px, py, ent.hp, ent.maxHp, 0.9);
       }
     }
@@ -418,7 +435,6 @@ const GameClient = (() => {
   function start(charId, callbacks) {
     onDeath = callbacks.onDeath;
     running = true;
-    reconnectTries = 0;
     keys = {}; shooting = false;
     const handlers = {
       world: (m) => { reconnectTries = 0; loadWorld(m); },
@@ -428,19 +444,26 @@ const GameClient = (() => {
       fx: onFx,
       notice: m => UI.notice(m.text),
       chat: m => UI.chat(m.from, m.text, m.sys),
-      trade: m => UI.showTrade(m),
-      tradeend: () => UI.hideTrade(),
+      tradereq: m => UI.tradeRequest(m.from),
+      tradestate: m => UI.tradeState(m),
+      tradedone: () => UI.tradeEnd(true),
+      tradecancel: () => UI.tradeEnd(false),
       death: (m) => {
         running = false;
-        Sfx.death();
+        if (typeof Sfx !== 'undefined') Sfx.death();
         callbacks.onDeath(m);
       },
-      _close: () => {
+      _close: (ev) => {
         if (!running) return;
-        if (reconnectTries < 3) {
-          reconnectTries++;
-          UI.notice(`Conexao perdida, reconectando (${reconnectTries}/3)...`);
-          setTimeout(() => { if (running) Net.connect(charId, handlers); }, 800 * reconnectTries);
+        // intentional server rejections: don't retry
+        if (ev && ev.code >= 4001 && ev.code <= 4003) {
+          running = false;
+          return callbacks.onDisconnect();
+        }
+        // transient drop: try to reconnect with the same character
+        if (reconnectTries++ < 10) {
+          UI.notice('Conexao perdida, reconectando...');
+          setTimeout(() => { if (running) Net.connect(charId, handlers); }, 1500);
         } else {
           running = false;
           callbacks.onDisconnect();

@@ -8,7 +8,7 @@ const { WebSocketServer } = require('ws');
 const auth = require('./auth');
 const { Game } = require('./game');
 const { CLASSES, ITEMS } = require('./data');
-const { db, saveNow } = require('./db');
+const storage = require('./db');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC = path.join(__dirname, '..', 'public');
@@ -48,15 +48,19 @@ const server = http.createServer(async (req, res) => {
 
   try {
     // ---------------- API
-    if (p === '/api/register' && req.method === 'POST') {
+    if ((p === '/api/register' || p === '/api/login') && req.method === 'POST') {
+      const ip = req.socket.remoteAddress || '?';
+      if (auth.throttled(ip)) return json(res, 429, { error: 'Muitas tentativas, aguarde alguns minutos' });
       const { username, password } = await readBody(req);
-      const r = auth.register(username, password);
+      const r = p === '/api/register' ? auth.register(username, password) : auth.login(username, password);
       return json(res, r.error ? 400 : 200, r);
     }
-    if (p === '/api/login' && req.method === 'POST') {
-      const { username, password } = await readBody(req);
-      const r = auth.login(username, password);
-      return json(res, r.error ? 400 : 200, r);
+    if (p === '/api/leaderboard' && req.method === 'GET') {
+      return json(res, 200, {
+        alive: storage.leaderboard(),
+        legends: storage.legends(),
+        online: game.players.size,
+      });
     }
     if (p.startsWith('/api/chars')) {
       const acc = auth.authed(req.headers['x-token']);
@@ -68,8 +72,11 @@ const server = http.createServer(async (req, res) => {
         }
         return json(res, 200, {
           username: acc.username,
-          characters: acc.characters.map(charSummary),
-          graveyard: acc.graveyard.slice(-10).reverse(),
+          characters: storage.listChars(acc.id).map(charSummary),
+          graveyard: storage.listGraves(acc.id).map(g => ({
+            classId: g.class_id, level: g.level, fame: g.fame,
+            killedBy: g.killed_by, diedAt: g.died_at,
+          })),
           maxChars: auth.MAX_CHARS,
           classes: classMeta,
         });
@@ -84,15 +91,6 @@ const server = http.createServer(async (req, res) => {
         const r = auth.deleteCharacter(acc, id);
         return json(res, r.error ? 400 : 200, r);
       }
-    }
-    if (p === '/api/leaderboard' && req.method === 'GET') {
-      const rows = [];
-      for (const acc of Object.values(db.accounts)) {
-        for (const ch of acc.characters) rows.push({ name: acc.username, classId: ch.classId, level: ch.level, fame: ch.fame, alive: true });
-        for (const g of acc.graveyard) rows.push({ name: acc.username, classId: g.classId, level: g.level, fame: g.fame, alive: false });
-      }
-      rows.sort((a, b) => b.fame - a.fame);
-      return json(res, 200, rows.slice(0, 10));
     }
     if (p === '/api/items' && req.method === 'GET') {
       // client needs item metadata for rendering/tooltips
@@ -123,11 +121,11 @@ wss.on('connection', (ws, req) => {
   const acc = auth.authed(url.searchParams.get('token'));
   const charId = parseInt(url.searchParams.get('char'), 10);
   if (!acc) { ws.close(4001, 'unauthorized'); return; }
-  const char = acc.characters.find(c => c.id === charId);
+  const char = storage.getChar(charId, acc.id);
   if (!char) { ws.close(4002, 'no character'); return; }
   // one connection per character
   for (const p of game.players.values()) {
-    if (p.acc === acc && p.char.id === charId) { ws.close(4003, 'already playing'); return; }
+    if (p.char.id === charId) { ws.close(4003, 'already playing'); return; }
   }
 
   const player = game.joinPlayer(ws, acc, char);
@@ -146,8 +144,13 @@ wss.on('connection', (ws, req) => {
   ws.on('error', () => {});
 });
 
-process.on('SIGINT', () => { saveNow(); process.exit(0); });
-process.on('SIGTERM', () => { saveNow(); process.exit(0); });
+function shutdown() {
+  try { game.autosave(); } catch {}
+  storage.close();
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 server.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);

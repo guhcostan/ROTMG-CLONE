@@ -487,6 +487,40 @@ p.PPPPPPPP.p
 .nNNNyyNNNn.
 .nNNNNNNNNn.
 ..nnnnnnnn..`,
+  chest: `
+..nnnnnnnn..
+.nNNNNNNNNn.
+.nNNNyyNNNn.
+.nnnnnnnnnn.
+.nNNNyyNNNn.
+.nNNNNNNNNn.
+.nnnnnnnnnn.`,
+  pet_wolf: `
+.g......g.
+.gGGGGGGg.
+.GkGGGGkG.
+..GGwwGG..
+..G.GG.G..`,
+  pet_imp: `
+.r......r.
+..rRRRRr..
+..RkRRkR..
+...RRRR...
+..r.RR.r..`,
+  pet_sprite: `
+....cc....
+..ccBBcc..
+.cBwBBwBc.
+..ccBBcc..
+....cc....`,
+  egg: `
+....ssSS....
+...sSSSSs...
+..sSSPSSSs..
+..sSSSSPSs..
+..sSPSSSSs..
+...sSSSSs...
+....ssss....`,
 
   // ----- items (12x12 icons)
   staff: `
@@ -698,6 +732,7 @@ const Sprites = (() => {
       if (id === 'hppot') return get('potion_red');
       if (id === 'mppot') return get('potion_blue');
       if (id === 'pot_life' || id === 'pot_mana') return get('potion_life');
+      if (id === 'pet_egg') return get('egg');
       return get('potion_stat');
     }
     return null;

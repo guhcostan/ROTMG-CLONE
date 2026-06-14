@@ -1,50 +1,253 @@
 'use strict';
-// Tiny JSON-file persistence. Good enough for a hobby server; swap for a
-// real database if the player count grows.
+// SQLite storage layer (better-sqlite3, WAL mode). Real tables for accounts,
+// sessions, characters, graveyard, vault and guilds. Migrates legacy
+// data/db.json automatically on first boot.
 const fs = require('fs');
 const path = require('path');
+const Database = require('better-sqlite3');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const db = new Database(path.join(DATA_DIR, 'game.db'));
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
-const db = {
-  accounts: {},   // username -> { username, salt, hash, createdAt, characters: [], graveyard: [], nextCharId }
+db.exec(`
+CREATE TABLE IF NOT EXISTS accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  username_lc TEXT NOT NULL UNIQUE,
+  salt TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  pet TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS characters (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  class_id TEXT NOT NULL,
+  level INTEGER NOT NULL DEFAULT 1,
+  xp INTEGER NOT NULL DEFAULT 0,
+  fame INTEGER NOT NULL DEFAULT 0,
+  hp REAL NOT NULL,
+  mp REAL NOT NULL,
+  stats TEXT NOT NULL,      -- JSON {hp,mp,att,def,spd,dex,vit,wis}
+  equipment TEXT NOT NULL,  -- JSON [weapon, ability, armor, ring]
+  inventory TEXT NOT NULL,  -- JSON [8 slots]
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chars_account ON characters(account_id);
+CREATE INDEX IF NOT EXISTS idx_chars_fame ON characters(fame DESC);
+CREATE TABLE IF NOT EXISTS graveyard (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  class_id TEXT NOT NULL,
+  level INTEGER NOT NULL,
+  fame INTEGER NOT NULL,
+  killed_by TEXT NOT NULL,
+  died_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_grave_account ON graveyard(account_id);
+CREATE TABLE IF NOT EXISTS vault (
+  account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  slots TEXT NOT NULL      -- JSON [16 slots]
+);
+CREATE TABLE IF NOT EXISTS guilds (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  name_lc TEXT NOT NULL UNIQUE,
+  leader_id INTEGER NOT NULL REFERENCES accounts(id),
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS guild_members (
+  guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  account_id INTEGER NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+  rank TEXT NOT NULL DEFAULT 'member',
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, account_id)
+);
+`);
+
+// ---------------------------------------------------------------- migration
+const LEGACY = path.join(DATA_DIR, 'db.json');
+if (fs.existsSync(LEGACY)) {
+  try {
+    const legacy = JSON.parse(fs.readFileSync(LEGACY, 'utf8'));
+    const insAcc = db.prepare('INSERT OR IGNORE INTO accounts (username, username_lc, salt, hash, created_at) VALUES (?,?,?,?,?)');
+    const insChar = db.prepare(`INSERT INTO characters (account_id, class_id, level, xp, fame, hp, mp, stats, equipment, inventory, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+    const insGrave = db.prepare('INSERT INTO graveyard (account_id, class_id, level, fame, killed_by, died_at) VALUES (?,?,?,?,?,?)');
+    const migrate = db.transaction(() => {
+      for (const acc of Object.values(legacy.accounts || {})) {
+        const r = insAcc.run(acc.username, acc.username.toLowerCase(), acc.salt, acc.hash, acc.createdAt || Date.now());
+        if (!r.changes) continue;
+        const id = r.lastInsertRowid;
+        for (const ch of acc.characters || []) {
+          insChar.run(id, ch.classId, ch.level, ch.xp, ch.fame, ch.hp, ch.mp,
+            JSON.stringify(ch.stats), JSON.stringify(ch.equipment), JSON.stringify(ch.inventory), ch.createdAt || Date.now());
+        }
+        for (const g of acc.graveyard || []) {
+          insGrave.run(id, g.classId, g.level, g.fame || 0, g.killedBy || '?', g.diedAt || Date.now());
+        }
+      }
+    });
+    migrate();
+    fs.renameSync(LEGACY, LEGACY + '.migrated');
+    console.log('Dados legados de db.json migrados para SQLite.');
+  } catch (e) {
+    console.error('Falha ao migrar db.json:', e.message);
+  }
+}
+
+// ---------------------------------------------------------------- accounts
+const q = {
+  accByName: db.prepare('SELECT * FROM accounts WHERE username_lc = ?'),
+  accById: db.prepare('SELECT * FROM accounts WHERE id = ?'),
+  insAcc: db.prepare('INSERT INTO accounts (username, username_lc, salt, hash, created_at) VALUES (?,?,?,?,?)'),
+  setPet: db.prepare('UPDATE accounts SET pet = ? WHERE id = ?'),
+
+  insSession: db.prepare('INSERT INTO sessions (token, account_id, created_at, expires_at) VALUES (?,?,?,?)'),
+  getSession: db.prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > ?'),
+  delSessions: db.prepare('DELETE FROM sessions WHERE expires_at <= ?'),
+
+  charsOf: db.prepare('SELECT * FROM characters WHERE account_id = ? ORDER BY id'),
+  charById: db.prepare('SELECT * FROM characters WHERE id = ? AND account_id = ?'),
+  insChar: db.prepare(`INSERT INTO characters (account_id, class_id, level, xp, fame, hp, mp, stats, equipment, inventory, created_at)
+    VALUES (@accountId,@classId,@level,@xp,@fame,@hp,@mp,@stats,@equipment,@inventory,@createdAt)`),
+  updChar: db.prepare(`UPDATE characters SET level=@level, xp=@xp, fame=@fame, hp=@hp, mp=@mp,
+    stats=@stats, equipment=@equipment, inventory=@inventory WHERE id=@id`),
+  delChar: db.prepare('DELETE FROM characters WHERE id = ? AND account_id = ?'),
+  countChars: db.prepare('SELECT COUNT(*) AS n FROM characters WHERE account_id = ?'),
+
+  insGrave: db.prepare('INSERT INTO graveyard (account_id, class_id, level, fame, killed_by, died_at) VALUES (?,?,?,?,?,?)'),
+  gravesOf: db.prepare('SELECT * FROM graveyard WHERE account_id = ? ORDER BY died_at DESC LIMIT 10'),
+
+  getVault: db.prepare('SELECT slots FROM vault WHERE account_id = ?'),
+  setVault: db.prepare(`INSERT INTO vault (account_id, slots) VALUES (?,?)
+    ON CONFLICT(account_id) DO UPDATE SET slots = excluded.slots`),
+
+  insGuild: db.prepare('INSERT INTO guilds (name, name_lc, leader_id, created_at) VALUES (?,?,?,?)'),
+  guildByName: db.prepare('SELECT * FROM guilds WHERE name_lc = ?'),
+  guildById: db.prepare('SELECT * FROM guilds WHERE id = ?'),
+  guildOf: db.prepare(`SELECT g.*, m.rank FROM guilds g JOIN guild_members m ON m.guild_id = g.id WHERE m.account_id = ?`),
+  insMember: db.prepare('INSERT INTO guild_members (guild_id, account_id, rank, joined_at) VALUES (?,?,?,?)'),
+  delMember: db.prepare('DELETE FROM guild_members WHERE account_id = ?'),
+  membersOf: db.prepare(`SELECT a.username, m.rank FROM guild_members m JOIN accounts a ON a.id = m.account_id WHERE m.guild_id = ?`),
+  countMembers: db.prepare('SELECT COUNT(*) AS n FROM guild_members WHERE guild_id = ?'),
+  delGuild: db.prepare('DELETE FROM guilds WHERE id = ?'),
+
+  leaderboard: db.prepare(`SELECT a.username, c.class_id, c.level, c.fame
+    FROM characters c JOIN accounts a ON a.id = c.account_id
+    ORDER BY c.fame DESC, c.level DESC LIMIT 20`),
+  legends: db.prepare(`SELECT a.username, g.class_id, g.level, g.fame, g.killed_by, g.died_at
+    FROM graveyard g JOIN accounts a ON a.id = g.account_id
+    ORDER BY g.fame DESC LIMIT 20`),
 };
 
-function load() {
-  try {
-    const raw = fs.readFileSync(DB_FILE, 'utf8');
-    Object.assign(db, JSON.parse(raw));
-  } catch (e) {
-    if (e.code !== 'ENOENT') console.error('db load failed:', e.message);
-  }
+function rowToChar(row) {
+  return {
+    id: row.id, accountId: row.account_id, classId: row.class_id,
+    level: row.level, xp: row.xp, fame: row.fame,
+    hp: row.hp, mp: row.mp,
+    stats: JSON.parse(row.stats),
+    equipment: JSON.parse(row.equipment),
+    inventory: JSON.parse(row.inventory),
+    createdAt: row.created_at,
+  };
 }
 
-let saveTimer = null;
-function save() {
-  if (saveTimer) return;
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    try {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      const tmp = DB_FILE + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(db));
-      fs.renameSync(tmp, DB_FILE);
-    } catch (e) {
-      console.error('db save failed:', e.message);
-    }
-  }, 500);
-}
+const storage = {
+  // accounts
+  getAccountByName: (name) => q.accByName.get(String(name).toLowerCase()),
+  getAccountById: (id) => q.accById.get(id),
+  createAccount: (username, salt, hash) =>
+    q.insAcc.run(username, username.toLowerCase(), salt, hash, Date.now()).lastInsertRowid,
+  setPet: (accountId, pet) => q.setPet.run(pet, accountId),
 
-function saveNow() {
-  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DB_FILE, JSON.stringify(db));
-  } catch (e) {
-    console.error('db save failed:', e.message);
-  }
-}
+  // sessions (30 days)
+  createSession: (token, accountId) => {
+    const now = Date.now();
+    q.delSessions.run(now);
+    q.insSession.run(token, accountId, now, now + 30 * 24 * 3600 * 1000);
+  },
+  getSession: (token) => token ? q.getSession.get(token, Date.now()) : null,
 
-load();
-module.exports = { db, save, saveNow };
+  // characters
+  listChars: (accountId) => q.charsOf.all(accountId).map(rowToChar),
+  getChar: (charId, accountId) => {
+    const row = q.charById.get(charId, accountId);
+    return row ? rowToChar(row) : null;
+  },
+  countChars: (accountId) => q.countChars.get(accountId).n,
+  createChar: (accountId, ch) => q.insChar.run({
+    accountId, classId: ch.classId, level: ch.level, xp: ch.xp, fame: ch.fame,
+    hp: ch.hp, mp: ch.mp,
+    stats: JSON.stringify(ch.stats),
+    equipment: JSON.stringify(ch.equipment),
+    inventory: JSON.stringify(ch.inventory),
+    createdAt: Date.now(),
+  }).lastInsertRowid,
+  saveChar: (ch) => q.updChar.run({
+    id: ch.id, level: ch.level, xp: ch.xp, fame: ch.fame,
+    hp: Math.round(ch.hp), mp: Math.round(ch.mp),
+    stats: JSON.stringify(ch.stats),
+    equipment: JSON.stringify(ch.equipment),
+    inventory: JSON.stringify(ch.inventory),
+  }),
+  deleteChar: (charId, accountId) => q.delChar.run(charId, accountId).changes > 0,
+
+  // graveyard
+  bury: (accountId, ch, killedBy) => {
+    const t = db.transaction(() => {
+      q.delChar.run(ch.id, accountId);
+      q.insGrave.run(accountId, ch.classId, ch.level, ch.fame, killedBy, Date.now());
+    });
+    t();
+  },
+  listGraves: (accountId) => q.gravesOf.all(accountId),
+
+  // vault
+  getVault: (accountId) => {
+    const row = q.getVault.get(accountId);
+    if (!row) return new Array(16).fill(null);
+    const slots = JSON.parse(row.slots);
+    while (slots.length < 16) slots.push(null);
+    return slots;
+  },
+  setVault: (accountId, slots) => q.setVault.run(accountId, JSON.stringify(slots)),
+
+  // guilds
+  createGuild: (name, leaderId) => {
+    const t = db.transaction(() => {
+      const id = q.insGuild.run(name, name.toLowerCase(), leaderId, Date.now()).lastInsertRowid;
+      q.insMember.run(id, leaderId, 'leader', Date.now());
+      return id;
+    });
+    return t();
+  },
+  getGuildByName: (name) => q.guildByName.get(String(name).toLowerCase()),
+  getGuildOf: (accountId) => q.guildOf.get(accountId),
+  joinGuild: (guildId, accountId) => q.insMember.run(guildId, accountId, 'member', Date.now()),
+  leaveGuild: (accountId) => {
+    const g = q.guildOf.get(accountId);
+    if (!g) return null;
+    q.delMember.run(accountId);
+    if (q.countMembers.get(g.id).n === 0) q.delGuild.run(g.id);
+    return g;
+  },
+  guildMembers: (guildId) => q.membersOf.all(guildId),
+
+  // rankings
+  leaderboard: () => q.leaderboard.all(),
+  legends: () => q.legends.all(),
+
+  close: () => { try { db.close(); } catch {} },
+};
+
+module.exports = storage;

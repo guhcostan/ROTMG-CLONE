@@ -24,8 +24,9 @@
     </div>
     <div class="help">
       <b>Como jogar:</b> WASD move &middot; mouse mira e atira &middot; ESPACO habilidade &middot;
-      1-8 usa itens &middot; ENTER chat &middot; ESC/R volta ao Nexus &middot; M som &middot;
-      /trade nome troca &middot; cofre no Nexus guarda itens da conta
+      1-8 usa itens &middot; F entra em portal &middot; ENTER chat &middot; ESC/R volta ao Nexus<br>
+      <b>Social:</b> /trade &lt;jogador&gt; troca itens &middot; /guilda criar &lt;nome&gt; &middot; /g &lt;msg&gt; chat da guilda
+      &middot; cofre da conta no Nexus
     </div>
   </div>
 </div>
@@ -40,10 +41,10 @@
     <div id="char-list" class="char-list"></div>
     <h3>Criar novo personagem</h3>
     <div id="class-list" class="class-list"></div>
-    <h3>Ranking de Fama</h3>
-    <div id="leaderboard" class="graveyard"></div>
     <h3>Cemiterio</h3>
     <div id="graveyard" class="graveyard"></div>
+    <h3>Ranking <span id="online-count" style="color:#888;font-size:11px"></span></h3>
+    <div id="leaderboard" class="graveyard"></div>
   </div>
 </div>
 
@@ -63,7 +64,7 @@
       <div id="inv-slots" class="slots"></div>
       <div class="inv-label" id="bag-label" style="display:none">Loot</div>
       <div id="bag-slots" class="slots" style="display:none"></div>
-      <div class="inv-label" id="vault-label" style="display:none">Cofre</div>
+      <div class="inv-label" id="vault-label" style="display:none">Cofre da conta</div>
       <div id="vault-slots" class="slots" style="display:none"></div>
       <canvas id="minimap" width="160" height="160"></canvas>
     </div>
@@ -73,19 +74,28 @@
     </div>
     <div id="notice"></div>
     <div id="tooltip" class="hidden"></div>
-  </div>
-  <div id="trade-overlay" class="hidden">
-    <div class="panel trade-panel">
-      <h3 id="trade-title">Troca</h3>
-      <div class="inv-label">Voce oferece (clique para marcar)</div>
-      <div id="trade-mine" class="slots trade-slots"></div>
-      <div class="inv-label">Oferta do outro jogador</div>
-      <div id="trade-theirs" class="slots trade-slots"></div>
+    <div id="trade-panel" class="hidden">
+      <div class="trade-head">Troca com <span id="trade-partner"></span></div>
+      <div class="trade-cols">
+        <div>
+          <div class="inv-label">Voce oferece (clique no inventario)</div>
+          <div id="trade-mine" class="slots"></div>
+        </div>
+        <div>
+          <div class="inv-label">Voce recebe</div>
+          <div id="trade-theirs" class="slots"></div>
+        </div>
+      </div>
       <div id="trade-status"></div>
       <div class="row">
-        <button id="btn-trade-ok" class="btn primary">Confirmar</button>
+        <button id="btn-trade-confirm" class="btn primary">Confirmar</button>
         <button id="btn-trade-cancel" class="btn">Cancelar</button>
       </div>
+    </div>
+    <div id="trade-request" class="hidden">
+      <span id="trade-req-text"></span>
+      <button id="btn-trade-accept" class="btn small primary">Aceitar</button>
+      <button id="btn-trade-decline" class="btn small">Recusar</button>
     </div>
   </div>
   <div id="death-overlay" class="hidden">

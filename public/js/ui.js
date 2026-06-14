@@ -9,7 +9,6 @@ const UI = (() => {
   const EQUIP_LABELS = ['Arma', 'Habilid.', 'Armadura', 'Anel'];
   let slotEls = [];   // 12 slots: 0-3 equip, 4-11 inventory
   let bagEls = [];
-  let vaultEls = [];  // 16 vault slots (server indexes 12-27)
   let currentBagId = null;
   let dragFrom = null;
 
@@ -19,9 +18,11 @@ const UI = (() => {
   }
 
   function buildSlots() {
-    const eq = $('equip-slots'), inv = $('inv-slots'), bag = $('bag-slots'), vault = $('vault-slots');
-    eq.innerHTML = ''; inv.innerHTML = ''; bag.innerHTML = ''; vault.innerHTML = '';
-    slotEls = []; bagEls = []; vaultEls = [];
+    const eq = $('equip-slots'), inv = $('inv-slots'), bag = $('bag-slots');
+    eq.innerHTML = ''; inv.innerHTML = ''; bag.innerHTML = '';
+    slotEls = []; bagEls = [];
+    buildVaultSlots();
+    buildTradePanel();
     for (let i = 0; i < 12; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
@@ -35,11 +36,16 @@ const UI = (() => {
         e.preventDefault(); el.classList.remove('drag-over');
         if (!dragFrom) return;
         if (dragFrom.type === 'slot' && dragFrom.i !== i) Net.send({ t: 'invswap', from: dragFrom.i, to: i });
-        if (dragFrom.type === 'bag') { Net.send({ t: 'pickup', bag: currentBagId, idx: dragFrom.i }); Sfx.pickup(); }
-        if (dragFrom.type === 'vault') Net.send({ t: 'vaultswap', from: 12 + dragFrom.i, to: i });
+        if (dragFrom.type === 'bag') { Net.send({ t: 'pickup', bag: currentBagId, idx: dragFrom.i }); if (typeof Sfx !== 'undefined') Sfx.pickup(); }
         dragFrom = null;
       });
-      el.addEventListener('dblclick', () => useOrEquip(i));
+      el.addEventListener('dblclick', () => {
+        if (vaultOpen && i >= 4 && getSlotItem(i)) Net.send({ t: 'vault', cmd: 'deposit', slot: i });
+        else useOrEquip(i);
+      });
+      el.addEventListener('click', () => {
+        if (trading && i >= 4) toggleOffer(i - 4);
+      });
       el.addEventListener('contextmenu', e => { e.preventDefault(); Net.send({ t: 'dropitem', slot: i }); });
       el.addEventListener('mousemove', e => showTooltip(e, currentSelf && getSlotItem(i)));
       el.addEventListener('mouseleave', hideTooltip);
@@ -51,69 +57,108 @@ const UI = (() => {
       el.className = 'slot';
       el.draggable = true;
       el.addEventListener('dragstart', () => { dragFrom = { type: 'bag', i }; });
-      el.addEventListener('dblclick', () => { Net.send({ t: 'pickup', bag: currentBagId, idx: i }); Sfx.pickup(); });
+      el.addEventListener('dblclick', () => { Net.send({ t: 'pickup', bag: currentBagId, idx: i }); if (typeof Sfx !== 'undefined') Sfx.pickup(); });
       el.addEventListener('mousemove', e => showTooltip(e, currentBagItems && currentBagItems[i]));
       el.addEventListener('mouseleave', hideTooltip);
       bag.appendChild(el);
       bagEls.push(el);
     }
-    const tm = $('trade-mine'), tt = $('trade-theirs');
-    tm.innerHTML = ''; tt.innerHTML = '';
-    tradeMineEls = []; tradeTheirEls = [];
-    for (let i = 0; i < 8; i++) {
-      const el = document.createElement('div');
-      el.className = 'slot';
-      el.addEventListener('click', () => {
-        if (!lastTrade) return;
-        const mine = lastTrade.mine.slice();
-        mine[i] = !mine[i];
-        Net.send({ t: 'tradeoffer', slots: mine });
-      });
-      el.addEventListener('mousemove', e => showTooltip(e, currentSelf && currentSelf.inv[i]));
-      el.addEventListener('mouseleave', hideTooltip);
-      tm.appendChild(el);
-      tradeMineEls.push(el);
-      const el2 = document.createElement('div');
-      el2.className = 'slot';
-      el2.addEventListener('mousemove', e => showTooltip(e, lastTrade && lastTrade.theirs[i]));
-      el2.addEventListener('mouseleave', hideTooltip);
-      tt.appendChild(el2);
-      tradeTheirEls.push(el2);
-    }
-    $('btn-trade-ok').onclick = () => Net.send({ t: 'tradeconfirm' });
-    $('btn-trade-cancel').onclick = () => Net.send({ t: 'tradecancel' });
-    for (let i = 0; i < 16; i++) {
-      const el = document.createElement('div');
-      el.className = 'slot';
-      el.draggable = true;
-      el.addEventListener('dragstart', () => { dragFrom = { type: 'vault', i }; });
-      el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
-      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-      el.addEventListener('drop', e => {
-        e.preventDefault(); el.classList.remove('drag-over');
-        if (!dragFrom) return;
-        if (dragFrom.type === 'slot') Net.send({ t: 'vaultswap', from: dragFrom.i, to: 12 + i });
-        if (dragFrom.type === 'vault' && dragFrom.i !== i) Net.send({ t: 'vaultswap', from: 12 + dragFrom.i, to: 12 + i });
-        dragFrom = null;
-      });
-      el.addEventListener('dblclick', () => {
-        // move to first free inventory slot
-        if (!currentSelf || !currentVault || !currentVault[i]) return;
-        const free = currentSelf.inv.indexOf(null);
-        if (free !== -1) Net.send({ t: 'vaultswap', from: 12 + i, to: free + 4 });
-      });
-      el.addEventListener('mousemove', e => showTooltip(e, currentVault && currentVault[i]));
-      el.addEventListener('mouseleave', hideTooltip);
-      vault.appendChild(el);
-      vaultEls.push(el);
-    }
   }
 
   let currentSelf = null;
   let currentBagItems = null;
+  let vaultEls = [];
+  let vaultOpen = false;
   let currentVault = null;
-  let tradeMineEls = [], tradeTheirEls = [];
-  let lastTrade = null;
+  let trading = false;
+  let myOffer = [];
+  let tradeMineEls = [], tradeTheirsEls = [];
+
+  function buildVaultSlots() {
+    const wrap = $('vault-slots');
+    wrap.innerHTML = '';
+    vaultEls = [];
+    for (let i = 0; i < 16; i++) {
+      const el = document.createElement('div');
+      el.className = 'slot';
+      el.addEventListener('dblclick', () => Net.send({ t: 'vault', cmd: 'withdraw', idx: i }));
+      el.addEventListener('mousemove', e => showTooltip(e, currentVault && currentVault[i]));
+      el.addEventListener('mouseleave', hideTooltip);
+      wrap.appendChild(el);
+      vaultEls.push(el);
+    }
+  }
+
+  function showVault(slots) {
+    vaultOpen = !!slots;
+    currentVault = slots;
+    $('vault-label').style.display = vaultOpen ? '' : 'none';
+    $('vault-slots').style.display = vaultOpen ? '' : 'none';
+    if (vaultOpen) for (let i = 0; i < 16; i++) renderSlot(vaultEls[i], slots[i]);
+  }
+
+  // ---------------- trade
+  function buildTradePanel() {
+    const mine = $('trade-mine'), theirs = $('trade-theirs');
+    mine.innerHTML = ''; theirs.innerHTML = '';
+    tradeMineEls = []; tradeTheirsEls = [];
+    for (let i = 0; i < 8; i++) {
+      const a = document.createElement('div');
+      a.className = 'slot';
+      mine.appendChild(a); tradeMineEls.push(a);
+      const b = document.createElement('div');
+      b.className = 'slot';
+      b.addEventListener('mousemove', e => showTooltip(e, b.dataset.item || null));
+      b.addEventListener('mouseleave', hideTooltip);
+      theirs.appendChild(b); tradeTheirsEls.push(b);
+    }
+    $('btn-trade-confirm').onclick = () => Net.send({ t: 'trade', cmd: 'confirm' });
+    $('btn-trade-cancel').onclick = () => Net.send({ t: 'trade', cmd: 'cancel' });
+    $('btn-trade-accept').onclick = () => {
+      $('trade-request').classList.add('hidden');
+      Net.send({ t: 'trade', cmd: 'accept' });
+    };
+    $('btn-trade-decline').onclick = () => $('trade-request').classList.add('hidden');
+  }
+
+  function toggleOffer(invIdx) {
+    if (!currentSelf || !currentSelf.inv[invIdx]) return;
+    const at = myOffer.indexOf(invIdx);
+    if (at === -1) myOffer.push(invIdx); else myOffer.splice(at, 1);
+    Net.send({ t: 'trade', cmd: 'offer', slots: myOffer });
+  }
+
+  function tradeRequest(from) {
+    $('trade-req-text').textContent = `${from} quer negociar com voce.`;
+    $('trade-request').classList.remove('hidden');
+    setTimeout(() => $('trade-request').classList.add('hidden'), 15000);
+  }
+
+  function tradeState(m) {
+    trading = true;
+    myOffer = m.mine.slice();
+    $('trade-panel').classList.remove('hidden');
+    $('trade-partner').textContent = m.partner;
+    for (let i = 0; i < 8; i++) {
+      const mineItem = i < m.mine.length && currentSelf ? currentSelf.inv[m.mine[i]] : null;
+      renderSlot(tradeMineEls[i], mineItem);
+      renderSlot(tradeTheirsEls[i], m.theirs[i] || null);
+    }
+    // highlight offered slots in the inventory grid
+    for (let i = 0; i < 8; i++) {
+      slotEls[i + 4].classList.toggle('offered', myOffer.includes(i));
+    }
+    $('trade-status').textContent =
+      (m.myConfirm ? 'Voce confirmou. ' : '') + (m.theirConfirm ? `${m.partner} confirmou.` : '');
+  }
+
+  function tradeEnd(done) {
+    trading = false;
+    myOffer = [];
+    $('trade-panel').classList.add('hidden');
+    for (let i = 0; i < 8; i++) slotEls[i + 4].classList.remove('offered');
+    notice(done ? 'Troca concluida!' : 'Troca cancelada');
+  }
 
   function getSlotItem(i) {
     if (!currentSelf) return null;
@@ -194,37 +239,6 @@ const UI = (() => {
     for (let i = 0; i < 8; i++) renderSlot(bagEls[i], bag.items[i]);
   }
 
-  function showVault(vault) {
-    if (!vault) {
-      currentVault = null;
-      $('vault-label').style.display = 'none';
-      $('vault-slots').style.display = 'none';
-      return;
-    }
-    currentVault = vault;
-    $('vault-label').style.display = '';
-    $('vault-slots').style.display = '';
-    for (let i = 0; i < 16; i++) renderSlot(vaultEls[i], vault[i]);
-  }
-
-  function showTrade(msg) {
-    lastTrade = msg;
-    $('trade-overlay').classList.remove('hidden');
-    $('trade-title').textContent = 'Troca com ' + msg.partner;
-    for (let i = 0; i < 8; i++) {
-      renderSlot(tradeMineEls[i], currentSelf ? currentSelf.inv[i] : null);
-      tradeMineEls[i].classList.toggle('offered', !!msg.mine[i]);
-      renderSlot(tradeTheirEls[i], msg.theirs[i]);
-    }
-    $('trade-status').textContent =
-      (msg.ok ? 'Voce confirmou. ' : '') + (msg.theirOk ? `${msg.partner} confirmou.` : '');
-  }
-
-  function hideTrade() {
-    lastTrade = null;
-    $('trade-overlay').classList.add('hidden');
-  }
-
   // ---------------- tooltip
   function rarity(tier) {
     if (tier >= 6) return ['Lendario', '#ffffff'];
@@ -284,5 +298,9 @@ const UI = (() => {
 
   function setName(text) { $('hud-name').textContent = text; }
 
-  return { init, update, showBag, showVault, showTrade, hideTrade, chat, notice, setName, get items() { return ITEMS; } };
+  return {
+    init, update, showBag, showVault, chat, notice, setName,
+    tradeRequest, tradeState, tradeEnd,
+    get items() { return ITEMS; },
+  };
 })();
