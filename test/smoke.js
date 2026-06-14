@@ -143,6 +143,33 @@ function progressionSanity() {
   check(storage.claimDaily(acc).claimed === false, 'second daily claim same day is blocked');
 }
 
+// abilities scale with Wisdom: a higher-WIS caster's spell hits harder
+function abilityScalingSanity() {
+  const { Game } = require('../server/game');
+  const { CLASSES } = require('../server/data');
+  const g = new Game();
+  const cast = (wis) => {
+    const stats = Object.assign({}, CLASSES.wizard.base, { att: 30, wis });
+    const player = {
+      id: -20 - wis, instance: g.realm, x: 10, y: 10, dead: false, invisUntil: 0,
+      lastAbility: 0, status: {},
+      char: { mp: 999, hp: 500, classId: 'wizard', equipment: ['staff0', 'spell0', 'robe0', null], inventory: [], stats },
+      ws: { readyState: 3, send() {} },
+    };
+    g.players.set(player.id, player);
+    const e = g.spawnEnemy(g.realm, 'goblin', 10, 10); // on top of the cursor
+    const hp0 = e.hp;
+    // effectiveStats reads player.char.stats; bypass MP/cooldown via fresh player
+    g.onAbility(player, { x: 10, y: 10 });
+    const dealt = hp0 - e.hp;
+    g.realm.enemies.delete(e.id);
+    g.players.delete(player.id);
+    return dealt;
+  };
+  const low = cast(10), high = cast(70);
+  check(low > 0 && high > low, `spell damage scales with WIS (${low} -> ${high})`);
+}
+
 async function api(method, p, body, token) {
   const res = await fetch(BASE + p, {
     method,
@@ -238,6 +265,7 @@ async function main() {
   worldEventSanity();
   multiPhaseSanity();
   progressionSanity();
+  abilityScalingSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

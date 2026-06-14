@@ -92,6 +92,8 @@ function statusMoveMul(player) {
 function moveSpeed(stats) { return 4 + 5.6 * (stats.spd / 75); }     // tiles/s
 function fireRate(stats) { return 1.5 + 4.5 * (stats.dex / 75); }    // shots/s
 function applyDefense(dmg, def) { return Math.max(Math.ceil(dmg * 0.1), dmg - def); }
+// ability damage scales with both ATT and WIS, so caster builds invest in WIS
+function abilityMul(stats) { return 0.5 + stats.att / 50 + stats.wis / 60; }
 
 function xpToNext(level) { return level * 100; }
 
@@ -568,27 +570,31 @@ class Game {
     player.char.mp -= item.mpCost;
     const pw = item.power;
     switch (item.type) {
-      case 'spell': { // AOE nuke at cursor
+      case 'spell': { // AOE frost nova at cursor: damage + slow, radius grows with power
         if (inst.kind === 'nexus') break;
-        const dmg = Math.round((70 * pw) * (0.5 + stats.att / 50));
+        const dmg = Math.round((70 * pw) * abilityMul(stats));
+        const r2 = 9 + pw; // radius scales slightly with tier
         for (const e of inst.enemies.values()) {
-          if (dist2(e.x, e.y, tx, ty) < 9) this.damageEnemy(inst, e, dmg, player);
+          if (dist2(e.x, e.y, tx, ty) < r2) { this.damageEnemy(inst, e, dmg, player); e.slowedUntil = now + 2000; }
         }
-        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3 }, tx, ty);
+        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: Math.sqrt(r2) }, tx, ty);
         break;
       }
-      case 'quiver': { // heavy piercing arrow
+      case 'quiver': { // fan of heavy piercing arrows (more arrows at higher tier)
         if (inst.kind === 'nexus') break;
-        const a = Math.atan2(ty - player.y, tx - player.x);
-        const dmg = Math.round((110 * pw) * (0.5 + stats.att / 50));
-        inst.projectiles.push({
-          owner: player.id, friendly: true, x: player.x, y: player.y, a,
-          speed: 18, left: 9, dmg: [dmg, dmg], pierce: true, hit: new Set(),
-        });
-        inst.broadcastNear({ t: 'shot', x: player.x, y: player.y, as: [a], spd: 18, rg: 9, k: 'heavyarrow', f: 1, o: player.id }, player.x, player.y);
+        const a0 = Math.atan2(ty - player.y, tx - player.x);
+        const dmg = Math.round((110 * pw) * abilityMul(stats));
+        const count = 1 + Math.floor(pw); // tier 0 -> 2 arrows, scales up
+        const angles = [];
+        for (let i = 0; i < count; i++) {
+          const a = a0 + (i - (count - 1) / 2) * 0.12;
+          angles.push(Math.round(a * 1000) / 1000);
+          inst.projectiles.push({ owner: player.id, friendly: true, x: player.x, y: player.y, a, speed: 18, left: 9, dmg: [dmg, dmg], pierce: true, hit: new Set() });
+        }
+        inst.broadcastNear({ t: 'shot', x: player.x, y: player.y, as: angles, spd: 18, rg: 9, k: 'heavyarrow', f: 1, o: player.id }, player.x, player.y);
         break;
       }
-      case 'helm': // berserk
+      case 'helm': // berserk: faster fire + move speed (via effectiveStats)
         player.berserkUntil = now + 4000 + pw * 1000;
         inst.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 1 }, player.x, player.y);
         break;
@@ -613,7 +619,7 @@ class Game {
         break;
       case 'shield': { // stun burst around player
         if (inst.kind === 'nexus') break;
-        const dmg = Math.round((90 * pw) * (0.5 + stats.att / 50));
+        const dmg = Math.round((90 * pw) * abilityMul(stats));
         for (const e of inst.enemies.values()) {
           if (dist2(e.x, e.y, player.x, player.y) < 12.25) {
             this.damageEnemy(inst, e, dmg, player);
@@ -624,23 +630,24 @@ class Game {
         break;
       }
       // ---- advanced-class abilities ----
-      case 'skull': { // Necromancer: AoE drain at cursor, heals self for part of it
+      case 'skull': { // Necromancer: AoE drain at cursor, heals self for part of it (lifesteal scales with WIS)
         if (inst.kind === 'nexus') break;
-        const dmg = Math.round((85 * pw) * (0.5 + stats.att / 50));
+        const dmg = Math.round((85 * pw) * abilityMul(stats));
         let dealt = 0;
         for (const e of inst.enemies.values()) {
           if (dist2(e.x, e.y, tx, ty) < 12.25) { this.damageEnemy(inst, e, dmg, player); dealt += dmg; }
         }
         if (dealt > 0) {
-          player.char.hp = Math.min(effectiveMaxHp(player), player.char.hp + Math.round(dealt * 0.12));
-          inst.broadcastNear({ t: 'dmg', id: player.id, n: -Math.round(dealt * 0.12) }, player.x, player.y);
+          const leech = Math.round(dealt * (0.12 + stats.wis / 400));
+          player.char.hp = Math.min(effectiveMaxHp(player), player.char.hp + leech);
+          inst.broadcastNear({ t: 'dmg', id: player.id, n: -leech }, player.x, player.y);
         }
         inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3.5 }, tx, ty);
         break;
       }
       case 'trap': { // Huntress: AoE damage + slow at cursor
         if (inst.kind === 'nexus') break;
-        const dmg = Math.round((100 * pw) * (0.5 + stats.att / 50));
+        const dmg = Math.round((100 * pw) * abilityMul(stats));
         for (const e of inst.enemies.values()) {
           if (dist2(e.x, e.y, tx, ty) < 9) {
             this.damageEnemy(inst, e, dmg, player);
@@ -691,7 +698,7 @@ class Game {
       }
       case 'wakizashi': { // Samurai: strike + expose enemies (they take +25% dmg)
         if (inst.kind === 'nexus') break;
-        const dmg = Math.round((70 * pw) * (0.5 + stats.att / 50));
+        const dmg = Math.round((70 * pw) * abilityMul(stats));
         for (const e of inst.enemies.values()) {
           if (dist2(e.x, e.y, tx, ty) < 9) {
             this.damageEnemy(inst, e, dmg, player);
