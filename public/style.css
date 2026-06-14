@@ -39,6 +39,9 @@ h3 { margin: 18px 0 8px; color: #f0c040; font-size: 14px; }
   padding: 10px; cursor: pointer; text-align: center; position: relative;
 }
 .char-card:hover, .class-card:hover { border-color: #f0c040; }
+.class-card.locked { opacity: 0.55; filter: grayscale(0.7); }
+.class-card.locked:hover { border-color: #7a2020; }
+.class-card.locked .cinfo { color: #c08040; }
 .char-card canvas, .class-card canvas { image-rendering: pixelated; width: 48px; height: 48px; }
 .char-card .cname { color: #f0c040; font-size: 13px; }
 .char-card .cinfo, .class-card .cinfo { font-size: 11px; color: #999; margin-top: 4px; }

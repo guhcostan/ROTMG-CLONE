@@ -65,6 +65,7 @@ function effectiveStats(player) {
     if (it.slot === 'ring' && it.bonus) for (const k in it.bonus) s[k] = (s[k] || 0) + it.bonus[k];
   }
   if (player.berserkUntil > Date.now()) { s.dex = Math.round(s.dex * 1.5); s.spd = Math.round(s.spd * 1.25); }
+  if (player.attBuffUntil > Date.now()) s.att = Math.round(s.att * 1.25);
   if (player.status && player.status.weak > Date.now()) s.att = Math.max(1, Math.round(s.att * 0.5));
   return s;
 }
@@ -584,6 +585,72 @@ class Game {
         inst.broadcastNear({ t: 'fx', k: 'nova', x: player.x, y: player.y, r: 3.5 }, player.x, player.y);
         break;
       }
+      // ---- advanced-class abilities ----
+      case 'skull': { // Necromancer: AoE drain at cursor, heals self for part of it
+        if (inst.kind === 'nexus') break;
+        const dmg = Math.round((85 * pw) * (0.5 + stats.att / 50));
+        let dealt = 0;
+        for (const e of inst.enemies.values()) {
+          if (dist2(e.x, e.y, tx, ty) < 12.25) { this.damageEnemy(inst, e, dmg, player); dealt += dmg; }
+        }
+        if (dealt > 0) {
+          player.char.hp = Math.min(effectiveMaxHp(player), player.char.hp + Math.round(dealt * 0.12));
+          inst.broadcastNear({ t: 'dmg', id: player.id, n: -Math.round(dealt * 0.12) }, player.x, player.y);
+        }
+        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3.5 }, tx, ty);
+        break;
+      }
+      case 'trap': { // Huntress: AoE damage + slow at cursor
+        if (inst.kind === 'nexus') break;
+        const dmg = Math.round((100 * pw) * (0.5 + stats.att / 50));
+        for (const e of inst.enemies.values()) {
+          if (dist2(e.x, e.y, tx, ty) < 9) {
+            this.damageEnemy(inst, e, dmg, player);
+            e.slowedUntil = now + 3000;
+          }
+        }
+        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3 }, tx, ty);
+        break;
+      }
+      case 'seal': { // Paladin: heal + attack buff aura for nearby allies
+        const heal = Math.round(60 * pw + stats.wis);
+        for (const p of inst.players.values()) {
+          if (dist2(p.x, p.y, player.x, player.y) < 36) {
+            if (!(p.status && p.status.sick > now)) {
+              p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + heal);
+              inst.broadcastNear({ t: 'dmg', id: p.id, n: -heal }, p.x, p.y);
+            }
+            p.attBuffUntil = now + 4000 + pw * 800;
+          }
+        }
+        inst.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 6 }, player.x, player.y);
+        break;
+      }
+      case 'orb': { // Mystic: stasis — stun a cluster of enemies at cursor
+        if (inst.kind === 'nexus') break;
+        for (const e of inst.enemies.values()) {
+          if (dist2(e.x, e.y, tx, ty) < 12.25 && e.def.behavior !== 'boss') {
+            e.stunnedUntil = now + 3000 + pw * 800;
+          }
+        }
+        inst.broadcastNear({ t: 'fx', k: 'status', x: tx, y: ty, r: 3.5, s: 'paralyze' }, tx, ty);
+        break;
+      }
+      case 'prism': { // Trickster: blink toward cursor
+        const a = Math.atan2(ty - player.y, tx - player.x);
+        const want = Math.min(Math.hypot(tx - player.x, ty - player.y), 6);
+        let nx = player.x, ny = player.y;
+        for (let d = 0.5; d <= want; d += 0.5) {
+          const cx = player.x + Math.cos(a) * d, cy = player.y + Math.sin(a) * d;
+          if (inst.tileBlocked(cx, cy)) break;
+          nx = cx; ny = cy;
+        }
+        inst.broadcastNear({ t: 'fx', k: 'vanish', x: player.x, y: player.y, r: 1 }, player.x, player.y);
+        player.x = nx; player.y = ny;
+        send(player.ws, { t: 'blink', x: nx, y: ny });
+        inst.broadcastNear({ t: 'fx', k: 'vanish', x: nx, y: ny, r: 1 }, nx, ny);
+        break;
+      }
     }
   }
 
@@ -1056,7 +1123,7 @@ class Game {
     }
     const range = d.shots ? d.shots.range : 2;
     const aggro = 121; // 11 tiles
-    const speed = d.speed * dt;
+    const speed = d.speed * dt * (e.slowedUntil > now ? 0.5 : 1);
 
     // movement
     let mx = 0, my = 0;

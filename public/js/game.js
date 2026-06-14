@@ -466,6 +466,7 @@ const GameClient = (() => {
     const handlers = {
       world: (m) => { reconnectTries = 0; loadWorld(m); },
       tick: onTick,
+      blink: (m) => { me.x = m.x; me.y = m.y; },
       shot: onShot,
       dmg: onDmg,
       fx: onFx,

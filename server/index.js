@@ -66,9 +66,15 @@ const server = http.createServer(async (req, res) => {
       const acc = auth.authed(req.headers['x-token']);
       if (!acc) return json(res, 401, { error: 'Sessao invalida' });
       if (req.method === 'GET') {
+        const unlocked = auth.unlockedClasses(acc.id);
         const classMeta = {};
         for (const [id, c] of Object.entries(CLASSES)) {
-          classMeta[id] = { name: c.name, weapon: c.weapon, ability: c.ability, armor: c.armor, base: c.base };
+          classMeta[id] = {
+            name: c.name, weapon: c.weapon, ability: c.ability, armor: c.armor, base: c.base,
+            locked: !unlocked.has(id),
+            unlock: c.unlock || null,
+            unlockName: c.unlock ? CLASSES[c.unlock].name : null,
+          };
         }
         return json(res, 200, {
           username: acc.username,

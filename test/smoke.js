@@ -170,11 +170,29 @@ async function main() {
     // --- characters
     r = await api('GET', '/api/chars', null, token1);
     check(r.status === 200 && r.data.characters.length === 0, 'char list starts empty');
-    check(Object.keys(r.data.classes).length === 6, 'six classes available');
+    check(Object.keys(r.data.classes).length === 11, 'eleven classes available');
+    check(r.data.classes.wizard.locked === false, 'starter class wizard unlocked');
+    check(r.data.classes.necromancer.locked === true, 'advanced class necromancer locked initially');
+    check(r.data.classes.necromancer.unlockName === 'Wizard', 'necromancer shows its unlock requirement');
 
     r = await api('POST', '/api/chars', { classId: 'wizard' }, token1);
     check(r.status === 200 && r.data.character.classId === 'wizard', 'create wizard');
     const char1 = r.data.character.id;
+
+    // locked class cannot be created yet
+    r = await api('POST', '/api/chars', { classId: 'necromancer' }, token1);
+    check(r.status === 400, 'creating a locked class is rejected');
+
+    // reaching level 20 with the prerequisite unlocks the advanced class
+    const storage = require('../server/db');
+    const acc1 = storage.getAccountByName(user1);
+    storage.bury(acc1.id, { id: -1, classId: 'wizard', level: 20, fame: 500 }, 'aposentadoria');
+    r = await api('GET', '/api/chars', null, token1);
+    check(r.data.classes.necromancer.locked === false, 'necromancer unlocks after maxing Wizard');
+    r = await api('POST', '/api/chars', { classId: 'necromancer' }, token1);
+    check(r.status === 200 && r.data.character.classId === 'necromancer', 'can create unlocked necromancer');
+    // remove it again so later restart checks still see a single character
+    await api('DELETE', `/api/chars/${r.data.character.id}`, null, token1);
 
     r = await api('POST', '/api/chars', { classId: 'knight' }, token2);
     const char2 = r.data.character.id;

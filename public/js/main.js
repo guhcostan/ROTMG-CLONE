@@ -74,23 +74,34 @@
     if (data.characters.length >= data.maxChars) {
       classes.innerHTML = `<div class="empty-note">Limite de ${data.maxChars} personagens atingido.</div>`;
     } else {
-      for (const [id, c] of Object.entries(data.classes)) {
+      // starter classes first, then unlocked advanced, then locked ones
+      const entries = Object.entries(data.classes).sort((a, b) =>
+        (a[1].locked ? 1 : 0) - (b[1].locked ? 1 : 0));
+      for (const [id, c] of entries) {
         const card = document.createElement('div');
-        card.className = 'class-card';
+        card.className = 'class-card' + (c.locked ? ' locked' : '');
         card.appendChild(classCanvas(id));
         const name = document.createElement('div');
         name.className = 'cname';
         name.textContent = c.name;
         const info = document.createElement('div');
         info.className = 'cinfo';
-        info.textContent = `HP ${c.base.hp} MP ${c.base.mp}\n${c.weapon} / ${c.ability}`;
+        if (c.locked) {
+          info.textContent = `🔒 Leve ${c.unlockName} ao nivel 20`;
+        } else {
+          info.textContent = `HP ${c.base.hp} MP ${c.base.mp}\n${c.weapon} / ${c.ability}`;
+        }
         card.append(name, info);
-        card.onclick = async () => {
-          try {
-            const r = await Net.api('POST', '/api/chars', { classId: id });
-            startGame(r.character.id);
-          } catch (e) { alert(e.message); }
-        };
+        if (c.locked) {
+          card.onclick = () => alert(`${c.name} esta bloqueada. Leve um ${c.unlockName} ao nivel 20 para desbloquear.`);
+        } else {
+          card.onclick = async () => {
+            try {
+              const r = await Net.api('POST', '/api/chars', { classId: id });
+              startGame(r.character.id);
+            } catch (e) { alert(e.message); }
+          };
+        }
         classes.appendChild(card);
       }
     }

@@ -142,6 +142,10 @@ const q = {
   countMembers: db.prepare('SELECT COUNT(*) AS n FROM guild_members WHERE guild_id = ?'),
   delGuild: db.prepare('DELETE FROM guilds WHERE id = ?'),
 
+  // classes the account has ever reached level 20 with (alive or in the grave)
+  maxedAlive: db.prepare('SELECT DISTINCT class_id FROM characters WHERE account_id = ? AND level >= 20'),
+  maxedGrave: db.prepare('SELECT DISTINCT class_id FROM graveyard WHERE account_id = ? AND level >= 20'),
+
   leaderboard: db.prepare(`SELECT a.username, c.class_id, c.level, c.fame
     FROM characters c JOIN accounts a ON a.id = c.account_id
     ORDER BY c.fame DESC, c.level DESC LIMIT 20`),
@@ -185,6 +189,12 @@ const storage = {
     return row ? rowToChar(row) : null;
   },
   countChars: (accountId) => q.countChars.get(accountId).n,
+  maxedClasses: (accountId) => {
+    const set = new Set();
+    for (const r of q.maxedAlive.all(accountId)) set.add(r.class_id);
+    for (const r of q.maxedGrave.all(accountId)) set.add(r.class_id);
+    return set;
+  },
   createChar: (accountId, ch) => q.insChar.run({
     accountId, classId: ch.classId, level: ch.level, xp: ch.xp, fame: ch.fame,
     hp: ch.hp, mp: ch.mp,

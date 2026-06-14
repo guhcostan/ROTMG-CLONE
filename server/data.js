@@ -47,7 +47,46 @@ const CLASSES = {
     max: { hp: 770, mp: 252, att: 50, def: 40, spd: 50, dex: 50, vit: 75, wis: 50 },
     starter: ['sword0', 'shield0', 'heavy0', null],
   },
+  // ---- advanced classes: unlocked by leveling the `unlock` class to 20 ----
+  necromancer: {
+    name: 'Necromancer', weapon: 'staff', armor: 'robe', ability: 'skull', unlock: 'wizard',
+    base: { hp: 110, mp: 110, att: 15, def: 0, spd: 11, dex: 14, vit: 10, wis: 14 },
+    growth: { hp: [20, 30], mp: [6, 16], att: 1.4, def: 0, spd: 0.6, dex: 1.1, vit: 0.5, wis: 1.1 },
+    max: { hp: 700, mp: 450, att: 75, def: 25, spd: 50, dex: 75, vit: 40, wis: 75 },
+    starter: ['staff0', 'skull0', 'robe0', null],
+  },
+  huntress: {
+    name: 'Huntress', weapon: 'bow', armor: 'leather', ability: 'trap', unlock: 'archer',
+    base: { hp: 130, mp: 100, att: 13, def: 0, spd: 13, dex: 13, vit: 12, wis: 10 },
+    growth: { hp: [22, 32], mp: [4, 12], att: 1.3, def: 0, spd: 0.8, dex: 1.2, vit: 0.7, wis: 0.6 },
+    max: { hp: 720, mp: 252, att: 75, def: 25, spd: 55, dex: 60, vit: 40, wis: 50 },
+    starter: ['bow0', 'trap0', 'leather0', null],
+  },
+  paladin: {
+    name: 'Paladin', weapon: 'sword', armor: 'heavy', ability: 'seal', unlock: 'warrior',
+    base: { hp: 200, mp: 100, att: 14, def: 0, spd: 8, dex: 10, vit: 13, wis: 12 },
+    growth: { hp: [24, 34], mp: [4, 10], att: 1.4, def: 0, spd: 0.6, dex: 0.9, vit: 0.9, wis: 0.9 },
+    max: { hp: 770, mp: 320, att: 75, def: 30, spd: 50, dex: 50, vit: 60, wis: 60 },
+    starter: ['sword0', 'seal0', 'heavy0', null],
+  },
+  mystic: {
+    name: 'Mystic', weapon: 'wand', armor: 'robe', ability: 'orb', unlock: 'priest',
+    base: { hp: 100, mp: 120, att: 12, def: 0, spd: 12, dex: 13, vit: 10, wis: 15 },
+    growth: { hp: [20, 30], mp: [6, 16], att: 1.2, def: 0, spd: 0.7, dex: 1.1, vit: 0.5, wis: 1.2 },
+    max: { hp: 670, mp: 450, att: 60, def: 25, spd: 55, dex: 60, vit: 40, wis: 75 },
+    starter: ['wand0', 'orb0', 'robe0', null],
+  },
+  trickster: {
+    name: 'Trickster', weapon: 'dagger', armor: 'leather', ability: 'prism', unlock: 'rogue',
+    base: { hp: 150, mp: 100, att: 12, def: 0, spd: 14, dex: 15, vit: 12, wis: 11 },
+    growth: { hp: [20, 30], mp: [3, 9], att: 1.3, def: 0, spd: 1, dex: 1.3, vit: 0.7, wis: 0.7 },
+    max: { hp: 720, mp: 280, att: 50, def: 25, spd: 75, dex: 75, vit: 40, wis: 60 },
+    starter: ['dagger0', 'prism0', 'leather0', null],
+  },
 };
+
+// Classes available to every account from the start; the rest are unlocked.
+const STARTER_CLASSES = ['wizard', 'archer', 'warrior', 'priest', 'rogue', 'knight'];
 
 // ---------------------------------------------------------------- items
 // type: weapon kinds (staff/bow/sword/wand/dagger), ability kinds
@@ -108,6 +147,12 @@ const ABILITY_TIERS = {
   tome:   ['Torn Tome', 'Tome of Renewal', 'Blessed Tome', 'Tome of Purity', 'Tome of Divine Light'],
   cloak:  ['Ragged Cloak', 'Shadow Cloak', 'Night Cloak', 'Cloak of Ghosts', 'Cloak of the Unseen'],
   shield: ['Wooden Shield', 'Iron Shield', 'Tower Shield', 'Bulwark Shield', 'Aegis of Kings'],
+  // advanced-class abilities
+  skull:  ['Cracked Skull', 'Bone Skull', 'Cursed Skull', 'Soul Skull', 'Skull of the Reaper'],   // AoE drain + lifesteal
+  trap:   ['Snare Trap', 'Spike Trap', 'Venom Trap', 'Frost Trap', 'Trap of the Wild'],            // AoE damage + slow
+  seal:   ['Worn Seal', 'Blessed Seal', 'Holy Seal', 'Radiant Seal', 'Seal of the Divine'],        // heal + attack buff aura
+  orb:    ['Glass Orb', 'Crystal Orb', 'Stasis Orb', 'Astral Orb', 'Orb of Oblivion'],             // stasis (mass stun)
+  prism:  ['Dim Prism', 'Bright Prism', 'Mirror Prism', 'Phantom Prism', 'Prism of the Void'],     // blink teleport
 };
 for (const [kind, tiers] of Object.entries(ABILITY_TIERS)) {
   tiers.forEach(([, x] = [], t) => {
@@ -463,4 +508,4 @@ const DUNGEONS = {
 
 const STAT_POTS = ['pot_att', 'pot_def', 'pot_spd', 'pot_dex', 'pot_vit', 'pot_wis'];
 
-module.exports = { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES };
+module.exports = { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES, STARTER_CLASSES };

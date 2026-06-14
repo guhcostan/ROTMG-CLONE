@@ -3,7 +3,19 @@
 // persisted in SQLite so logins survive server restarts.
 const crypto = require('crypto');
 const storage = require('./db');
-const { CLASSES } = require('./data');
+const { CLASSES, STARTER_CLASSES } = require('./data');
+
+// Set of classIds the account can currently create a character with.
+// Starter classes are always available; advanced classes unlock once the
+// account has reached level 20 with their prerequisite class.
+function unlockedClasses(accountId) {
+  const maxed = storage.maxedClasses(accountId);
+  const unlocked = new Set(STARTER_CLASSES);
+  for (const [id, cls] of Object.entries(CLASSES)) {
+    if (cls.unlock && maxed.has(cls.unlock)) unlocked.add(id);
+  }
+  return unlocked;
+}
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, 32).toString('hex');
@@ -56,6 +68,9 @@ const MAX_CHARS = 3;
 function createCharacter(acc, classId) {
   const cls = CLASSES[classId];
   if (!cls) return { error: 'Classe invalida' };
+  if (!unlockedClasses(acc.id).has(classId)) {
+    return { error: `Classe bloqueada. Leve ${CLASSES[cls.unlock].name} ao nivel 20 para desbloquear.` };
+  }
   if (storage.countChars(acc.id) >= MAX_CHARS) return { error: 'Limite de personagens atingido' };
   const ch = {
     classId,
@@ -80,4 +95,4 @@ function buryCharacter(acc, ch, killedBy) {
   storage.bury(acc.id, ch, killedBy);
 }
 
-module.exports = { register, login, authed, createCharacter, deleteCharacter, buryCharacter, throttled, MAX_CHARS };
+module.exports = { register, login, authed, createCharacter, deleteCharacter, buryCharacter, throttled, unlockedClasses, MAX_CHARS };
