@@ -27,6 +27,17 @@ const ACHIEVEMENTS = {
   tyrant_slayer: { name: 'Algoz do Tirano' },
 };
 
+// Daily bounty pool. Three are picked per day (deterministic by day number),
+// shared by everyone, and reset each day. Rewards land in the vault.
+const BOUNTY_POOL = [
+  { type: 'kill_gods', label: 'Mate 3 deuses do Reino', target: 3, reward: ['statpot'] },
+  { type: 'kill_bosses', label: 'Derrote 4 chefes', target: 4, reward: ['pot_life'] },
+  { type: 'clear_dungeons', label: 'Conclua 2 masmorras', target: 2, reward: ['pot_mana'] },
+  { type: 'kill_event', label: 'Repila uma invasao', target: 1, reward: ['statpot'] },
+  { type: 'kill_count', label: 'Abata 80 inimigos', target: 80, reward: ['hppot', 'mppot'] },
+];
+const DAY_MS = 86400000;
+
 let nextId = 1;
 const uid = () => nextId++;
 
@@ -264,12 +275,14 @@ class Game {
       trade: null, tradeReqFrom: null,
       status: {},                       // statusType -> expiresAt (ms)
       kills: 0, godsKilled: 0, dungeons: 0, // fame-bonus counters (per life)
+      bounties: this.getDailyBounties(acc.id),
     };
     this.players.set(player.id, player);
     // first-ever login on this account starts in the tutorial; everyone else in the Nexus
     if (!acc.tutorial_done) { this.enterInstance(player, this.tutorial); this.startTutorial(player); }
     else this.enterInstance(player, this.nexus);
     this.grantDaily(player);
+    send(player.ws, { t: 'bounties', list: player.bounties });
     return player;
   }
 
@@ -294,6 +307,41 @@ class Game {
       send(player.ws, { t: 'notice', text: `Conquista: ${ACHIEVEMENTS[code].name}!` });
       send(player.ws, { t: 'chat', from: '', text: `${player.name} desbloqueou a conquista "${ACHIEVEMENTS[code].name}".`, sys: 1 });
     }
+  }
+
+  // build (or fetch) today's three bounties for an account, regenerating at day change
+  getDailyBounties(accountId) {
+    const today = Math.floor(Date.now() / DAY_MS);
+    const row = storage.getBounties(accountId);
+    if (row && row.day === today) return row.list;
+    // deterministic pick of 3 distinct bounties seeded by the day
+    const pool = BOUNTY_POOL.map((b, i) => ({ i, k: (today * 9301 + i * 49297) % 233280 }));
+    pool.sort((a, b) => a.k - b.k);
+    const list = pool.slice(0, 3).map(({ i }) => ({ type: BOUNTY_POOL[i].type, label: BOUNTY_POOL[i].label, target: BOUNTY_POOL[i].target, reward: BOUNTY_POOL[i].reward, progress: 0, done: false }));
+    storage.setBounties(accountId, today, list);
+    return list;
+  }
+
+  // advance any matching bounty; on completion drop the reward in the vault
+  progressBounty(player, type, n = 1) {
+    if (!player.bounties) return;
+    let changed = false, completed = null;
+    for (const b of player.bounties) {
+      if (b.done || b.type !== type) continue;
+      b.progress = Math.min(b.target, b.progress + n);
+      changed = true;
+      if (b.progress >= b.target) { b.done = true; completed = b; }
+    }
+    if (!changed) return;
+    if (completed) {
+      const vault = player.vault;
+      for (const it of completed.reward) { const i = vault.indexOf(null); if (i !== -1) vault[i] = it; }
+      storage.setVault(player.acc.id, vault);
+      send(player.ws, { t: 'notice', text: `Missao diaria concluida: ${completed.label}!` });
+      send(player.ws, { t: 'chat', from: '', text: `Recompensa da missao no cofre: ${completed.label}.`, sys: 1 });
+    }
+    storage.setBounties(player.acc.id, Math.floor(Date.now() / DAY_MS), player.bounties);
+    send(player.ws, { t: 'bounties', list: player.bounties });
   }
 
   // once per day: a vault reward that grows with the login streak
@@ -988,6 +1036,11 @@ class Game {
         if (d0.god) this.awardAchievement(p, 'godslayer');
         if (d0.event) this.awardAchievement(p, 'invader_bane');
         if (enemy.type === 'the_tyrant') this.awardAchievement(p, 'tyrant_slayer');
+        // daily bounty progress
+        if (d0.xp > 0) this.progressBounty(p, 'kill_count');
+        if (d0.behavior === 'boss') this.progressBounty(p, 'kill_bosses');
+        if (d0.god) this.progressBounty(p, 'kill_gods');
+        if (d0.event) this.progressBounty(p, 'kill_event');
       }
     }
     // loot
@@ -1019,7 +1072,7 @@ class Game {
     // dungeon completion: boss dies -> open a portal back + announce
     if (inst.kind === 'dungeon' && enemy.id === inst.bossId) {
       inst.bossDead = true;
-      for (const p of inst.players.values()) if (!p.dead) { p.dungeons++; this.awardAchievement(p, 'dungeoneer'); }
+      for (const p of inst.players.values()) if (!p.dead) { p.dungeons++; this.awardAchievement(p, 'dungeoneer'); this.progressBounty(p, 'clear_dungeons'); }
       this.spawnPortal(inst, enemy.x, enemy.y, 'nexus', 'Portal para o Nexus', null, 10 * 60 * 1000);
       inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi derrotado!` });
       inst.broadcast({ t: 'chat', from: '', text: `A masmorra ${inst.name} foi concluida!`, sys: 1 });

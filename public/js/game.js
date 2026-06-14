@@ -504,6 +504,7 @@ const GameClient = (() => {
       fx: onFx,
       notice: m => UI.notice(m.text),
       chat: m => UI.chat(m.from, m.text, m.sys),
+      bounties: m => UI.setBounties(m.list),
       tradereq: m => UI.tradeRequest(m.from),
       tradestate: m => UI.tradeState(m),
       tradedone: () => UI.tradeEnd(true),

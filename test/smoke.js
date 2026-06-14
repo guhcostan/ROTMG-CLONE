@@ -246,6 +246,24 @@ function tutorialSanity() {
   g.leavePlayer(p);
 }
 
+// daily bounties: deterministic set per day, progress completes + rewards
+function bountySanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const id = storage.createAccount('bnty' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const list = g.getDailyBounties(id);
+  check(list.length === 3 && list.every(b => b.progress === 0 && !b.done), 'three fresh bounties for the day');
+  check(JSON.stringify(g.getDailyBounties(id)) === JSON.stringify(list), 'bounties are stable within the same day');
+
+  // drive one bounty to completion and confirm reward lands in the vault
+  const b = list.find(x => x.type === 'kill_count') || list[0];
+  const player = { id: -50, acc: { id }, ws: { readyState: 3, send() {} }, bounties: list, vault: new Array(16).fill(null) };
+  for (let i = 0; i < b.target; i++) g.progressBounty(player, b.type);
+  check(b.done === true, 'bounty completes when its target is reached');
+  check(player.vault.some(s => s !== null), 'completed bounty drops a reward in the vault');
+}
+
 // balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
 function balanceSanity() {
   const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
@@ -373,6 +391,7 @@ async function main() {
   balanceSanity();
   bleedSanity();
   tutorialSanity();
+  bountySanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

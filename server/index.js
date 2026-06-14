@@ -89,6 +89,7 @@ const server = http.createServer(async (req, res) => {
             const earned = new Set(storage.listAchievements(acc.id));
             return Object.entries(ACHIEVEMENTS).map(([code, a]) => ({ code, name: a.name, earned: earned.has(code) }));
           })(),
+          bounties: game.getDailyBounties(acc.id),
         });
       }
       if (req.method === 'POST') {

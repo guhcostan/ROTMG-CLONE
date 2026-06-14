@@ -98,6 +98,9 @@ h3 { margin: 18px 0 8px; color: #f0c040; font-size: 14px; }
   position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
   color: #f0c040; font-size: 20px; text-shadow: 2px 2px 0 #000; opacity: 0; transition: opacity .4s;
 }
+#hud-bounties { font-size: 11px; line-height: 1.5; margin-bottom: 6px; }
+#hud-bounties .bounty { color: #ccc; }
+#hud-bounties .bounty.done { color: #50c050; text-decoration: line-through; }
 #help-overlay {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: rgba(13,13,21,.95); border: 2px solid #3a3a55; border-radius: 8px;

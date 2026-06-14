@@ -88,6 +88,14 @@ CREATE TABLE IF NOT EXISTS daily (
 // add the tutorial flag to existing databases (no-op once the column exists)
 try { db.exec('ALTER TABLE accounts ADD COLUMN tutorial_done INTEGER NOT NULL DEFAULT 0'); } catch { /* column already present */ }
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS bounties (
+  account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  day INTEGER NOT NULL,
+  data TEXT NOT NULL      -- JSON [{type,target,progress,done}, ...]
+);
+`);
+
 // ---------------------------------------------------------------- migration
 const LEGACY = path.join(DATA_DIR, 'db.json');
 if (fs.existsSync(LEGACY)) {
@@ -173,6 +181,9 @@ const q = {
   setDaily: db.prepare(`INSERT INTO daily (account_id, last_day, streak) VALUES (?,?,?)
     ON CONFLICT(account_id) DO UPDATE SET last_day = excluded.last_day, streak = excluded.streak`),
   setTutorial: db.prepare('UPDATE accounts SET tutorial_done = 1 WHERE id = ?'),
+  getBounties: db.prepare('SELECT day, data FROM bounties WHERE account_id = ?'),
+  setBounties: db.prepare(`INSERT INTO bounties (account_id, day, data) VALUES (?,?,?)
+    ON CONFLICT(account_id) DO UPDATE SET day = excluded.day, data = excluded.data`),
 };
 
 function rowToChar(row) {
@@ -280,6 +291,10 @@ const storage = {
 
   // tutorial: one-time per account
   setTutorialDone: (accountId) => q.setTutorial.run(accountId),
+
+  // daily bounties (account-wide, reset by day)
+  getBounties: (accountId) => { const r = q.getBounties.get(accountId); return r ? { day: r.day, list: JSON.parse(r.data) } : null; },
+  setBounties: (accountId, day, list) => q.setBounties.run(accountId, day, JSON.stringify(list)),
 
   // achievements (account-wide, permanent)
   earnAchievement: (accountId, code) => q.earnAch.run(accountId, code, Date.now()).changes > 0,

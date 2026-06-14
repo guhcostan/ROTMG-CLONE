@@ -298,8 +298,20 @@ const UI = (() => {
 
   function setName(text) { $('hud-name').textContent = text; }
 
+  function setBounties(list) {
+    const el = $('hud-bounties');
+    if (!el) return;
+    el.innerHTML = '';
+    for (const b of list || []) {
+      const div = document.createElement('div');
+      div.className = 'bounty' + (b.done ? ' done' : '');
+      div.textContent = `${b.done ? '✓' : '•'} ${b.label} (${b.progress}/${b.target})`;
+      el.appendChild(div);
+    }
+  }
+
   return {
-    init, update, showBag, showVault, chat, notice, setName,
+    init, update, showBag, showVault, chat, notice, setName, setBounties,
     tradeRequest, tradeState, tradeEnd,
     get items() { return ITEMS; },
   };

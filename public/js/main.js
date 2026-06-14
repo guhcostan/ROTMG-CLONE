@@ -106,6 +106,18 @@
       }
     }
 
+    const bl = $('bounties-list');
+    if (bl) {
+      bl.innerHTML = '';
+      if (!data.bounties || !data.bounties.length) bl.textContent = 'Sem missoes hoje.';
+      for (const b of data.bounties || []) {
+        const div = document.createElement('div');
+        div.style.color = b.done ? '#50c050' : '#ccc';
+        div.textContent = `${b.done ? '✓' : '•'} ${b.label} (${b.progress}/${b.target})`;
+        bl.appendChild(div);
+      }
+    }
+
     const ach = $('achievements');
     if (ach) {
       ach.innerHTML = '';
