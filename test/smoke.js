@@ -42,6 +42,13 @@ function dataSanity() {
   }
   check(bad.length === 0, 'data refs consistent' + (bad.length ? ' -> ' + bad.join(', ') : ''));
 
+  // every dungeon is reachable via a portal drop (except the two special finales)
+  const portalSrc = new Set();
+  for (const e of Object.values(ENEMIES)) for (const [s] of e.loot || []) if (s.startsWith('portal:')) portalSrc.add(s.slice(7));
+  const special = new Set(['mad_castle', 'tyrant_sanctum']);
+  const orphans = Object.keys(DUNGEONS).filter(k => !special.has(k) && !portalSrc.has(k));
+  check(orphans.length === 0, 'all dungeons reachable by portal' + (orphans.length ? ' -> orphan: ' + orphans.join(', ') : ''));
+
   // every realm mob shoots, and band damage rises outward->inward (easy beach, hard center)
   const realmMobs = Object.values(ENEMIES).filter(e => e.band >= 0);
   check(realmMobs.every(e => e.shots), 'every realm mob has a shot attack');
