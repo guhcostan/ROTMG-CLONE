@@ -297,6 +297,12 @@ class Game {
   applyStatus(player, type, dur) {
     if (!STATUS_KINDS.includes(type)) return;
     const now = Date.now();
+    // paralyze (full immobilize) can't be chained: brief immunity after it ends,
+    // so a wide bullet ring can't perma-lock a player to death
+    if (type === 'paralyze') {
+      if (now < (player.paralyzeImmuneUntil || 0)) return;
+      player.paralyzeImmuneUntil = now + dur + 1500;
+    }
     player.status[type] = Math.max(player.status[type] || 0, now + dur);
     player.instance.broadcastNear({ t: 'fx', k: 'status', x: player.x, y: player.y, r: 1, s: type }, player.x, player.y);
   }

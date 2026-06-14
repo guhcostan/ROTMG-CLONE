@@ -298,6 +298,13 @@ function statusAndFameSanity() {
   g.cleanseStatus(player);
   check(Object.keys(g.activeStatus(player)).length === 0, 'cleanse clears all statuses');
 
+  // paralyze can't be chained: a second application during the immunity window is ignored
+  g.applyStatus(player, 'paralyze', 800);
+  const firstEnd = player.status.paralyze;
+  g.applyStatus(player, 'paralyze', 800); // immediately re-applied -> should be blocked
+  check(player.status.paralyze === firstEnd, 'paralyze cannot be re-applied during immunity');
+  g.cleanseStatus(player);
+
   const bonuses = g.fameBonuses(player);
   const byLabel = Object.fromEntries(bonuses.map(b => [b.label, b.value]));
   check(byLabel['Matador'] === 5, 'kill fame bonus (55 kills -> +5)');
