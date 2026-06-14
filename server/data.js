@@ -339,7 +339,7 @@ enemy('gargoyle', {
   name: 'Gargoyle', sprite: 'gargoyle', hp: 550, def: 14, xp: 55, speed: 4.5, size: 1.1,
   behavior: 'orbit', band: 3,
   shots: { dmg: 22, speed: 13, range: 7, count: 1, spread: 0, rate: 1.2, burst: 3, burstGap: 100 }, // triple burst
-  loot: [['weapon:2-3', 0.22], ['ringdex0', 0.08], ['mppot', 0.2]],
+  loot: [['weapon:2-3', 0.22], ['ringdex0', 0.08], ['mppot', 0.2], ['portal:frozen_depths', 0.05]],
 });
 enemy('wraith', {
   name: 'Hollow Wraith', sprite: 'wraith', hp: 450, def: 8, xp: 50, speed: 5.5, size: 1,
@@ -388,7 +388,7 @@ enemy('ancient_colossus', {
   name: 'Ancient Colossus', sprite: 'colossus', hp: 3000, def: 22, xp: 220, speed: 2, size: 1.8,
   behavior: 'orbit', band: 4, god: true,
   shots: { dmg: 50, speed: 10, range: 9, count: 3, spread: 0.5, rate: 1.4, ring: 12, ringRate: 0.3, spiral: true },
-  loot: [['weapon:3-4', 0.3], ['armor:3-4', 0.3], ['statpot', 0.55], ['portal:sunken_tomb', 0.07], ['legendary', 0.02]],
+  loot: [['weapon:3-4', 0.3], ['armor:3-4', 0.3], ['statpot', 0.55], ['portal:sunken_tomb', 0.07], ['portal:frozen_depths', 0.08], ['legendary', 0.02]],
 });
 enemy('demon_prince', {
   name: 'Demon Prince', sprite: 'demon_prince', hp: 5000, def: 24, xp: 400, speed: 4, size: 1.8,
@@ -502,8 +502,65 @@ enemy('the_tyrant', {
     ['ringtyrant', 0.5], ['statpot', 1], ['pot_life', 1], ['pot_mana', 1]],
 });
 
+// --- ice biome: Frozen Depths dungeon (theme 'ice') ---
+enemy('frost_imp', {
+  name: 'Frost Imp', sprite: 'frost_imp', hp: 320, def: 6, xp: 32, speed: 5.5, size: 0.8,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 22, speed: 11, range: 5.5, count: 1, spread: 0, rate: 1.8, status: { type: 'slow', dur: 1200, chance: 0.25 } },
+  loot: [['mppot', 0.18], ['weapon:2-3', 0.1]],
+});
+enemy('snow_wolf', {
+  name: 'Snow Wolf', sprite: 'snow_wolf', hp: 380, def: 5, xp: 34, speed: 6, size: 0.9,
+  behavior: 'chase', band: -1, melee: { dmg: 30, rate: 1.2 },
+  shots: { dmg: 18, speed: 10, range: 5, count: 1, spread: 0, rate: 1.2 },
+  loot: [['hppot', 0.2], ['armor:2-3', 0.1]],
+});
+enemy('ice_golem', {
+  name: 'Ice Golem', sprite: 'ice_golem', hp: 1400, def: 20, xp: 90, speed: 2, size: 1.5,
+  behavior: 'wander', band: -1,
+  shots: { dmg: 40, speed: 6, range: 6.5, count: 5, spread: 1, rate: 0.6, status: { type: 'slow', dur: 1500, chance: 0.4 } },
+  loot: [['weapon:3-4', 0.18], ['armor:3-4', 0.18], ['ringdef0', 0.1]],
+});
+enemy('frost_archer', {
+  name: 'Frost Archer', sprite: 'frost_archer', hp: 420, def: 8, xp: 40, speed: 4, size: 0.9,
+  behavior: 'orbit', band: -1,
+  shots: { dmg: 34, speed: 15, range: 8, count: 1, spread: 0, rate: 0.9, status: { type: 'slow', dur: 1500, chance: 0.5 } },
+  loot: [['weapon:3-4', 0.15], ['mppot', 0.15]],
+});
+enemy('yeti', {
+  name: 'Snowfield Yeti', sprite: 'yeti', hp: 1600, def: 14, xp: 110, speed: 4.5, size: 1.5,
+  behavior: 'chase', band: -1,
+  shots: { dmg: 30, speed: 11, range: 6, count: 2, spread: 0.3, rate: 1.2, burst: 3, burstGap: 100 },
+  loot: [['weapon:3-4', 0.2], ['armor:3-4', 0.2], ['hppot', 0.25]],
+});
+enemy('ice_wisp', {
+  name: 'Ice Wisp', sprite: 'ice_wisp', hp: 260, def: 4, xp: 30, speed: 6, size: 0.7,
+  behavior: 'orbit', band: -1,
+  shots: { dmg: 20, speed: 13, range: 6, count: 1, spread: 0, rate: 2.4 },
+  loot: [['mppot', 0.2]],
+});
+enemy('frost_shaman', {
+  name: 'Frost Shaman', sprite: 'frost_shaman', hp: 900, def: 12, xp: 80, speed: 3, size: 1.1,
+  behavior: 'orbit', band: -1,
+  shots: { dmg: 30, speed: 9, range: 7.5, count: 3, spread: 0.6, rate: 1.2, ring: 10, ringRate: 0.3, status: { type: 'slow', dur: 1500, chance: 0.4 } },
+  loot: [['armor:3-4', 0.18], ['ringmp0', 0.1], ['statpot', 0.15]],
+});
+enemy('frost_monarch', {
+  name: 'Monarca do Gelo', sprite: 'frost_monarch', hp: 24000, def: 26, xp: 2200, speed: 3.5, size: 2.4,
+  behavior: 'boss', band: -1, spawns: { type: 'ice_wisp', max: 4, rate: 0.14 },
+  enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
+  shots: { dmg: 60, speed: 12, range: 9.5, count: 7, spread: 1.4, rate: 2, ring: 24, ringRate: 0.42, spiral: true,
+    status: { type: 'slow', dur: 2000, chance: 0.4 }, ringStatus: { type: 'paralyze', dur: 900, chance: 0.3 } },
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['pot_life', 0.5], ['legendary', 0.1], ['ringall0', 0.4]],
+});
+
 // ---------------------------------------------------------------- dungeons
 const DUNGEONS = {
+  frozen_depths: {
+    name: 'Frozen Depths', theme: 'ice', size: 110, rooms: 11,
+    minions: ['frost_imp', 'snow_wolf', 'ice_golem', 'frost_archer', 'yeti', 'ice_wisp', 'frost_shaman'],
+    minionCount: 36, boss: 'frost_monarch',
+  },
   goblin_warren: {
     name: 'Goblin Warren', theme: 'cave', size: 80, rooms: 8,
     minions: ['goblin_grunt'], minionCount: 26, boss: 'goblin_king',

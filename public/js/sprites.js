@@ -520,6 +520,75 @@ ffrRyyyyRrff
 ..frRRRRrf..
 ...f.RR.f...
 ...f....f...`,
+  frost_imp: `
+.c........c.
+..c.cccc.c..
+...cwkkwc...
+...cwwwwc...
+....cwwc....
+...c.cc.c...`,
+  snow_wolf: `
+.w........w.
+.wwwwwwwwww.
+.wcwwwwwcw..
+..wwwkwww...
+..ww.ww.ww..
+..w.....w...`,
+  ice_golem: `
+..cwccccwc..
+.cwwwwwwwwc.
+.cwkwwwwkwc.
+.cwwwwwwwwc.
+.cwwccccwwc.
+.cwwwwwwwwc.
+..cw.cc.wc..
+..c......c..`,
+  frost_archer: `
+....cccc....
+...cwccwc...
+..cwckkcwc..
+...cwccwc...
+...cwwwwc...
+..c.cwwc.c..
+....c..c....
+...cc..cc...`,
+  yeti: `
+..wwwwwwww..
+.wwwwwwwwww.
+.wwckwwkcww.
+.wwwwwwwwww.
+.wwwwccwwww.
+..wwwwwwww..
+..ww.ww.ww..
+..w......w..`,
+  ice_wisp: `
+....cc....
+..ccBBcc..
+.cBwwwwBc.
+..ccBBcc..
+....cc....`,
+  frost_shaman: `
+....cccc....
+...cBBBBc...
+..cBwkkwBc..
+..cBBwwBBc..
+...cBBBBc...
+..c.BBBB.c..
+...cBBBBc...
+...c.BB.c...
+...c....c...`,
+  frost_monarch: `
+.c.c.cc.c.c.
+.cwBBBBBBwc.
+.cBwkBBkwBc.
+.cBBBBBBBBc.
+ccBBwwwwBBcc
+.cBBBBBBBBc.
+.cBBwwwwBBc.
+.cBBBBBBBBc.
+..cBBBBBBc..
+...c.BB.c...
+...c....c...`,
 
   // ----- objects
   bag_brown: `
@@ -845,6 +914,8 @@ const TILE_COLORS = {
   9: ['#4a4252', '#544a5c'],   // dungeon floor
   10: ['#231f29', '#231f29'],  // dungeon wall
   11: ['#7c93a8', '#8aa0b4'],  // nexus floor
+  12: ['#bcd8ee', '#cfe6f6'],  // ice floor
+  13: ['#7fc6e8', '#93d2f0'],  // frost hazard pool
 };
 const TILE_BLOCKING = new Set([0, 4, 10]);
 

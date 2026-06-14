@@ -6,10 +6,11 @@
 const T = {
   VOID: 0, GRASS: 1, SAND: 2, WATER: 3, ROCK: 4, ROAD: 5,
   FOREST: 6, MOUNTAIN: 7, LAVA: 8, FLOOR: 9, WALL: 10, NEXUS: 11,
+  ICE: 12, FROST: 13,
 };
 const BLOCKING = new Set([T.VOID, T.ROCK, T.WALL]);
 const SLOW = new Set([T.WATER]);
-const DAMAGING = new Set([T.LAVA]);
+const DAMAGING = new Set([T.LAVA, T.FROST]);
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -159,7 +160,7 @@ function generateDungeon(defn, seed) {
     }
     [rooms[i], rooms[best]] = [rooms[best], rooms[i]];
   }
-  const floor = defn.theme === 'inferno' ? T.FLOOR : T.FLOOR;
+  const floor = defn.theme === 'ice' ? T.ICE : T.FLOOR;
   for (const r of rooms) {
     for (let y = r.y; y < r.y + r.h; y++)
       for (let x = r.x; x < r.x + r.w; x++) m.set(x, y, floor);
@@ -171,13 +172,14 @@ function generateDungeon(defn, seed) {
     while (x !== tx) { m.set(x, y, floor); m.set(x, y + 1, floor); x += Math.sign(tx - x); }
     while (y !== ty) { m.set(x, y, floor); m.set(x + 1, y, floor); y += Math.sign(ty - y); }
   }
-  // lava pools for inferno theme
-  if (defn.theme === 'inferno') {
+  // hazard pools: lava for inferno, frost for ice
+  const hazard = defn.theme === 'inferno' ? T.LAVA : defn.theme === 'ice' ? T.FROST : null;
+  if (hazard) {
     for (const r of rooms.slice(1)) {
       if (rand() < 0.5) {
         const px = r.x + 2 + Math.floor(rand() * (r.w - 4));
         const py = r.y + 2 + Math.floor(rand() * (r.h - 4));
-        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) m.set(px + dx, py + dy, T.LAVA);
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) m.set(px + dx, py + dy, hazard);
       }
     }
   }

@@ -77,6 +77,17 @@ function realmCycleSanity() {
   check(before - dummy.hp > 100, 'expose increases damage taken');
 }
 
+// ice biome: Frozen Depths dungeon generates with ice floor + frost boss
+function iceBiomeSanity() {
+  const { Game } = require('../server/game');
+  const { T } = require('../server/world');
+  const { DUNGEONS } = require('../server/data');
+  const g = new Game();
+  const inst = g.createDungeon('frozen_depths', DUNGEONS.frozen_depths);
+  check([...inst.map.tiles].includes(T.ICE), 'frozen depths uses ice floor');
+  check([...inst.enemies.values()].some(e => e.type === 'frost_monarch'), 'frost monarch present');
+}
+
 async function api(method, p, body, token) {
   const res = await fetch(BASE + p, {
     method,
@@ -168,6 +179,7 @@ async function main() {
   dataSanity();
   realmCycleSanity();
   statusAndFameSanity();
+  iceBiomeSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);
