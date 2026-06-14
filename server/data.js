@@ -376,7 +376,7 @@ enemy('ogre', {
   name: 'Highland Ogre', sprite: 'ogre', hp: 700, def: 10, xp: 60, speed: 3, size: 1.4,
   behavior: 'chase', band: 3,
   shots: { dmg: 34, speed: 8, range: 5.5, count: 4, spread: 0.8, rate: 0.8 }, // brutal shotgun
-  loot: [['weapon:2-3', 0.25], ['armor:2-3', 0.25], ['ringspd0', 0.08], ['portal:cursed_keep', 0.06]],
+  loot: [['weapon:2-3', 0.25], ['armor:2-3', 0.25], ['ringspd0', 0.08], ['portal:cursed_keep', 0.06], ['portal:storm_citadel', 0.05]],
 });
 enemy('gargoyle', {
   name: 'Gargoyle', sprite: 'gargoyle', hp: 550, def: 14, xp: 55, speed: 4.5, size: 1.1,
@@ -388,7 +388,7 @@ enemy('wraith', {
   name: 'Hollow Wraith', sprite: 'wraith', hp: 450, def: 8, xp: 50, speed: 5.5, size: 1,
   behavior: 'chase', band: 3,
   shots: { dmg: 18, speed: 11, range: 6, count: 1, spread: 0, rate: 3 }, // machine gun
-  loot: [['armor:2-3', 0.22], ['hppot', 0.2], ['ringall0', 0.03]],
+  loot: [['armor:2-3', 0.22], ['hppot', 0.2], ['ringall0', 0.03], ['portal:crystal_caverns', 0.05], ['portal:plague_warren', 0.05]],
 });
 enemy('golem', {
   name: 'Granite Golem', sprite: 'golem', hp: 1000, def: 18, xp: 75, speed: 2, size: 1.4,
@@ -566,6 +566,44 @@ enemy('invader_archmage', {
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['legendary', 1], ['statpot', 1], ['pot_mana', 0.5], ['ringall0', 0.5]],
 });
 
+// --- Crystal Caverns (theme cave) ---
+enemy('crystal_crawler', { name: 'Crystal Crawler', sprite: 'spider', hp: 300, def: 8, xp: 30, speed: 4.5, size: 0.9, behavior: 'chase', band: -1,
+  shots: { dmg: 24, speed: 11, range: 5.5, count: 1, spread: 0, rate: 1.6 }, loot: [['mppot', 0.15], ['weapon:2-3', 0.1]] });
+enemy('crystal_golem', { name: 'Crystal Golem', sprite: 'golem', hp: 1500, def: 22, xp: 95, speed: 2, size: 1.5, behavior: 'wander', band: -1,
+  shots: { dmg: 42, speed: 7, range: 6.5, count: 5, spread: 1, rate: 0.6 }, loot: [['armor:3-4', 0.18], ['ringdef0', 0.1]] });
+enemy('prism_wisp', { name: 'Prism Wisp', sprite: 'ice_wisp', hp: 240, def: 5, xp: 28, speed: 6, size: 0.7, behavior: 'orbit', band: -1,
+  shots: { dmg: 20, speed: 13, range: 6, count: 3, spread: 0.4, rate: 1.6 }, loot: [['mppot', 0.18]] });
+enemy('crystal_tyrant', { name: 'Tirano de Cristal', sprite: 'crystal_tyrant', hp: 22000, def: 26, xp: 2100, speed: 3, size: 2.3, behavior: 'boss', band: -1,
+  spawns: { type: 'prism_wisp', max: 4, rate: 0.14 }, enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
+  shots: { dmg: 58, speed: 11, range: 9, count: 5, spread: 1, rate: 1.8, ring: 20, ringRate: 0.4, spiral: true },
+  phases: [{ hpPct: 0.5, cry: 'estilhaca!', shots: { dmg: 55, speed: 12, range: 10, count: 13, spread: 0.5, rate: 2.6 } }],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['legendary', 0.1], ['ringall0', 0.4]] });
+// --- Storm Citadel (theme keep) ---
+enemy('storm_knight', { name: 'Storm Knight', sprite: 'keep_knight', hp: 520, def: 14, xp: 48, speed: 4.2, size: 1, behavior: 'chase', band: -1,
+  shots: { dmg: 30, speed: 12, range: 6, count: 2, spread: 0.3, rate: 1.5 }, loot: [['hppot', 0.2], ['weapon:3-4', 0.08]] });
+enemy('thunder_mage', { name: 'Thunder Mage', sprite: 'shaman', hp: 460, def: 8, xp: 44, speed: 3, size: 1, behavior: 'orbit', band: -1,
+  shots: { dmg: 34, speed: 15, range: 8, count: 1, spread: 0, rate: 1, burst: 3, burstGap: 90, status: { type: 'quiet', dur: 1500, chance: 0.3 } }, loot: [['armor:3-4', 0.15], ['ringmp0', 0.1]] });
+enemy('gale_archer', { name: 'Gale Archer', sprite: 'frost_archer', hp: 380, def: 7, xp: 40, speed: 4.5, size: 0.9, behavior: 'orbit', band: -1,
+  shots: { dmg: 28, speed: 16, range: 8, count: 1, spread: 0, rate: 1.8 }, loot: [['weapon:3-4', 0.12], ['mppot', 0.15]] });
+enemy('storm_sovereign', { name: 'Soberano da Tempestade', sprite: 'storm_sovereign', hp: 26000, def: 24, xp: 2300, speed: 3.5, size: 2.4, behavior: 'orbit', band: -1,
+  spawns: { type: 'storm_knight', max: 4, rate: 0.14 }, enrage: { hpPct: 0.35, rateMul: 1.6, dmgMul: 1.3 },
+  shots: { dmg: 60, speed: 14, range: 10, count: 3, spread: 0.5, rate: 1.6, ring: 22, ringRate: 0.45, spiral: true, status: { type: 'quiet', dur: 1500, chance: 0.3 } },
+  phases: [{ hpPct: 0.6, cry: 'troveja!', shots: { dmg: 55, speed: 16, range: 10, count: 1, spread: 0, rate: 2.2, burst: 4, burstGap: 80, ring: 16, ringRate: 0.4 } },
+    { hpPct: 0.3, cry: 'desencadeia o ciclone!', shots: { dmg: 65, speed: 13, range: 11, count: 5, spread: 1.2, rate: 2, ring: 30, ringRate: 0.7, spiral: true } }],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['legendary', 0.12], ['ringall0', 0.45]] });
+// --- Plague Warren (theme cave) ---
+enemy('plague_rat', { name: 'Plague Rat', sprite: 'scorpion', hp: 220, def: 4, xp: 26, speed: 5, size: 0.8, behavior: 'chase', band: -1,
+  shots: { dmg: 18, speed: 11, range: 5, count: 1, spread: 0, rate: 1.6, status: { type: 'bleed', dur: 2000, chance: 0.2 } }, loot: [['hppot', 0.15]] });
+enemy('rot_hound', { name: 'Rot Hound', sprite: 'wolf', hp: 360, def: 6, xp: 34, speed: 5.5, size: 0.9, behavior: 'chase', band: -1, melee: { dmg: 26, rate: 1.2 },
+  shots: { dmg: 16, speed: 10, range: 4.5, count: 1, spread: 0, rate: 1 }, loot: [['armor:2-3', 0.12]] });
+enemy('blight_spitter', { name: 'Blight Spitter', sprite: 'sandling', hp: 300, def: 5, xp: 32, speed: 3, size: 0.9, behavior: 'orbit', band: -1,
+  shots: { dmg: 24, speed: 9, range: 6.5, count: 3, spread: 0.5, rate: 1.2, status: { type: 'sick', dur: 2000, chance: 0.3 } }, loot: [['mppot', 0.15], ['weapon:2-3', 0.1]] });
+enemy('plague_mother', { name: 'Mae da Peste', sprite: 'plague_mother', hp: 24000, def: 20, xp: 2200, speed: 3, size: 2.4, behavior: 'boss', band: -1,
+  spawns: { type: 'plague_rat', max: 6, rate: 0.12 }, enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
+  shots: { dmg: 52, speed: 10, range: 9, count: 7, spread: 1.4, rate: 1.8, ring: 18, ringRate: 0.4, status: { type: 'bleed', dur: 2500, chance: 0.4 } },
+  phases: [{ hpPct: 0.5, cry: 'espalha o contagio!', shots: { dmg: 50, speed: 9, range: 9, count: 5, spread: 0.9, rate: 2, ring: 24, ringRate: 0.6, status: { type: 'sick', dur: 2000, chance: 0.4 } } }],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['legendary', 0.1], ['ringall0', 0.4]] });
+
 // --- ice biome: Frozen Depths dungeon (theme 'ice') ---
 enemy('frost_imp', {
   name: 'Frost Imp', sprite: 'frost_imp', hp: 320, def: 6, xp: 32, speed: 5.5, size: 0.8,
@@ -628,6 +666,18 @@ const DUNGEONS = {
     name: 'Frozen Depths', theme: 'ice', size: 110, rooms: 11,
     minions: ['frost_imp', 'snow_wolf', 'ice_golem', 'frost_archer', 'yeti', 'ice_wisp', 'frost_shaman'],
     minionCount: 36, boss: 'frost_monarch',
+  },
+  crystal_caverns: {
+    name: 'Crystal Caverns', theme: 'cave', size: 100, rooms: 10,
+    minions: ['crystal_crawler', 'crystal_golem', 'prism_wisp'], minionCount: 32, boss: 'crystal_tyrant',
+  },
+  storm_citadel: {
+    name: 'Storm Citadel', theme: 'keep', size: 110, rooms: 11,
+    minions: ['storm_knight', 'thunder_mage', 'gale_archer'], minionCount: 34, boss: 'storm_sovereign',
+  },
+  plague_warren: {
+    name: 'Plague Warren', theme: 'cave', size: 100, rooms: 10,
+    minions: ['plague_rat', 'rot_hound', 'blight_spitter'], minionCount: 34, boss: 'plague_mother',
   },
   goblin_warren: {
     name: 'Goblin Warren', theme: 'cave', size: 80, rooms: 8,

@@ -691,6 +691,41 @@ ppPPccccPPpp
 ..pPPPPPPp..
 ...p.PP.p...
 ...p....p...`,
+  crystal_tyrant: `
+.c.c.cc.c.c.
+.cPcccccPc..
+.cPckkkcPc..
+.cPcccccPc..
+ccPcwwwcPcc.
+.cPcccccPc..
+.cPcPPPcPc..
+..cPcccPc...
+...c.cc.c...
+...c....c...`,
+  storm_sovereign: `
+.B.B.BB.B.B.
+.BcBBBBBBcB.
+.BBkBBBBkBB.
+.BBBBBBBBBB.
+BBBByyyyBBBB
+.BBBBBBBBBB.
+.BBBccccBBB.
+.BBBBBBBBBB.
+..BBBBBBBB..
+...B.BB.B...
+...B....B...`,
+  plague_mother: `
+.e.e.ee.e.e.
+.elEEEEEEle.
+.eEkEEEEkEe.
+.eEEEEEEEEe.
+eeEEllllEEee
+.eEEEEEEEEe.
+.eEEllllEEe.
+.eEEEEEEEEe.
+..eEEEEEEe..
+...e.EE.e...
+...e....e...`,
 
   // ----- objects
   bag_brown: `
