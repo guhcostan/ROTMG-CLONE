@@ -1243,6 +1243,14 @@ class Game {
 
   sendSnapshots(inst) {
     const now = Date.now();
+    // notable targets for the quest compass (gods, bosses, mini-bosses)
+    let notable = null;
+    if (inst.kind !== 'nexus') {
+      notable = [];
+      for (const e of inst.enemies.values()) {
+        if (e.def.god || e.def.behavior === 'boss' || e.def.rare) notable.push(e);
+      }
+    }
     for (const p of inst.players.values()) {
       if (p.ws.readyState !== 1) continue;
       const ents = [];
@@ -1271,6 +1279,13 @@ class Game {
         if (dist2(o.x, o.y, p.x, p.y) > r2) continue;
         ents.push(['o', o.id, o.kind, round1(o.x), round1(o.y), o.name]);
       }
+      // nearest notable target -> quest compass
+      let quest = null;
+      if (notable && notable.length) {
+        let best = null, bd = Infinity;
+        for (const e of notable) { const dd = dist2(e.x, e.y, p.x, p.y); if (dd < bd) { bd = dd; best = e; } }
+        if (best) quest = { x: round1(best.x), y: round1(best.y), name: best.def.name, god: best.def.god ? 1 : 0 };
+      }
       const ch = p.char;
       send(p.ws, {
         t: 'tick',
@@ -1280,7 +1295,7 @@ class Game {
           mp: Math.round(ch.mp), maxMp: effectiveMaxMp(p),
           xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame,
           stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
-          st: this.activeStatus(p),
+          st: this.activeStatus(p), quest,
         },
       });
     }

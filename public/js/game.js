@@ -394,7 +394,34 @@ const GameClient = (() => {
     }
     ctx.restore();
 
+    drawQuestArrow();
     renderMinimap();
+  }
+
+  // compass arrow pointing to the nearest notable target (god/boss/mini-boss)
+  function drawQuestArrow() {
+    if (!self || !self.quest) return;
+    const q = self.quest;
+    const dist = Math.hypot(q.x - me.x, q.y - me.y);
+    if (dist < 10) return; // already there
+    const ang = Math.atan2(q.y - me.y, q.x - me.x);
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const rx = canvas.width / 2 - 80, ry = canvas.height / 2 - 80;
+    const ax = cx + Math.cos(ang) * rx, ay = cy + Math.sin(ang) * ry;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.fillStyle = q.god ? '#f04040' : '#f0c040';
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(16, 0); ctx.lineTo(-10, -9); ctx.lineTo(-4, 0); ctx.lineTo(-10, 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = q.god ? '#ff8080' : '#f0d878';
+    ctx.font = '11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${q.name} (${Math.round(dist)})`, ax, ay - 14);
   }
 
   function spriteScale(type) {
@@ -444,6 +471,10 @@ const GameClient = (() => {
         mctx.fillStyle = '#ff60ff';
         mctx.fillRect(ent.x * sx - 2, ent.y * sy - 2, 4, 4);
       }
+    }
+    if (self && self.quest) {
+      mctx.fillStyle = self.quest.god ? '#f04040' : '#f0c040';
+      mctx.fillRect(self.quest.x * sx - 3, self.quest.y * sy - 3, 6, 6);
     }
   }
 

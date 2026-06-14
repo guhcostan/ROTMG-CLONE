@@ -310,6 +310,9 @@ async function main() {
     c1.sendMsg({ t: 'portal' });
     const realm = await c1.waitFor('world');
     check(realm.kind === 'realm', 'entered realm through portal');
+    c1.messages.length = 0;
+    const realmTick = await c1.waitFor('tick');
+    check(realmTick.self.quest && typeof realmTick.self.quest.x === 'number', 'quest compass target in realm');
     for (let i = 0; i < 5; i++) {
       c1.sendMsg({ t: 'shoot', a: i });
       await new Promise(r => setTimeout(r, 250));
