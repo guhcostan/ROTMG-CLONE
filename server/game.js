@@ -89,7 +89,9 @@ function statusMoveMul(player) {
   return 1;
 }
 
-function moveSpeed(stats) { return 4 + 5.6 * (stats.spd / 75); }     // tiles/s
+const PLAYER_MIN_SPEED = 4;       // moveSpeed() at SPD 0
+const MOB_SPEED_CAP = 3.9;        // strictly below a 0-SPD player so no mob outruns anyone
+function moveSpeed(stats) { return PLAYER_MIN_SPEED + 5.6 * (stats.spd / 75); }     // tiles/s
 function fireRate(stats) { return 1.5 + 4.5 * (stats.dex / 75); }    // shots/s
 function applyDefense(dmg, def) { return Math.max(Math.ceil(dmg * 0.1), dmg - def); }
 // ability damage scales with both ATT and WIS, so caster builds invest in WIS
@@ -1234,7 +1236,7 @@ class Game {
     const range = e.shots ? e.shots.range : 2;
     const aggro = 121; // 11 tiles
     // ponytail: cap at 4.3 t/s so no mob outruns even a 0-speed player; bump if a fast-mob archetype is wanted
-    const speed = Math.min(d.speed, 4.3) * dt * (e.slowedUntil > now ? 0.5 : 1);
+    const speed = Math.min(d.speed, MOB_SPEED_CAP) * dt * (e.slowedUntil > now ? 0.5 : 1);
 
     // movement
     let mx = 0, my = 0;
@@ -1441,4 +1443,4 @@ function effectiveMaxMp(player) {
 function round1(n) { return Math.round(n * 10) / 10; }
 function send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 
-module.exports = { Game, ACHIEVEMENTS };
+module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED };

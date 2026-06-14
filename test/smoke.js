@@ -194,6 +194,18 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
+function balanceSanity() {
+  const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
+  const { DUNGEONS, ENEMIES } = require('../server/data');
+  check(MOB_SPEED_CAP < PLAYER_MIN_SPEED, `mob speed cap (${MOB_SPEED_CAP}) below player floor (${PLAYER_MIN_SPEED})`);
+  // mid-tier dungeons (drop from band 2-3 mobs) stay below the late-game Abyssal Rift (18k)
+  const hp = name => ENEMIES[DUNGEONS[name].boss].hp;
+  const mid = ['crystal_caverns', 'plague_warren', 'frozen_depths', 'storm_citadel', 'sunbaked_ziggurat', 'drowned_grotto', 'volcanic_forge'];
+  check(mid.every(d => hp(d) <= 16000), 'new dungeon bosses scaled into the mid curve (<=16k HP)');
+  check(hp('crystal_caverns') < hp('volcanic_forge'), 'new dungeons have an internal difficulty ramp');
+}
+
 async function api(method, p, body, token) {
   const res = await fetch(BASE + p, {
     method,
@@ -291,6 +303,7 @@ async function main() {
   progressionSanity();
   abilityScalingSanity();
   coopXpSanity();
+  balanceSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

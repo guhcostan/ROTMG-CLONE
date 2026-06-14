@@ -583,7 +583,7 @@ enemy('scarab', { name: 'Golden Scarab', sprite: 'scorpion', hp: 280, def: 10, x
   shots: { dmg: 20, speed: 11, range: 5, count: 1, spread: 0, rate: 1.6, burst: 3, burstGap: 90 }, loot: [['hppot', 0.15]] });
 enemy('dust_djinn', { name: 'Dust Djinn', sprite: 'ice_wisp', hp: 360, def: 6, xp: 38, speed: 6, size: 0.9, behavior: 'orbit', band: -1,
   shots: { dmg: 24, speed: 12, range: 6.5, count: 3, spread: 0.5, rate: 1.4, status: { type: 'sick', dur: 1500, chance: 0.25 } }, loot: [['mppot', 0.15]] });
-enemy('solar_colossus', { name: 'Colosso Solar', sprite: 'solar_colossus', hp: 27000, def: 26, xp: 2400, speed: 2.5, size: 2.5, behavior: 'orbit', band: -1,
+enemy('solar_colossus', { name: 'Colosso Solar', sprite: 'solar_colossus', hp: 11000, def: 26, xp: 1100, speed: 2.5, size: 2.5, behavior: 'orbit', band: -1,
   spawns: { type: 'sun_acolyte', max: 4, rate: 0.13 }, enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.3 },
   shots: { dmg: 60, speed: 11, range: 10, count: 5, spread: 1, rate: 1.8, ring: 24, ringRate: 0.45, spiral: true },
   phases: [{ hpPct: 0.5, cry: 'queima os ceus!', shots: { dmg: 62, speed: 12, range: 11, count: 3, spread: 0.5, rate: 2, ring: 36, ringRate: 0.7, spiral: true } }],
@@ -595,7 +595,7 @@ enemy('deep_lurker', { name: 'Deep Lurker', sprite: 'void_spawn', hp: 600, def: 
   shots: { dmg: 32, speed: 12, range: 7, count: 1, spread: 0, rate: 1.8 }, loot: [['armor:3-4', 0.14]] });
 enemy('brine_shaman', { name: 'Brine Shaman', sprite: 'frost_shaman', hp: 520, def: 9, xp: 48, speed: 3, size: 1, behavior: 'orbit', band: -1,
   shots: { dmg: 28, speed: 9, range: 7.5, count: 3, spread: 0.6, rate: 1.2, ring: 10, ringRate: 0.3, status: { type: 'slow', dur: 1500, chance: 0.3 } }, loot: [['mppot', 0.15], ['ringmp0', 0.05]] });
-enemy('leviathan', { name: 'Leviata', sprite: 'leviathan', hp: 28000, def: 24, xp: 2500, speed: 3, size: 2.6, behavior: 'chase', band: -1,
+enemy('leviathan', { name: 'Leviata', sprite: 'leviathan', hp: 13000, def: 24, xp: 1300, speed: 3, size: 2.6, behavior: 'chase', band: -1,
   spawns: { type: 'reef_stalker', max: 5, rate: 0.13 }, enrage: { hpPct: 0.35, rateMul: 1.6, dmgMul: 1.3 },
   shots: { dmg: 58, speed: 11, range: 9.5, count: 7, spread: 1.4, rate: 1.8, ring: 22, ringRate: 0.42, spiral: true, status: { type: 'slow', dur: 1800, chance: 0.3 } },
   phases: [{ hpPct: 0.55, cry: 'invoca a mare!', shots: { dmg: 55, speed: 10, range: 10, count: 9, spread: 1.8, rate: 2, ring: 18, ringRate: 0.5 } },
@@ -608,7 +608,7 @@ enemy('magma_hound', { name: 'Magma Hound', sprite: 'wolf_alpha', hp: 520, def: 
   shots: { dmg: 24, speed: 11, range: 5, count: 1, spread: 0, rate: 1.2 }, loot: [['hppot', 0.18]] });
 enemy('ember_mage', { name: 'Ember Mage', sprite: 'imp', hp: 440, def: 8, xp: 46, speed: 3.5, size: 0.9, behavior: 'orbit', band: -1,
   shots: { dmg: 34, speed: 12, range: 7, count: 1, spread: 0, rate: 1, burst: 3, burstGap: 90 }, loot: [['weapon:3-4', 0.12], ['mppot', 0.15]] });
-enemy('forge_master', { name: 'Mestre da Forja', sprite: 'forge_master', hp: 30000, def: 28, xp: 2700, speed: 3, size: 2.6, behavior: 'boss', band: -1,
+enemy('forge_master', { name: 'Mestre da Forja', sprite: 'forge_master', hp: 16000, def: 28, xp: 1600, speed: 3, size: 2.6, behavior: 'boss', band: -1,
   spawns: { type: 'magma_hound', max: 5, rate: 0.13 }, enrage: { hpPct: 0.35, rateMul: 1.6, dmgMul: 1.35 },
   shots: { dmg: 64, speed: 12, range: 10, count: 7, spread: 1.4, rate: 2, ring: 24, ringRate: 0.45, spiral: true },
   phases: [{ hpPct: 0.6, cry: 'aquece as bigornas!', shots: { dmg: 60, speed: 12, range: 10, count: 13, spread: 0.6, rate: 2.6 } },
@@ -622,7 +622,7 @@ enemy('crystal_golem', { name: 'Crystal Golem', sprite: 'golem', hp: 1500, def: 
   shots: { dmg: 42, speed: 7, range: 6.5, count: 5, spread: 1, rate: 0.6 }, loot: [['armor:3-4', 0.18], ['ringdef0', 0.1]] });
 enemy('prism_wisp', { name: 'Prism Wisp', sprite: 'ice_wisp', hp: 240, def: 5, xp: 28, speed: 6, size: 0.7, behavior: 'orbit', band: -1,
   shots: { dmg: 20, speed: 13, range: 6, count: 3, spread: 0.4, rate: 1.6 }, loot: [['mppot', 0.18]] });
-enemy('crystal_tyrant', { name: 'Tirano de Cristal', sprite: 'crystal_tyrant', hp: 22000, def: 26, xp: 2100, speed: 3, size: 2.3, behavior: 'boss', band: -1,
+enemy('crystal_tyrant', { name: 'Tirano de Cristal', sprite: 'crystal_tyrant', hp: 5000, def: 26, xp: 500, speed: 3, size: 2.3, behavior: 'boss', band: -1,
   spawns: { type: 'prism_wisp', max: 4, rate: 0.14 }, enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
   shots: { dmg: 58, speed: 11, range: 9, count: 5, spread: 1, rate: 1.8, ring: 20, ringRate: 0.4, spiral: true },
   phases: [{ hpPct: 0.5, cry: 'estilhaca!', shots: { dmg: 55, speed: 12, range: 10, count: 13, spread: 0.5, rate: 2.6 } }],
@@ -634,7 +634,7 @@ enemy('thunder_mage', { name: 'Thunder Mage', sprite: 'shaman', hp: 460, def: 8,
   shots: { dmg: 34, speed: 15, range: 8, count: 1, spread: 0, rate: 1, burst: 3, burstGap: 90, status: { type: 'quiet', dur: 1500, chance: 0.3 } }, loot: [['armor:3-4', 0.15], ['ringmp0', 0.1]] });
 enemy('gale_archer', { name: 'Gale Archer', sprite: 'frost_archer', hp: 380, def: 7, xp: 40, speed: 4.5, size: 0.9, behavior: 'orbit', band: -1,
   shots: { dmg: 28, speed: 16, range: 8, count: 1, spread: 0, rate: 1.8 }, loot: [['weapon:3-4', 0.12], ['mppot', 0.15]] });
-enemy('storm_sovereign', { name: 'Soberano da Tempestade', sprite: 'storm_sovereign', hp: 26000, def: 24, xp: 2300, speed: 3.5, size: 2.4, behavior: 'orbit', band: -1,
+enemy('storm_sovereign', { name: 'Soberano da Tempestade', sprite: 'storm_sovereign', hp: 9500, def: 24, xp: 950, speed: 3.5, size: 2.4, behavior: 'orbit', band: -1,
   spawns: { type: 'storm_knight', max: 4, rate: 0.14 }, enrage: { hpPct: 0.35, rateMul: 1.6, dmgMul: 1.3 },
   shots: { dmg: 60, speed: 14, range: 10, count: 3, spread: 0.5, rate: 1.6, ring: 22, ringRate: 0.45, spiral: true, status: { type: 'quiet', dur: 1500, chance: 0.3 } },
   phases: [{ hpPct: 0.6, cry: 'troveja!', shots: { dmg: 55, speed: 16, range: 10, count: 1, spread: 0, rate: 2.2, burst: 4, burstGap: 80, ring: 16, ringRate: 0.4 } },
@@ -647,7 +647,7 @@ enemy('rot_hound', { name: 'Rot Hound', sprite: 'wolf', hp: 360, def: 6, xp: 34,
   shots: { dmg: 16, speed: 10, range: 4.5, count: 1, spread: 0, rate: 1 }, loot: [['armor:2-3', 0.12]] });
 enemy('blight_spitter', { name: 'Blight Spitter', sprite: 'sandling', hp: 300, def: 5, xp: 32, speed: 3, size: 0.9, behavior: 'orbit', band: -1,
   shots: { dmg: 24, speed: 9, range: 6.5, count: 3, spread: 0.5, rate: 1.2, status: { type: 'sick', dur: 2000, chance: 0.3 } }, loot: [['mppot', 0.15], ['weapon:2-3', 0.1]] });
-enemy('plague_mother', { name: 'Mae da Peste', sprite: 'plague_mother', hp: 24000, def: 20, xp: 2200, speed: 3, size: 2.4, behavior: 'boss', band: -1,
+enemy('plague_mother', { name: 'Mae da Peste', sprite: 'plague_mother', hp: 6500, def: 20, xp: 650, speed: 3, size: 2.4, behavior: 'boss', band: -1,
   spawns: { type: 'plague_rat', max: 6, rate: 0.12 }, enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
   shots: { dmg: 52, speed: 10, range: 9, count: 7, spread: 1.4, rate: 1.8, ring: 18, ringRate: 0.4, status: { type: 'bleed', dur: 2500, chance: 0.4 } },
   phases: [{ hpPct: 0.5, cry: 'espalha o contagio!', shots: { dmg: 50, speed: 9, range: 9, count: 5, spread: 0.9, rate: 2, ring: 24, ringRate: 0.6, status: { type: 'sick', dur: 2000, chance: 0.4 } } }],
@@ -697,7 +697,7 @@ enemy('frost_shaman', {
   loot: [['armor:3-4', 0.18], ['ringmp0', 0.1], ['statpot', 0.15]],
 });
 enemy('frost_monarch', {
-  name: 'Monarca do Gelo', sprite: 'frost_monarch', hp: 24000, def: 26, xp: 2200, speed: 3.5, size: 2.4,
+  name: 'Monarca do Gelo', sprite: 'frost_monarch', hp: 8000, def: 26, xp: 800, speed: 3.5, size: 2.4,
   behavior: 'boss', band: -1, spawns: { type: 'ice_wisp', max: 4, rate: 0.14 },
   enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
   shots: { dmg: 60, speed: 12, range: 9.5, count: 7, spread: 1.4, rate: 2, ring: 24, ringRate: 0.42, spiral: true,
