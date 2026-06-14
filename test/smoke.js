@@ -54,6 +54,20 @@ function realmCycleSanity() {
   const lead = g.spawnEnemy(g.realm, 'wolf_alpha', g.realm.map.center.x, g.realm.map.center.y);
   const pack = [...g.realm.enemies.values()].filter(e => e.parentId === lead.id);
   check(pack.length === 4, 'mini-boss spawns with escort pack');
+
+  // defeating the Mad King opens a secret portal to the Tyrant's Sanctum
+  const castle = [...g.instances.values()].find(i => i.name === 'Castelo do Rei Demente');
+  const king = [...castle.enemies.values()].find(e => e.type === 'mad_king');
+  king.hp = 1;
+  g.damageEnemy(castle, king, 9999, { id: -1, char: { fame: 0 } });
+  check([...castle.portals.values()].some(p => p.dungeon === 'tyrant_sanctum'), 'mad king death opens tyrant portal');
+
+  // expose makes an enemy take more damage
+  const dummy = g.spawnEnemy(g.realm, 'goblin', 5, 5);
+  dummy.exposedUntil = Date.now() + 2000;
+  const before = dummy.hp;
+  g.damageEnemy(g.realm, dummy, 100, { id: -2, char: { fame: 0 } });
+  check(before - dummy.hp > 100, 'expose increases damage taken');
 }
 
 async function api(method, p, body, token) {

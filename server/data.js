@@ -202,6 +202,7 @@ for (const [kind, tiers] of Object.entries(ARMOR_TIERS)) {
   ['ringdex0', 'Ring of Dexterity', { dex: 5 }, 2],
   ['ringall0', 'Ring of the Realm', { hp: 60, mp: 40, att: 3, def: 3 }, 5],
   ['ringking', 'Coroa do Rei Demente', { hp: 100, mp: 60, att: 5, def: 5, spd: 5 }, 6],
+  ['ringtyrant', 'Selo do Tirano', { hp: 150, mp: 100, att: 7, def: 7, spd: 6, dex: 6 }, 7],
 ].forEach(([id, name, bonus, tier]) => def(id, { name, type: 'ring', slot: 'ring', tier, bonus }));
 
 // Legendary uniques (tier 6, white bag drops from gods and bosses)
@@ -441,6 +442,7 @@ enemy('imp', {
 enemy('inferno_lord', {
   name: 'Lord of the Inferno', sprite: 'inferno_lord', hp: 14000, def: 25, xp: 1500, speed: 4, size: 2.4,
   behavior: 'boss', band: -1, spawns: { type: 'imp', max: 4, rate: 0.12 },
+  enrage: { hpPct: 0.4, rateMul: 1.4, dmgMul: 1.2 },
   shots: { dmg: 60, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 20, ringRate: 0.4 },
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.7], ['pot_mana', 0.7], ['statpot', 1], ['ringall0', 0.4], ['legendary', 0.08], ['pet_egg', 0.15]],
 });
@@ -478,6 +480,7 @@ enemy('royal_guard', {
 enemy('mad_king', {
   name: 'O Rei Demente', sprite: 'mad_king', hp: 30000, def: 30, xp: 4000, speed: 4, size: 2.6,
   behavior: 'boss', band: -1, spawns: { type: 'royal_guard', max: 5, rate: 0.15 },
+  enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
   shots: { dmg: 70, speed: 13, range: 10, count: 9, spread: 1.6, rate: 2.2, ring: 26, ringRate: 0.45, spiral: true, status: { type: 'weak', dur: 2500, chance: 0.4 }, ringStatus: { type: 'slow', dur: 1500, chance: 0.5 } },
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.8], ['pot_mana', 0.8], ['statpot', 1], ['ringking', 0.4], ['ringall0', 0.5], ['legendary', 0.25]],
 });
@@ -486,6 +489,16 @@ enemy('abyss_horror', {
   behavior: 'boss', band: -1, spawns: { type: 'void_spawn', max: 4, rate: 0.12 },
   shots: { dmg: 65, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 22, ringRate: 0.4, spiral: true },
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.8], ['pot_mana', 0.8], ['statpot', 1], ['ringall0', 0.5], ['legendary', 0.12]],
+});
+// secret finale boss, reachable only from a portal the Mad King leaves behind
+enemy('the_tyrant', {
+  name: 'O Tirano', sprite: 'tyrant', hp: 60000, def: 38, xp: 8000, speed: 4.5, size: 3,
+  behavior: 'boss', band: -1, spawns: { type: 'royal_guard', max: 6, rate: 0.18 },
+  enrage: { hpPct: 0.4, rateMul: 1.6, dmgMul: 1.3 },
+  shots: { dmg: 80, speed: 14, range: 11, count: 11, spread: 1.8, rate: 2.4, ring: 30, ringRate: 0.5, spiral: true,
+    status: { type: 'weak', dur: 2500, chance: 0.4 }, ringStatus: { type: 'slow', dur: 1500, chance: 0.5 } },
+  loot: [['weapon:5-5', 1], ['armor:5-5', 1], ['legendary', 1], ['legendary', 0.6],
+    ['ringtyrant', 0.5], ['statpot', 1], ['pot_life', 1], ['pot_mana', 1]],
 });
 
 // ---------------------------------------------------------------- dungeons
@@ -518,6 +531,11 @@ const DUNGEONS = {
   mad_castle: {
     name: 'Castelo do Rei Demente', theme: 'keep', size: 110, rooms: 10,
     minions: ['royal_guard', 'keep_knight'], minionCount: 30, boss: 'mad_king',
+  },
+  // secret finale, reached only via the portal the Mad King leaves on death
+  tyrant_sanctum: {
+    name: 'Santuario do Tirano', theme: 'inferno', size: 90, rooms: 6,
+    minions: ['royal_guard', 'void_spawn'], minionCount: 18, boss: 'the_tyrant',
   },
 };
 

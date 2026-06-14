@@ -508,6 +508,18 @@ p.PPPPPPPP.p
 ..dPPPPPPd..
 ...d.PP.d...
 ...d....d...`,
+  tyrant: `
+.f.f.ff.f.f.
+.fyrRRRRyrf.
+.frRkRRkRrf.
+.frRRRRRRrf.
+ffrRyyyyRrff
+.frRRRRRRrf.
+.frRffffRrf.
+.frRRRRRRrf.
+..frRRRRrf..
+...f.RR.f...
+...f....f...`,
 
   // ----- objects
   bag_brown: `

@@ -930,6 +930,11 @@ class Game {
       this.spawnPortal(inst, enemy.x, enemy.y, 'nexus', 'Portal para o Nexus', null, 10 * 60 * 1000);
       inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi derrotado!` });
       inst.broadcast({ t: 'chat', from: '', text: `A masmorra ${inst.name} foi concluida!`, sys: 1 });
+      // the Mad King's defeat opens the secret path to the Tyrant's Sanctum
+      if (enemy.type === 'mad_king') {
+        this.spawnPortal(inst, enemy.x + 2, enemy.y, 'dungeon', DUNGEONS.tyrant_sanctum.name, 'tyrant_sanctum', 5 * 60 * 1000);
+        inst.broadcast({ t: 'chat', from: '', text: 'Um portal sombrio se abre... O Tirano aguarda os corajosos.', sys: 1 });
+      }
     }
   }
 
@@ -1172,40 +1177,53 @@ class Game {
 
     if (!target || bestD2 > aggro) return;
 
+    // boss enrage: below the HP threshold, fires faster and harder (and says so once)
+    let rateMul = 1, dmgMul = 1;
+    if (d.enrage && e.hp / e.maxHp < d.enrage.hpPct) {
+      rateMul = d.enrage.rateMul; dmgMul = d.enrage.dmgMul;
+      if (!e.enraged) {
+        e.enraged = true;
+        inst.broadcast({ t: 'chat', from: '', text: `${d.name} entrou em FURIA!`, sys: 1 });
+        inst.broadcastNear({ t: 'fx', k: 'buff', x: e.x, y: e.y, r: 3 }, e.x, e.y);
+      }
+    }
+
     // melee
     if (d.melee && now > e.nextMelee && bestD2 < 1.2) {
       e.nextMelee = now + 1000 / d.melee.rate;
-      this.damagePlayer(target, d.melee.dmg, d.name);
+      this.damagePlayer(target, Math.round(d.melee.dmg * dmgMul), d.name);
     }
     // shooting (burst: several quick volleys, then the full cooldown)
     if (d.shots && now > e.nextShot && bestD2 < (d.shots.range * 1.1) ** 2) {
       const s = d.shots;
       if (s.burst) {
         e.burstLeft = (e.burstLeft || 0) > 0 ? e.burstLeft - 1 : s.burst - 1;
-        e.nextShot = now + (e.burstLeft > 0 ? (s.burstGap || 110) : 1000 / s.rate);
+        e.nextShot = now + (e.burstLeft > 0 ? (s.burstGap || 110) : 1000 / (s.rate * rateMul));
       } else {
-        e.nextShot = now + 1000 / s.rate;
+        e.nextShot = now + 1000 / (s.rate * rateMul);
       }
+      const shotDmg = Math.round(s.dmg * dmgMul);
       const base = Math.atan2(target.y - e.y, target.x - e.x);
       const angles = [];
       for (let i = 0; i < s.count; i++) {
         const off = s.count > 1 ? (i - (s.count - 1) / 2) * (s.spread / Math.max(1, s.count - 1)) * 2 : 0;
         const a = base + off;
         angles.push(Math.round(a * 1000) / 1000);
-        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed, left: s.range, dmg: s.dmg, src: d.name, status: s.status });
+        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed, left: s.range, dmg: shotDmg, src: d.name, status: s.status });
       }
       inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed, rg: s.range, k: 'enemy', f: 0, o: e.id, st: s.status && s.status.type }, e.x, e.y);
     }
     // ring attacks (spiral rings rotate a bit each volley)
     if (d.shots && d.shots.ring && now > e.nextRing) {
-      e.nextRing = now + 1000 / d.shots.ringRate;
+      e.nextRing = now + 1000 / (d.shots.ringRate * rateMul);
       const s = d.shots;
       const base = s.spiral ? (e.spiralA = (e.spiralA || 0) + 0.37) : 0;
+      const ringDmg = Math.round(s.dmg * 0.8 * dmgMul);
       const angles = [];
       for (let i = 0; i < s.ring; i++) {
         const a = base + (i / s.ring) * Math.PI * 2;
         angles.push(Math.round(a * 1000) / 1000);
-        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed * 0.8, left: s.range, dmg: Math.round(s.dmg * 0.8), src: d.name, status: s.ringStatus || s.status });
+        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed * 0.8, left: s.range, dmg: ringDmg, src: d.name, status: s.ringStatus || s.status });
       }
       inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed * 0.8, rg: s.range, k: 'enemy', f: 0, o: e.id, st: (s.ringStatus || s.status) && (s.ringStatus || s.status).type }, e.x, e.y);
     }
