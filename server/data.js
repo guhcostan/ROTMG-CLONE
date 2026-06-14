@@ -498,6 +498,10 @@ enemy('the_tyrant', {
   enrage: { hpPct: 0.4, rateMul: 1.6, dmgMul: 1.3 },
   shots: { dmg: 80, speed: 14, range: 11, count: 11, spread: 1.8, rate: 2.4, ring: 30, ringRate: 0.5, spiral: true,
     status: { type: 'weak', dur: 2500, chance: 0.4 }, ringStatus: { type: 'slow', dur: 1500, chance: 0.5 } },
+  phases: [
+    { hpPct: 0.66, cry: 'cerra fileiras!', shots: { dmg: 75, speed: 13, range: 11, count: 13, spread: 0.6, rate: 3, ringStatus: { type: 'weak', dur: 2000, chance: 0.4 } } },
+    { hpPct: 0.33, cry: 'desata a tempestade!', shots: { dmg: 85, speed: 12, range: 12, count: 3, spread: 0.4, rate: 2, ring: 40, ringRate: 0.7, spiral: true, ringStatus: { type: 'slow', dur: 1500, chance: 0.6 } } },
+  ],
   loot: [['weapon:5-5', 1], ['armor:5-5', 1], ['legendary', 1], ['legendary', 0.6],
     ['ringtyrant', 0.5], ['statpot', 1], ['pot_life', 1], ['pot_mana', 1]],
 });
@@ -568,6 +572,10 @@ enemy('frost_monarch', {
   enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.25 },
   shots: { dmg: 60, speed: 12, range: 9.5, count: 7, spread: 1.4, rate: 2, ring: 24, ringRate: 0.42, spiral: true,
     status: { type: 'slow', dur: 2000, chance: 0.4 }, ringStatus: { type: 'paralyze', dur: 900, chance: 0.3 } },
+  phases: [
+    { hpPct: 0.6, cry: 'invoca a nevasca!', shots: { dmg: 55, speed: 10, range: 9, count: 9, spread: 1.6, rate: 2.4, ring: 16, ringRate: 0.4, status: { type: 'slow', dur: 2000, chance: 0.5 } } },
+    { hpPct: 0.3, cry: 'congela tudo!', shots: { dmg: 65, speed: 12, range: 10, count: 1, spread: 0, rate: 2, ring: 32, ringRate: 0.7, spiral: true, ringStatus: { type: 'paralyze', dur: 1100, chance: 0.4 } } },
+  ],
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['pot_life', 0.5], ['legendary', 0.1], ['ringall0', 0.4]],
 });
 

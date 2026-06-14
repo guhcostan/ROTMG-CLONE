@@ -95,6 +95,8 @@ class Enemy {
     this.x = x; this.y = y;
     this.hp = d.hp; this.maxHp = d.hp;
     this.spawnX = x; this.spawnY = y;
+    this.shots = d.shots;   // per-enemy so multi-phase bosses can swap pattern
+    this.phase = 0;
     this.angle = Math.random() * Math.PI * 2;
     this.nextShot = 0;
     this.nextRing = 0;
@@ -1175,7 +1177,7 @@ class Game {
       const dd = dist2(p.x, p.y, e.x, e.y);
       if (dd < bestD2) { bestD2 = dd; target = p; }
     }
-    const range = d.shots ? d.shots.range : 2;
+    const range = e.shots ? e.shots.range : 2;
     const aggro = 121; // 11 tiles
     // ponytail: cap at 4.3 t/s so no mob outruns even a 0-speed player; bump if a fast-mob archetype is wanted
     const speed = Math.min(d.speed, 4.3) * dt * (e.slowedUntil > now ? 0.5 : 1);
@@ -1225,14 +1227,26 @@ class Game {
       }
     }
 
+    // multi-phase bosses: cross an HP threshold -> teleport + swap shot pattern
+    if (d.phases && e.phase < d.phases.length && e.hp / e.maxHp <= d.phases[e.phase].hpPct) {
+      const ph = d.phases[e.phase];
+      e.phase++;
+      if (ph.shots) e.shots = ph.shots;
+      this.teleportBoss(inst, e);
+      e.stunnedUntil = now + 600; // brief beat after the blink
+      inst.broadcast({ t: 'chat', from: '', text: `${d.name} ${ph.cry || 'muda de forma!'}`, sys: 1 });
+      inst.broadcastNear({ t: 'fx', k: 'nova', x: e.x, y: e.y, r: 4 }, e.x, e.y);
+      return;
+    }
+
     // melee
     if (d.melee && now > e.nextMelee && bestD2 < 1.2) {
       e.nextMelee = now + 1000 / d.melee.rate;
       this.damagePlayer(target, Math.round(d.melee.dmg * dmgMul), d.name);
     }
     // shooting (burst: several quick volleys, then the full cooldown)
-    if (d.shots && now > e.nextShot && bestD2 < (d.shots.range * 1.1) ** 2) {
-      const s = d.shots;
+    if (e.shots && now > e.nextShot && bestD2 < (e.shots.range * 1.1) ** 2) {
+      const s = e.shots;
       if (s.burst) {
         e.burstLeft = (e.burstLeft || 0) > 0 ? e.burstLeft - 1 : s.burst - 1;
         e.nextShot = now + (e.burstLeft > 0 ? (s.burstGap || 110) : 1000 / (s.rate * rateMul));
@@ -1251,9 +1265,9 @@ class Game {
       inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed, rg: s.range, k: 'enemy', f: 0, o: e.id, st: s.status && s.status.type }, e.x, e.y);
     }
     // ring attacks (spiral rings rotate a bit each volley)
-    if (d.shots && d.shots.ring && now > e.nextRing) {
-      e.nextRing = now + 1000 / (d.shots.ringRate * rateMul);
-      const s = d.shots;
+    if (e.shots && e.shots.ring && now > e.nextRing) {
+      e.nextRing = now + 1000 / (e.shots.ringRate * rateMul);
+      const s = e.shots;
       const base = s.spiral ? (e.spiralA = (e.spiralA || 0) + 0.37) : 0;
       const ringDmg = Math.round(s.dmg * 0.8 * dmgMul);
       const angles = [];
@@ -1275,6 +1289,16 @@ class Game {
         m.leash = e.leash;
         inst.enemies.set(m.id, m);
       }
+    }
+  }
+
+  // blink a boss to a fresh spot within its arena (or near its spawn)
+  teleportBoss(inst, e) {
+    const r = e.leash || 8;
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * Math.PI * 2, d = r * (0.3 + Math.random() * 0.6);
+      const x = e.spawnX + Math.cos(a) * d, y = e.spawnY + Math.sin(a) * d;
+      if (!inst.map.blocks(x, y) && inst.map.get(x, y) !== T.WATER && inst.map.get(x, y) !== T.LAVA) { e.x = x; e.y = y; return; }
     }
   }
 

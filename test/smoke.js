@@ -102,6 +102,25 @@ function worldEventSanity() {
   check(g.eventBossId === null, 'defeating invasion boss clears the event');
 }
 
+// multi-phase boss: crossing an HP threshold teleports it and swaps its pattern
+function multiPhaseSanity() {
+  const { Game } = require('../server/game');
+  const { DUNGEONS } = require('../server/data');
+  const g = new Game();
+  const inst = g.createDungeon('tyrant_sanctum', DUNGEONS.tyrant_sanctum);
+  const boss = [...inst.enemies.values()].find(e => e.type === 'the_tyrant');
+  // a lone target so the boss AI runs its shooting/phase logic
+  const fake = { id: -9, x: boss.x + 1, y: boss.y + 1, dead: false, invisUntil: 0, char: { hp: 999 }, ws: { readyState: 3, send() {} } };
+  inst.players.set(fake.id, fake);
+  const pat0 = boss.shots, x0 = boss.x, y0 = boss.y;
+  boss.hp = boss.maxHp * 0.5; // below first phase threshold (0.66)
+  g.tickEnemy(inst, boss, Date.now(), 1 / 20);
+  check(boss.phase === 1, 'boss advances to phase 1 below threshold');
+  check(boss.shots !== pat0, 'boss swaps shot pattern on phase change');
+  check(boss.x !== x0 || boss.y !== y0, 'boss teleports on phase change');
+  inst.players.delete(fake.id); // don't leave a partial player in the still-ticking Game
+}
+
 async function api(method, p, body, token) {
   const res = await fetch(BASE + p, {
     method,
@@ -195,6 +214,7 @@ async function main() {
   statusAndFameSanity();
   iceBiomeSanity();
   worldEventSanity();
+  multiPhaseSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);
