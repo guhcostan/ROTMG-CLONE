@@ -201,6 +201,27 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// bleed scales with max HP (floored) so it isn't lethal to low-level characters
+function bleedSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const now = Date.now();
+  const bleedTick = (maxHp) => {
+    const p = { id: -40 - maxHp, x: 5, y: 5, dead: false, instance: g.realm, lastHit: 0, status: { bleed: now + 5000 },
+      char: { hp: maxHp, mp: 0, classId: 'wizard', stats: { hp: maxHp, mp: 0, att: 0, def: 0, spd: 0, dex: 0, vit: 0, wis: 0 }, equipment: [] },
+      ws: { readyState: 3, send() {} }, acc: null };
+    g.players.set(p.id, p); g.realm.players.set(p.id, p);
+    const hp0 = p.char.hp;
+    g.tickInstance(g.realm, now); // first tick triggers the bleed sub-tick
+    const lost = hp0 - p.char.hp;
+    g.players.delete(p.id); g.realm.players.delete(p.id);
+    return lost;
+  };
+  const low = bleedTick(100), high = bleedTick(780);
+  check(low <= 6.5 && low > 0, `low-HP bleed is gentle (${low}/tick)`);
+  check(high > low, `bleed scales with max HP (${low} -> ${high})`);
+}
+
 // balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
 function balanceSanity() {
   const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
@@ -326,6 +347,7 @@ async function main() {
   abilityScalingSanity();
   coopXpSanity();
   balanceSanity();
+  bleedSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

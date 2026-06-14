@@ -1159,7 +1159,8 @@ class Game {
       if (!sick) p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + (1 + stats.vit * 0.24) * dt * regenMul * petBonus);
       if (!quiet) p.char.mp = Math.min(effectiveMaxMp(p), p.char.mp + (0.5 + stats.wis * 0.12) * dt * regenMul * petBonus);
       if (p.status.bleed > now) {
-        if (!p._bleedT || now - p._bleedT >= 500) { p._bleedT = now; this.hurtPlayer(p, 12, 'sangramento'); }
+        // scale with max HP so bleed isn't a death sentence on low-level characters
+        if (!p._bleedT || now - p._bleedT >= 500) { p._bleedT = now; this.hurtPlayer(p, Math.max(6, Math.round(effectiveMaxHp(p) * 0.012)), 'sangramento'); }
         if (p.dead) continue;
       }
       if (inst.map.damages(p.x, p.y)) {
