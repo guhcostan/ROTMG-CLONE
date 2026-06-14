@@ -382,7 +382,7 @@ enemy('gargoyle', {
   name: 'Gargoyle', sprite: 'gargoyle', hp: 550, def: 14, xp: 55, speed: 4.5, size: 1.1,
   behavior: 'orbit', band: 3,
   shots: { dmg: 22, speed: 13, range: 7, count: 1, spread: 0, rate: 1.2, burst: 3, burstGap: 100 }, // triple burst
-  loot: [['weapon:2-3', 0.22], ['ringdex0', 0.08], ['mppot', 0.2], ['portal:frozen_depths', 0.05]],
+  loot: [['weapon:2-3', 0.22], ['ringdex0', 0.08], ['mppot', 0.2], ['portal:frozen_depths', 0.05], ['portal:sunbaked_ziggurat', 0.05], ['portal:drowned_grotto', 0.05]],
 });
 enemy('wraith', {
   name: 'Hollow Wraith', sprite: 'wraith', hp: 450, def: 8, xp: 50, speed: 5.5, size: 1,
@@ -419,7 +419,7 @@ enemy('storm_seraph', {
   name: 'Storm Seraph', sprite: 'storm_seraph', hp: 1800, def: 15, xp: 170, speed: 5, size: 1.4,
   behavior: 'orbit', band: 4, god: true,
   shots: { dmg: 50, speed: 16, range: 9.5, count: 1, spread: 0, rate: 1.4, burst: 3, burstGap: 120 }, // lightning sniper
-  loot: [['weapon:3-4', 0.3], ['ringall0', 0.08], ['statpot', 0.5], ['legendary', 0.015]],
+  loot: [['weapon:3-4', 0.3], ['ringall0', 0.08], ['statpot', 0.5], ['legendary', 0.015], ['portal:volcanic_forge', 0.06], ['portal:storm_citadel', 0.06]],
 });
 enemy('void_keeper', {
   name: 'Void Keeper', sprite: 'void_keeper', hp: 2500, def: 20, xp: 200, speed: 2.5, size: 1.6,
@@ -566,6 +566,55 @@ enemy('invader_archmage', {
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['legendary', 1], ['statpot', 1], ['pot_mana', 0.5], ['ringall0', 0.5]],
 });
 
+// --- extra realm mobs (overworld variety) ---
+enemy('thornback', { name: 'Thornback', sprite: 'treant', hp: 260, def: 6, xp: 24, speed: 2.5, size: 1.1, behavior: 'wander', band: 2,
+  shots: { dmg: 17, speed: 7, range: 6, count: 5, spread: 0.9, rate: 0.7 }, loot: [['armor:1-2', 0.12], ['hppot', 0.12]] });
+enemy('stone_sentinel', { name: 'Stone Sentinel', sprite: 'golem', hp: 900, def: 16, xp: 58, speed: 2, size: 1.3, behavior: 'wander', band: 3,
+  shots: { dmg: 30, speed: 7, range: 6, count: 4, spread: 0.8, rate: 0.7 }, loot: [['armor:2-3', 0.15], ['ringdef0', 0.05]] });
+enemy('frost_raven', { name: 'Frost Raven', sprite: 'harpy', hp: 300, def: 6, xp: 40, speed: 6, size: 0.9, behavior: 'orbit', band: 3,
+  shots: { dmg: 22, speed: 13, range: 6.5, count: 1, spread: 0, rate: 2, status: { type: 'slow', dur: 1200, chance: 0.2 } }, loot: [['weapon:2-3', 0.12], ['mppot', 0.12]] });
+
+// --- Sunbaked Ziggurat (theme keep) ---
+enemy('sun_acolyte', { name: 'Sun Acolyte', sprite: 'shaman', hp: 420, def: 8, xp: 42, speed: 3, size: 1, behavior: 'orbit', band: -1,
+  shots: { dmg: 30, speed: 10, range: 7, count: 1, spread: 0, rate: 1.2, ring: 8, ringRate: 0.3 }, loot: [['armor:3-4', 0.14], ['mppot', 0.15]] });
+enemy('sand_wraith', { name: 'Sand Wraith', sprite: 'wraith', hp: 480, def: 8, xp: 46, speed: 5.5, size: 1, behavior: 'chase', band: -1,
+  shots: { dmg: 26, speed: 12, range: 6, count: 1, spread: 0, rate: 2.4 }, loot: [['weapon:3-4', 0.12]] });
+enemy('scarab', { name: 'Golden Scarab', sprite: 'scorpion', hp: 280, def: 10, xp: 30, speed: 5, size: 0.8, behavior: 'chase', band: -1,
+  shots: { dmg: 20, speed: 11, range: 5, count: 1, spread: 0, rate: 1.6, burst: 3, burstGap: 90 }, loot: [['hppot', 0.15]] });
+enemy('dust_djinn', { name: 'Dust Djinn', sprite: 'ice_wisp', hp: 360, def: 6, xp: 38, speed: 6, size: 0.9, behavior: 'orbit', band: -1,
+  shots: { dmg: 24, speed: 12, range: 6.5, count: 3, spread: 0.5, rate: 1.4, status: { type: 'sick', dur: 1500, chance: 0.25 } }, loot: [['mppot', 0.15]] });
+enemy('solar_colossus', { name: 'Colosso Solar', sprite: 'solar_colossus', hp: 27000, def: 26, xp: 2400, speed: 2.5, size: 2.5, behavior: 'orbit', band: -1,
+  spawns: { type: 'sun_acolyte', max: 4, rate: 0.13 }, enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.3 },
+  shots: { dmg: 60, speed: 11, range: 10, count: 5, spread: 1, rate: 1.8, ring: 24, ringRate: 0.45, spiral: true },
+  phases: [{ hpPct: 0.5, cry: 'queima os ceus!', shots: { dmg: 62, speed: 12, range: 11, count: 3, spread: 0.5, rate: 2, ring: 36, ringRate: 0.7, spiral: true } }],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['legendary', 0.12], ['ringall0', 0.45]] });
+// --- Drowned Grotto (theme cave) ---
+enemy('reef_stalker', { name: 'Reef Stalker', sprite: 'spider', hp: 340, def: 7, xp: 32, speed: 5, size: 0.9, behavior: 'chase', band: -1,
+  shots: { dmg: 24, speed: 11, range: 5.5, count: 2, spread: 0.3, rate: 1.4 }, loot: [['weapon:2-3', 0.1]] });
+enemy('deep_lurker', { name: 'Deep Lurker', sprite: 'void_spawn', hp: 600, def: 10, xp: 50, speed: 4, size: 1.1, behavior: 'orbit', band: -1,
+  shots: { dmg: 32, speed: 12, range: 7, count: 1, spread: 0, rate: 1.8 }, loot: [['armor:3-4', 0.14]] });
+enemy('brine_shaman', { name: 'Brine Shaman', sprite: 'frost_shaman', hp: 520, def: 9, xp: 48, speed: 3, size: 1, behavior: 'orbit', band: -1,
+  shots: { dmg: 28, speed: 9, range: 7.5, count: 3, spread: 0.6, rate: 1.2, ring: 10, ringRate: 0.3, status: { type: 'slow', dur: 1500, chance: 0.3 } }, loot: [['mppot', 0.15], ['ringmp0', 0.05]] });
+enemy('leviathan', { name: 'Leviata', sprite: 'leviathan', hp: 28000, def: 24, xp: 2500, speed: 3, size: 2.6, behavior: 'chase', band: -1,
+  spawns: { type: 'reef_stalker', max: 5, rate: 0.13 }, enrage: { hpPct: 0.35, rateMul: 1.6, dmgMul: 1.3 },
+  shots: { dmg: 58, speed: 11, range: 9.5, count: 7, spread: 1.4, rate: 1.8, ring: 22, ringRate: 0.42, spiral: true, status: { type: 'slow', dur: 1800, chance: 0.3 } },
+  phases: [{ hpPct: 0.55, cry: 'invoca a mare!', shots: { dmg: 55, speed: 10, range: 10, count: 9, spread: 1.8, rate: 2, ring: 18, ringRate: 0.5 } },
+    { hpPct: 0.28, cry: 'engole o abismo!', shots: { dmg: 66, speed: 12, range: 11, count: 3, spread: 0.4, rate: 2, ring: 34, ringRate: 0.75, spiral: true } }],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['legendary', 0.13], ['ringall0', 0.45]] });
+// --- Volcanic Forge (theme inferno) ---
+enemy('forge_golem', { name: 'Forge Golem', sprite: 'ice_golem', hp: 1600, def: 22, xp: 96, speed: 2, size: 1.5, behavior: 'wander', band: -1,
+  shots: { dmg: 44, speed: 7, range: 6.5, count: 5, spread: 1, rate: 0.6 }, loot: [['armor:3-4', 0.16], ['ringdef0', 0.08]] });
+enemy('magma_hound', { name: 'Magma Hound', sprite: 'wolf_alpha', hp: 520, def: 10, xp: 50, speed: 6, size: 1, behavior: 'chase', band: -1, melee: { dmg: 30, rate: 1.3 },
+  shots: { dmg: 24, speed: 11, range: 5, count: 1, spread: 0, rate: 1.2 }, loot: [['hppot', 0.18]] });
+enemy('ember_mage', { name: 'Ember Mage', sprite: 'imp', hp: 440, def: 8, xp: 46, speed: 3.5, size: 0.9, behavior: 'orbit', band: -1,
+  shots: { dmg: 34, speed: 12, range: 7, count: 1, spread: 0, rate: 1, burst: 3, burstGap: 90 }, loot: [['weapon:3-4', 0.12], ['mppot', 0.15]] });
+enemy('forge_master', { name: 'Mestre da Forja', sprite: 'forge_master', hp: 30000, def: 28, xp: 2700, speed: 3, size: 2.6, behavior: 'boss', band: -1,
+  spawns: { type: 'magma_hound', max: 5, rate: 0.13 }, enrage: { hpPct: 0.35, rateMul: 1.6, dmgMul: 1.35 },
+  shots: { dmg: 64, speed: 12, range: 10, count: 7, spread: 1.4, rate: 2, ring: 24, ringRate: 0.45, spiral: true },
+  phases: [{ hpPct: 0.6, cry: 'aquece as bigornas!', shots: { dmg: 60, speed: 12, range: 10, count: 13, spread: 0.6, rate: 2.6 } },
+    { hpPct: 0.3, cry: 'derrete tudo!', shots: { dmg: 70, speed: 13, range: 11, count: 5, spread: 1.2, rate: 2, ring: 32, ringRate: 0.75, spiral: true } }],
+  loot: [['weapon:5-5', 1], ['armor:4-5', 1], ['statpot', 1], ['legendary', 0.15], ['ringall0', 0.5]] });
+
 // --- Crystal Caverns (theme cave) ---
 enemy('crystal_crawler', { name: 'Crystal Crawler', sprite: 'spider', hp: 300, def: 8, xp: 30, speed: 4.5, size: 0.9, behavior: 'chase', band: -1,
   shots: { dmg: 24, speed: 11, range: 5.5, count: 1, spread: 0, rate: 1.6 }, loot: [['mppot', 0.15], ['weapon:2-3', 0.1]] });
@@ -678,6 +727,18 @@ const DUNGEONS = {
   plague_warren: {
     name: 'Plague Warren', theme: 'cave', size: 100, rooms: 10,
     minions: ['plague_rat', 'rot_hound', 'blight_spitter'], minionCount: 34, boss: 'plague_mother',
+  },
+  sunbaked_ziggurat: {
+    name: 'Sunbaked Ziggurat', theme: 'keep', size: 110, rooms: 11,
+    minions: ['sun_acolyte', 'sand_wraith', 'scarab', 'dust_djinn'], minionCount: 34, boss: 'solar_colossus',
+  },
+  drowned_grotto: {
+    name: 'Drowned Grotto', theme: 'cave', size: 105, rooms: 10,
+    minions: ['reef_stalker', 'deep_lurker', 'brine_shaman'], minionCount: 34, boss: 'leviathan',
+  },
+  volcanic_forge: {
+    name: 'Volcanic Forge', theme: 'inferno', size: 115, rooms: 11,
+    minions: ['forge_golem', 'magma_hound', 'ember_mage'], minionCount: 34, boss: 'forge_master',
   },
   goblin_warren: {
     name: 'Goblin Warren', theme: 'cave', size: 80, rooms: 8,

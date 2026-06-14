@@ -57,8 +57,8 @@ function dataSanity() {
     if (c.unlock && !CLASSES[c.unlock]) classBad.push(`${id}: unlock ${c.unlock}`);
   }
   check(Object.keys(CLASSES).length >= 18, `>= 18 classes (have ${Object.keys(CLASSES).length})`);
-  check(Object.keys(DUNGEONS).length >= 12, `>= 12 dungeons (have ${Object.keys(DUNGEONS).length})`);
-  check(Object.keys(ENEMIES).length >= 60, `>= 60 enemies (have ${Object.keys(ENEMIES).length})`);
+  check(Object.keys(DUNGEONS).length >= 15, `>= 15 dungeons (have ${Object.keys(DUNGEONS).length})`);
+  check(Object.keys(ENEMIES).length >= 80, `>= 80 enemies (have ${Object.keys(ENEMIES).length})`);
   check(classBad.length === 0, 'class defs consistent' + (classBad.length ? ' -> ' + classBad.join(', ') : ''));
 }
 

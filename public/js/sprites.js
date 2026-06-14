@@ -726,6 +726,42 @@ eeEEllllEEee
 ..eEEEEEEe..
 ...e.EE.e...
 ...e....e...`,
+  solar_colossus: `
+.y.y.yy.y.y.
+.yOYYYYYYOy.
+.yYkYYYYkYy.
+.yYYYYYYYYy.
+yyYYOOOOYYyy
+.yYYYYYYYYy.
+.yYYOOOOYYy.
+.yYYYYYYYYy.
+..yYYYYYYy..
+...y.YY.y...
+...y....y...`,
+  leviathan: `
+.t.t.tt.t.t.
+.tcBBBBBBct.
+.tBkBBBBkBt.
+.tBBBBBBBBt.
+ttBBccccBBtt
+.tBBBBBBBBt.
+.tBBttttBBt.
+.tBBBBBBBBt.
+..tBBBBBBt..
+...t.BB.t...
+...t....t...`,
+  forge_master: `
+.o.o.oo.o.o.
+.ofRRRRRRfo.
+.oRkRRRRkRo.
+.oRRRRRRRRo.
+ooRRyyyyRRoo
+.oRRRRRRRRo.
+.oRRooooRRo.
+.oRRRRRRRRo.
+..oRRRRRRo..
+...o.RR.o...
+...o....o...`,
 
   // ----- objects
   bag_brown: `
