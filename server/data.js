@@ -219,7 +219,7 @@ enemy('bandit', {
 enemy('scorpion', {
   name: 'Dune Scorpion', sprite: 'scorpion', hp: 140, def: 4, xp: 15, speed: 4.5, size: 0.9,
   behavior: 'chase', band: 1,
-  shots: { dmg: 8, speed: 11, range: 5.5, count: 1, spread: 0, rate: 0.9, burst: 3, burstGap: 90 }, // sting burst
+  shots: { dmg: 8, speed: 11, range: 5.5, count: 1, spread: 0, rate: 0.9, burst: 3, burstGap: 90, status: { type: 'bleed', dur: 2500, chance: 0.5 } }, // venom sting
   loot: [['weapon:0-1', 0.18], ['hppot', 0.15]],
 });
 enemy('bandit_lord', {
@@ -244,7 +244,7 @@ enemy('treant', {
 enemy('spider', {
   name: 'Venom Spider', sprite: 'spider', hp: 200, def: 4, xp: 22, speed: 5, size: 0.9,
   behavior: 'chase', band: 2,
-  shots: { dmg: 15, speed: 11, range: 5.5, count: 2, spread: 0.35, rate: 1.4 },
+  shots: { dmg: 15, speed: 11, range: 5.5, count: 2, spread: 0.35, rate: 1.4, status: { type: 'slow', dur: 2000, chance: 0.4 } }, // webbing
   loot: [['weapon:1-2', 0.2], ['mppot', 0.18]],
 });
 enemy('shaman', {
@@ -262,7 +262,8 @@ enemy('harpy', {
 enemy('forest_witch', {
   name: 'Forest Witch', sprite: 'witch', hp: 1000, def: 8, xp: 130, speed: 3.5, size: 1.3,
   behavior: 'orbit', band: 2, rare: true, entourage: { type: 'spider', count: 3 },
-  shots: { dmg: 26, speed: 9, range: 7.5, count: 3, spread: 0.6, rate: 1.2, ring: 8, ringRate: 0.3 },
+  shots: { dmg: 26, speed: 9, range: 7.5, count: 3, spread: 0.6, rate: 1.2, ring: 8, ringRate: 0.3, status: { type: 'quiet', dur: 2500, chance: 0.5 } }, // hex
+
   loot: [['weapon:2-3', 0.5], ['armor:2-3', 0.5], ['ringmp0', 0.2], ['portal:spider_grotto', 0.15], ['mppot', 0.3]],
 });
 // --- band 3: highlands
@@ -299,7 +300,7 @@ enemy('skeleton', {
 enemy('lich', {
   name: 'Highland Lich', sprite: 'lich', hp: 2000, def: 14, xp: 250, speed: 3, size: 1.5,
   behavior: 'orbit', band: 3, rare: true, entourage: { type: 'skeleton', count: 4 },
-  shots: { dmg: 36, speed: 10, range: 8, count: 3, spread: 0.5, rate: 1.4, ring: 10, ringRate: 0.3, spiral: true },
+  shots: { dmg: 36, speed: 10, range: 8, count: 3, spread: 0.5, rate: 1.4, ring: 10, ringRate: 0.3, spiral: true, ringStatus: { type: 'paralyze', dur: 900, chance: 0.5 } }, // death grip
   loot: [['weapon:3-4', 0.5], ['armor:3-4', 0.5], ['statpot', 0.3], ['portal:cursed_keep', 0.18], ['portal:sunken_tomb', 0.12]],
 });
 // --- band 4: mountains / gods
@@ -318,7 +319,7 @@ enemy('storm_seraph', {
 enemy('void_keeper', {
   name: 'Void Keeper', sprite: 'void_keeper', hp: 2500, def: 20, xp: 200, speed: 2.5, size: 1.6,
   behavior: 'orbit', band: 4, god: true,
-  shots: { dmg: 55, speed: 8, range: 8, count: 1, spread: 0, rate: 1, ring: 14, ringRate: 0.35 },
+  shots: { dmg: 55, speed: 8, range: 8, count: 1, spread: 0, rate: 1, ring: 14, ringRate: 0.35, ringStatus: { type: 'sick', dur: 3000, chance: 0.6 } }, // curse of the void
   loot: [['armor:3-4', 0.3], ['statpot', 0.55], ['portal:infernal_depths', 0.08], ['portal:abyssal_rift', 0.06], ['legendary', 0.02]],
 });
 enemy('ancient_colossus', {
@@ -417,7 +418,7 @@ enemy('royal_guard', {
 enemy('mad_king', {
   name: 'O Rei Demente', sprite: 'mad_king', hp: 30000, def: 30, xp: 4000, speed: 4, size: 2.6,
   behavior: 'boss', band: -1, spawns: { type: 'royal_guard', max: 5, rate: 0.15 },
-  shots: { dmg: 70, speed: 13, range: 10, count: 9, spread: 1.6, rate: 2.2, ring: 26, ringRate: 0.45, spiral: true },
+  shots: { dmg: 70, speed: 13, range: 10, count: 9, spread: 1.6, rate: 2.2, ring: 26, ringRate: 0.45, spiral: true, status: { type: 'weak', dur: 2500, chance: 0.4 }, ringStatus: { type: 'slow', dur: 1500, chance: 0.5 } },
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.8], ['pot_mana', 0.8], ['statpot', 1], ['ringking', 0.4], ['ringall0', 0.5], ['legendary', 0.25]],
 });
 enemy('abyss_horror', {

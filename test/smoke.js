@@ -109,9 +109,44 @@ async function walkTo(c, fromX, fromY, toX, toY) {
   return { x: px, y: py };
 }
 
+// status effects + fame-bonus math, exercised directly on the engine
+function statusAndFameSanity() {
+  const { Game } = require('../server/game');
+  const { CLASSES } = require('../server/data');
+  const g = new Game();
+  // fake a player object good enough for the helpers under test
+  const cls = CLASSES.warrior;
+  const player = {
+    id: 999, instance: g.realm, char: {
+      classId: 'warrior', level: 20, fame: 100,
+      stats: Object.assign({}, cls.max), // all stats maxed
+      equipment: ['sword_kings', 'helm0', 'heavy0', 'ringking'],
+    },
+    status: {}, kills: 55, godsKilled: 3, dungeons: 2,
+    ws: { readyState: 3, send() {} }, x: 10, y: 10, dead: false,
+  };
+  g.applyStatus(player, 'slow', 1000);
+  check(player.status.slow > Date.now(), 'applyStatus sets a timed status');
+  check(g.activeStatus(player).slow > 0, 'activeStatus reports remaining time');
+  g.applyStatus(player, 'bogus', 1000);
+  check(!player.status.bogus, 'unknown status types are rejected');
+  g.cleanseStatus(player);
+  check(Object.keys(g.activeStatus(player)).length === 0, 'cleanse clears all statuses');
+
+  const bonuses = g.fameBonuses(player);
+  const byLabel = Object.fromEntries(bonuses.map(b => [b.label, b.value]));
+  check(byLabel['Matador'] === 5, 'kill fame bonus (55 kills -> +5)');
+  check(byLabel['Inimigo dos Deuses'] === 30, 'god-kill fame bonus (3 -> +30)');
+  check(byLabel['Explorador de Masmorras'] === 30, 'dungeon fame bonus (2 -> +30)');
+  check(byLabel['Atributos no Maximo'] === 160, 'maxed-stat fame bonus (8 -> +160)');
+  check(byLabel['Nivel Maximo'] === 25, 'max-level fame bonus');
+  check(byLabel['Bem Equipado'] >= 8, 'high-tier equip fame bonus');
+}
+
 async function main() {
   dataSanity();
   realmCycleSanity();
+  statusAndFameSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

@@ -141,7 +141,24 @@
     UI.setName(Net.username);
     GameClient.start(charId, {
       onDeath(m) {
-        $('death-info').textContent = `Seu personagem nivel ${m.level} (fama ${m.fame}) foi morto por ${m.killer}.`;
+        $('death-info').textContent = `Seu personagem nivel ${m.level} foi morto por ${m.killer}.`;
+        const fameEl = $('death-fame');
+        fameEl.innerHTML = '';
+        if (m.bonuses && m.bonuses.length) {
+          const base = document.createElement('div');
+          base.textContent = `Fama base: ${m.baseFame}`;
+          fameEl.appendChild(base);
+          for (const b of m.bonuses) {
+            const row = document.createElement('div');
+            row.className = 'fame-bonus';
+            row.textContent = `${b.label}: +${b.value}`;
+            fameEl.appendChild(row);
+          }
+        }
+        const total = document.createElement('div');
+        total.className = 'fame-total';
+        total.textContent = `Fama total: ${m.fame}`;
+        fameEl.appendChild(total);
         $('death-overlay').classList.remove('hidden');
       },
       onDisconnect() {

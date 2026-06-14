@@ -125,6 +125,9 @@ h3 { margin: 18px 0 8px; color: #f0c040; font-size: 14px; }
 .death-panel { text-align: center; width: 380px; border-color: #7a2020; }
 .death-panel h2 { color: #e05050; font-size: 32px; letter-spacing: 3px; margin-bottom: 12px; }
 .death-note { font-size: 11px; color: #888; margin: 10px 0 16px; }
+#death-fame { font-size: 12px; color: #bbb; margin: 10px 0; line-height: 1.6; }
+#death-fame .fame-bonus { color: #70b0ff; }
+#death-fame .fame-total { color: #f0c040; font-size: 14px; margin-top: 6px; }
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: #3a3a55; border-radius: 4px; }

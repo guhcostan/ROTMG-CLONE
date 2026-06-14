@@ -11,6 +11,12 @@ const VIEW = 22;                 // entity broadcast radius in tiles
 const BAG_TTL = 60 * 1000;       // loot bag lifetime
 const PORTAL_TTL = 45 * 1000;
 
+// Negative status effects an enemy bullet can inflict on a player.
+// slow: half move speed | paralyze: cannot move | bleed: damage-over-time
+// that ignores defense | sick: cannot heal | quiet: no MP regen / abilities |
+// weak: halved attack.
+const STATUS_KINDS = ['slow', 'paralyze', 'bleed', 'sick', 'quiet', 'weak'];
+
 let nextId = 1;
 const uid = () => nextId++;
 
@@ -59,7 +65,17 @@ function effectiveStats(player) {
     if (it.slot === 'ring' && it.bonus) for (const k in it.bonus) s[k] = (s[k] || 0) + it.bonus[k];
   }
   if (player.berserkUntil > Date.now()) { s.dex = Math.round(s.dex * 1.5); s.spd = Math.round(s.spd * 1.25); }
+  if (player.status && player.status.weak > Date.now()) s.att = Math.max(1, Math.round(s.att * 0.5));
   return s;
+}
+
+// move multiplier from movement-impairing statuses (paralyze stops, slow halves)
+function statusMoveMul(player) {
+  if (!player.status) return 1;
+  const now = Date.now();
+  if (player.status.paralyze > now) return 0;
+  if (player.status.slow > now) return 0.5;
+  return 1;
 }
 
 function moveSpeed(stats) { return 4 + 5.6 * (stats.spd / 75); }     // tiles/s
@@ -226,10 +242,36 @@ class Game {
       pet: acc.pet || null,
       vault: storage.getVault(acc.id),
       trade: null, tradeReqFrom: null,
+      status: {},                       // statusType -> expiresAt (ms)
+      kills: 0, godsKilled: 0, dungeons: 0, // fame-bonus counters (per life)
     };
     this.players.set(player.id, player);
     this.enterInstance(player, this.nexus);
     return player;
+  }
+
+  // ------------------------------------------------ status effects
+  applyStatus(player, type, dur) {
+    if (!STATUS_KINDS.includes(type)) return;
+    const now = Date.now();
+    player.status[type] = Math.max(player.status[type] || 0, now + dur);
+    player.instance.broadcastNear({ t: 'fx', k: 'status', x: player.x, y: player.y, r: 1, s: type }, player.x, player.y);
+  }
+
+  cleanseStatus(player) {
+    let any = false;
+    for (const k of STATUS_KINDS) if (player.status[k]) { delete player.status[k]; any = true; }
+    return any;
+  }
+
+  activeStatus(player) {
+    const now = Date.now();
+    const out = {};
+    for (const k of STATUS_KINDS) {
+      const left = (player.status[k] || 0) - now;
+      if (left > 0) out[k] = left; else if (player.status[k]) delete player.status[k];
+    }
+    return out;
   }
 
   persist(player) {
@@ -433,7 +475,8 @@ class Game {
     const dt = Math.min(1, (now - player.lastMoveAt) / 1000);
     player.lastMoveAt = now;
     const stats = effectiveStats(player);
-    const maxD = moveSpeed(stats) * dt * 1.6 + 0.3; // lenient anti-speed cap
+    const mm = statusMoveMul(player);
+    const maxD = mm <= 0 ? 0.06 : moveSpeed(stats) * mm * dt * 1.6 + 0.3; // lenient anti-speed cap
     const d = Math.hypot(x - player.x, y - player.y);
     if (d > maxD) return; // reject teleport-like moves
     if (inst.tileBlocked(x, y)) return;
@@ -475,6 +518,9 @@ class Game {
     if (!item) return;
     const now = Date.now();
     if (now - player.lastAbility < 500) return;
+    if (player.status && player.status.quiet > now) {
+      return send(player.ws, { t: 'notice', text: 'Silenciado! Nao pode usar habilidades.' });
+    }
     const stats = effectiveStats(player);
     if (player.char.mp < item.mpCost) return;
     const tx = Number(msg.x), ty = Number(msg.y);
@@ -507,13 +553,16 @@ class Game {
         player.berserkUntil = now + 4000 + pw * 1000;
         inst.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 1 }, player.x, player.y);
         break;
-      case 'tome': { // heal self + nearby allies
+      case 'tome': { // heal self + nearby allies, and cleanse their statuses
         const heal = Math.round(80 * pw + stats.wis * 1.5);
         for (const p of inst.players.values()) {
           if (dist2(p.x, p.y, player.x, player.y) < 36) {
             const max = effectiveMaxHp(p);
-            p.char.hp = Math.min(max, p.char.hp + heal);
-            inst.broadcastNear({ t: 'dmg', id: p.id, n: -heal }, p.x, p.y);
+            if (!(p.status && p.status.sick > now)) {
+              p.char.hp = Math.min(max, p.char.hp + heal);
+              inst.broadcastNear({ t: 'dmg', id: p.id, n: -heal }, p.x, p.y);
+            }
+            this.cleanseStatus(p);
           }
         }
         inst.broadcastNear({ t: 'fx', k: 'heal', x: player.x, y: player.y, r: 6 }, player.x, player.y);
@@ -768,7 +817,11 @@ class Game {
     // XP for everyone who contributed (full XP each, like the classic)
     for (const pid of enemy.damagers.keys()) {
       const p = this.players.get(pid);
-      if (p && !p.dead) this.grantXp(p, enemy.def.xp);
+      if (p && !p.dead) {
+        this.grantXp(p, enemy.def.xp);
+        p.kills++;
+        if (enemy.def.god) p.godsKilled++;
+      }
     }
     // loot
     const drops = rollLoot(enemy.def.loot);
@@ -793,6 +846,7 @@ class Game {
     // dungeon completion: boss dies -> open a portal back + announce
     if (inst.kind === 'dungeon' && enemy.id === inst.bossId) {
       inst.bossDead = true;
+      for (const p of inst.players.values()) if (!p.dead) p.dungeons++;
       this.spawnPortal(inst, enemy.x, enemy.y, 'nexus', 'Portal para o Nexus', null, 10 * 60 * 1000);
       inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi derrotado!` });
       inst.broadcast({ t: 'chat', from: '', text: `A masmorra ${inst.name} foi concluida!`, sys: 1 });
@@ -828,22 +882,53 @@ class Game {
 
   damagePlayer(player, rawDmg, sourceName) {
     const stats = effectiveStats(player);
-    const dmg = applyDefense(rawDmg, stats.def);
+    this.hurtPlayer(player, applyDefense(rawDmg, stats.def), sourceName);
+  }
+
+  // applies already-resolved damage (defense ignored); used by bleed/lava too
+  hurtPlayer(player, dmg, sourceName) {
+    if (player.dead || dmg <= 0) return;
     player.char.hp -= dmg;
     player.lastHit = Date.now();
     player.instance.broadcastNear({ t: 'dmg', id: player.id, n: dmg }, player.x, player.y);
     if (player.char.hp <= 0) this.killPlayer(player, sourceName);
   }
 
+  // fame awarded for achievements at the moment of death (classic-style)
+  fameBonuses(player) {
+    const ch = player.char;
+    const max = CLASSES[ch.classId].max;
+    let maxed = 0;
+    for (const s of ['hp', 'mp', 'att', 'def', 'spd', 'dex', 'vit', 'wis']) {
+      if (ch.stats[s] >= max[s]) maxed++;
+    }
+    let highTier = 0;
+    for (const id of ch.equipment) { const it = id && ITEMS[id]; if (it && it.tier >= 5) highTier++; }
+    const list = [
+      ['Matador', Math.floor(player.kills / 10)],
+      ['Inimigo dos Deuses', player.godsKilled * 10],
+      ['Explorador de Masmorras', player.dungeons * 15],
+      ['Atributos no Maximo', maxed * 20],
+      ['Bem Equipado', highTier * 8],
+      ['Nivel Maximo', ch.level >= 20 ? 25 : 0],
+    ];
+    return list.filter(([, v]) => v > 0).map(([label, value]) => ({ label, value }));
+  }
+
   killPlayer(player, killedBy) {
     player.dead = true;
     const ch = player.char;
     const inst = player.instance;
+    const baseFame = ch.fame;
+    const bonuses = this.fameBonuses(player);
+    const bonusFame = bonuses.reduce((s, b) => s + b.value, 0);
+    ch.fame = baseFame + bonusFame;
     inst.broadcast({ t: 'chat', from: '', text: `${player.name} (${CLASSES[ch.classId].name} nv ${ch.level}) morreu para ${killedBy}`, sys: 1 });
     buryCharacter(player.acc, ch, killedBy);
     send(player.ws, {
       t: 'death', killer: killedBy,
-      classId: ch.classId, level: ch.level, fame: ch.fame,
+      classId: ch.classId, level: ch.level,
+      fame: ch.fame, baseFame, bonusFame, bonuses,
     });
     inst.players.delete(player.id);
     this.players.delete(player.id);
@@ -884,8 +969,14 @@ class Game {
       const inCombat = now - p.lastHit < 4000;
       const regenMul = inst.kind === 'nexus' ? 10 : (inCombat ? 0.4 : 1);
       const petBonus = p.pet ? 1.3 : 1;
-      p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + (1 + stats.vit * 0.24) * dt * regenMul * petBonus);
-      p.char.mp = Math.min(effectiveMaxMp(p), p.char.mp + (0.5 + stats.wis * 0.12) * dt * regenMul * petBonus);
+      const sick = p.status.sick > now;     // no HP recovery
+      const quiet = p.status.quiet > now;   // no MP recovery
+      if (!sick) p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + (1 + stats.vit * 0.24) * dt * regenMul * petBonus);
+      if (!quiet) p.char.mp = Math.min(effectiveMaxMp(p), p.char.mp + (0.5 + stats.wis * 0.12) * dt * regenMul * petBonus);
+      if (p.status.bleed > now) {
+        if (!p._bleedT || now - p._bleedT >= 500) { p._bleedT = now; this.hurtPlayer(p, 12, 'sangramento'); }
+        if (p.dead) continue;
+      }
       if (inst.map.damages(p.x, p.y)) {
         if (!p._lavaT || now - p._lavaT > 500) { p._lavaT = now; this.damagePlayer(p, 40, 'lava'); }
         if (p.dead) continue;
@@ -930,6 +1021,9 @@ class Game {
           if (p.dead) continue;
           if (dist2(p.x, p.y, pr.x, pr.y) < 0.45 * 0.45) {
             this.damagePlayer(p, pr.dmg, pr.src);
+            if (!p.dead && pr.status && Math.random() < (pr.status.chance ?? 1)) {
+              this.applyStatus(p, pr.status.type, pr.status.dur);
+            }
             dead = true; break;
           }
         }
@@ -1018,9 +1112,9 @@ class Game {
         const off = s.count > 1 ? (i - (s.count - 1) / 2) * (s.spread / Math.max(1, s.count - 1)) * 2 : 0;
         const a = base + off;
         angles.push(Math.round(a * 1000) / 1000);
-        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed, left: s.range, dmg: s.dmg, src: d.name });
+        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed, left: s.range, dmg: s.dmg, src: d.name, status: s.status });
       }
-      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed, rg: s.range, k: 'enemy', f: 0, o: e.id }, e.x, e.y);
+      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed, rg: s.range, k: 'enemy', f: 0, o: e.id, st: s.status && s.status.type }, e.x, e.y);
     }
     // ring attacks (spiral rings rotate a bit each volley)
     if (d.shots && d.shots.ring && now > e.nextRing) {
@@ -1031,9 +1125,9 @@ class Game {
       for (let i = 0; i < s.ring; i++) {
         const a = base + (i / s.ring) * Math.PI * 2;
         angles.push(Math.round(a * 1000) / 1000);
-        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed * 0.8, left: s.range, dmg: Math.round(s.dmg * 0.8), src: d.name });
+        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed * 0.8, left: s.range, dmg: Math.round(s.dmg * 0.8), src: d.name, status: s.ringStatus || s.status });
       }
-      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed * 0.8, rg: s.range, k: 'enemy', f: 0, o: e.id }, e.x, e.y);
+      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed * 0.8, rg: s.range, k: 'enemy', f: 0, o: e.id, st: (s.ringStatus || s.status) && (s.ringStatus || s.status).type }, e.x, e.y);
     }
     // boss minion spawns
     if (d.spawns && now > e.nextSpawn) {
@@ -1088,6 +1182,7 @@ class Game {
           mp: Math.round(ch.mp), maxMp: effectiveMaxMp(p),
           xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame,
           stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
+          st: this.activeStatus(p),
         },
       });
     }

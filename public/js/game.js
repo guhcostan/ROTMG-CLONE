@@ -145,8 +145,15 @@ const GameClient = (() => {
       if (msg.k === 'die') Sfx.kill();
       if (msg.k === 'levelup') Sfx.levelup();
     }
-    effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, t: 0, ttl: 0.6 });
+    effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, s: msg.s, t: 0, ttl: 0.6 });
   }
+
+  // status type -> display color / short label
+  const STATUS_INFO = {
+    slow: ['#c8a0e8', 'LENTO'], paralyze: ['#f0d040', 'PARAL'],
+    bleed: ['#e04040', 'SANGRA'], sick: ['#80c040', 'DOENTE'],
+    quiet: ['#4080e0', 'SILENC'], weak: ['#b08060', 'FRACO'],
+  };
 
   // ------------------------------------------------ input
   function setupInput() {
@@ -213,10 +220,12 @@ const GameClient = (() => {
     // movement
     let dx = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0);
     let dy = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0);
-    if (dx || dy) {
+    const st = self.st || {};
+    if ((dx || dy) && !(st.paralyze > 0)) {
       const len = Math.hypot(dx, dy);
-      const slow = tileAt(me.x, me.y) === 3 ? 0.5 : 1;
-      const spd = (4 + 5.6 * (self.stats.spd / 75)) * slow;
+      const tileSlow = tileAt(me.x, me.y) === 3 ? 0.5 : 1;
+      const statusSlow = st.slow > 0 ? 0.5 : 1;
+      const spd = (4 + 5.6 * (self.stats.spd / 75)) * tileSlow * statusSlow;
       let nx = me.x + (dx / len) * spd * dt;
       let ny = me.y + (dy / len) * spd * dt;
       if (!blocked(nx, me.y)) me.x = nx;
@@ -313,6 +322,15 @@ const GameClient = (() => {
         const tag = ent.guild ? `[${ent.guild}] ` : '';
         ctx.fillText(`${tag}${ent.name} ${ent.level}`, px, py - TILE * 0.65);
         if (ent.id !== myId) drawHpBar(px, py, ent.hp, ent.maxHp, 0.9);
+        // own active statuses, shown as colored labels under the name
+        if (ent.id === myId && self && self.st) {
+          const active = Object.keys(self.st).filter(k => STATUS_INFO[k]);
+          active.forEach((k, i) => {
+            ctx.fillStyle = STATUS_INFO[k][0];
+            ctx.font = 'bold 10px Courier New';
+            ctx.fillText(STATUS_INFO[k][1], px, py - TILE * 0.5 + 11 + i * 11);
+          });
+        }
       }
     }
 
@@ -362,6 +380,15 @@ const GameClient = (() => {
         ctx.beginPath();
         ctx.arc(px, py, TILE * 0.5 * (1 - p), 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (f.kind === 'status') {
+        const info = STATUS_INFO[f.s] || ['#fff', ''];
+        ctx.globalAlpha = (1 - p) * 0.8;
+        ctx.strokeStyle = info[0];
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px, py, TILE * (0.4 + p * 0.5), 0, Math.PI * 2);
+        ctx.stroke();
         ctx.globalAlpha = 1;
       }
     }
