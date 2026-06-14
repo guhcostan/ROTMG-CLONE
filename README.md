@@ -1,9 +1,11 @@
 # Realm Reborn
 
 MMO bullet-hell cooperativo jogável no browser, inspirado nas mecânicas clássicas
-do Realm of the Mad God: morte permanente, classes, reino procedural, deuses,
-dungeons instanciadas, loot, cofre, trade entre jogadores, guildas e pets.
-Persistência em banco de dados SQLite. Todo o código e a pixel art são originais.
+do Realm of the Mad God: morte permanente, 11 classes com desbloqueio por
+progressão, reino procedural com ciclo de fechamento e chefe final, deuses,
+dungeons instanciadas, status effects, loot com raridades e lendários, bônus de
+fama na morte, cofre, trade entre jogadores, guildas e pets. Persistência em
+banco de dados SQLite. Todo o código e a pixel art são originais.
 
 ## Rodando localmente
 
@@ -75,6 +77,7 @@ estiver rodando, ou pare o servidor antes do backup.
 | Botão direito no item | Soltar no chão |
 | `ENTER` | Chat e comandos |
 | `ESC` ou `R` | Voltar ao Nexus (fuga de emergência) |
+| `M` | Liga/desliga o som |
 
 ### Comandos de chat
 
@@ -94,9 +97,21 @@ estiver rodando, ou pare o servidor antes do backup.
 
 - **Morte permanente** — morreu, perdeu o personagem. Ele vai para o cemitério
   da conta com nível, fama e causa da morte. Cada conta tem até 3 personagens.
-- **6 classes** — Wizard, Archer, Warrior, Priest, Rogue e Knight, cada uma com
-  arma, armadura e habilidade próprias (nova arcana, flecha perfurante, berserk,
-  cura em área, invisibilidade e investida atordoante).
+  Na morte, a fama ganha bônus por feitos (Matador, Inimigo dos Deuses,
+  Explorador de Masmorras, Atributos no Máximo, Bem Equipado, Nível Máximo),
+  exibidos na tela de morte.
+- **11 classes com desbloqueio** — 6 iniciais (Wizard, Archer, Warrior, Priest,
+  Rogue, Knight) e 5 avançadas que destravam ao levar a classe pré-requisito ao
+  nível 20: Necromancer (← Wizard), Huntress (← Archer), Paladin (← Warrior),
+  Mystic (← Priest) e Trickster (← Rogue). Cada uma tem arma, armadura e
+  habilidade próprias — nova arcana, flecha perfurante, berserk, cura em área,
+  invisibilidade, investida atordoante, dreno com roubo de vida, armadilha
+  lenta, aura de cura+ataque, stasis em massa e teleporte (blink). O desbloqueio
+  vem do banco e persiste à morte permanente.
+- **Status effects** — tiros de vários inimigos e bosses aplicam condições:
+  lentidão, paralisia, sangramento (dano contínuo que ignora defesa), doente
+  (sem cura), silenciado (sem mana/habilidade) e fraqueza (ataque reduzido). O
+  tome do Priest cura e limpa status dos aliados.
 - **Atributos e níveis** — HP/MP/ATT/DEF/SPD/DEX/VIT/WIS crescem até o nível 20;
   depois disso, poções de atributo dropadas pelos deuses maximizam o personagem.
 - **Reino procedural** — uma ilha com dificuldade em anéis: praia → planície →
@@ -172,6 +187,16 @@ SQLite após reiniciar o servidor**.
 
 ## Próximas ideias
 
+- Ramo de classe avançado para o Knight (ex.: Samurai com arma "katana" e
+  mecânica de expor o inimigo) — completaria o leque de classes.
+- Chefe secreto/finale após o Rei Demente (estilo "Wine Cellar").
 - Ranks intermediários de guilda e banco/cofre compartilhado de guilda.
 - Mais dungeons e eventos do mundo (invasões cronometradas).
 - Marketplace assíncrono além da troca presencial.
+
+## Plugin do Claude Code
+
+O arquivo `.claude/settings.json` registra o marketplace do plugin
+[ponytail](https://github.com/DietrichGebert/ponytail) e o habilita. É um
+plugin de comportamento para agentes de código (regras de minimalismo); pode
+exigir reiniciar a sessão do Claude Code para carregar.
