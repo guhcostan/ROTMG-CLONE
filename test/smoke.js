@@ -222,6 +222,30 @@ function bleedSanity() {
   check(high > low, `bleed scales with max HP (${low} -> ${high})`);
 }
 
+// onboarding: tutorial map is valid + a fresh account starts there, once
+function tutorialSanity() {
+  const { generateTutorial, T } = require('../server/world');
+  const m = generateTutorial();
+  check(m.get(0, 0) === T.WALL && m.get((m.w / 2) | 0, (m.h / 2) | 0) === T.FLOOR, 'tutorial room is walled with a floor');
+  check(m.spawn && m.dummySpot && m.portalSpot, 'tutorial has spawn/dummy/portal spots');
+
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const id = storage.createAccount('tut' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const acc = storage.getAccountById(id);
+  const char = { id: 1, classId: 'wizard', level: 1, xp: 0, fame: 0, hp: 100, mp: 100,
+    stats: { hp: 100, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 },
+    equipment: ['staff0', 'spell0', 'robe0', null], inventory: new Array(8).fill(null) };
+  const ws = { readyState: 1, send() {} };
+  const p = g.joinPlayer(ws, acc, char);
+  check(p.instance === g.tutorial, 'new account starts in the tutorial');
+  g.toNexus(p);
+  check(p.instance === g.nexus, 'leaving the tutorial drops into the Nexus');
+  check(storage.getAccountById(id).tutorial_done === 1, 'tutorial completion persists on the account');
+  g.leavePlayer(p);
+}
+
 // balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
 function balanceSanity() {
   const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
@@ -348,6 +372,7 @@ async function main() {
   coopXpSanity();
   balanceSanity();
   bleedSanity();
+  tutorialSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);
@@ -412,9 +437,15 @@ async function main() {
     const c2 = client(token2, char2);
     await c1.opened; await c2.opened;
 
+    const wt1 = await c1.waitFor('world');
+    const wt2 = await c2.waitFor('world');
+    check(wt1.kind === 'tutorial' && wt2.kind === 'tutorial', 'new accounts start in the tutorial');
+    // leave the tutorial into the Nexus
+    c1.messages.length = 0; c2.messages.length = 0;
+    c1.sendMsg({ t: 'nexus' }); c2.sendMsg({ t: 'nexus' });
     const w1 = await c1.waitFor('world');
     const w2 = await c2.waitFor('world');
-    check(w1.kind === 'nexus' && w2.kind === 'nexus', 'both spawned in nexus');
+    check(w1.kind === 'nexus' && w2.kind === 'nexus', 'both reach the nexus');
     const tiles = Buffer.from(w1.tiles, 'base64');
     check(tiles.length === w1.w * w1.h, 'map tile payload complete');
 

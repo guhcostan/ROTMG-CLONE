@@ -2,7 +2,7 @@
 // Authoritative game simulation: instances (nexus / realm / dungeons),
 // enemy AI and bullet patterns, combat, XP/levels, loot and permadeath.
 const { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES } = require('./data');
-const { T, generateNexus, generateRealm, generateDungeon, bandAt } = require('./world');
+const { T, generateNexus, generateTutorial, generateRealm, generateDungeon, bandAt } = require('./world');
 const { buryCharacter } = require('./auth');
 const storage = require('./db');
 
@@ -161,6 +161,7 @@ class Game {
     this.players = new Map(); // playerId -> Player
     this.instances = new Map();
     this.nexus = this.addInstance(new Instance('nexus', 'Nexus', generateNexus()));
+    this.tutorial = this.addInstance(new Instance('tutorial', 'Treinamento', generateTutorial()));
     this.realmSeed = (Math.random() * 1e9) | 0;
     this.realm = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(this.realmSeed)));
     this.godKills = 0;
@@ -265,9 +266,24 @@ class Game {
       kills: 0, godsKilled: 0, dungeons: 0, // fame-bonus counters (per life)
     };
     this.players.set(player.id, player);
-    this.enterInstance(player, this.nexus);
+    // first-ever login on this account starts in the tutorial; everyone else in the Nexus
+    if (!acc.tutorial_done) { this.enterInstance(player, this.tutorial); this.startTutorial(player); }
+    else this.enterInstance(player, this.nexus);
     this.grantDaily(player);
     return player;
+  }
+
+  // training-room onboarding: drip a few tips; a dummy lets the player practice
+  startTutorial(player) {
+    const tips = [
+      'Bem-vindo! Use WASD ou as setas para se mover.',
+      'Segure o botao esquerdo do mouse para atirar. Acerte o boneco de treino.',
+      'Aperte ESPACO para usar a habilidade da classe (gasta MP).',
+      'Aperte H a qualquer momento para ver todos os controles.',
+      'Quando estiver pronto, pise no portal e aperte F para entrar no Nexus.',
+    ];
+    tips.forEach((text, i) => setTimeout(() => { if (player.ws.readyState === 1) send(player.ws, { t: 'chat', from: '', text, sys: 1 }); }, 800 + i * 2600));
+    send(player.ws, { t: 'notice', text: 'Treinamento' });
   }
 
   // ------------------------------------------------ account progression
@@ -878,6 +894,7 @@ class Game {
       if (dist2(portal.x, portal.y, player.x, player.y) > 4) continue;
       if (portal.kind === 'realm') return this.enterInstance(player, this.realm);
       if (portal.kind === 'nexus') return this.toNexus(player);
+      if (portal.kind === 'tutorial') { this.enterInstance(player, this.tutorial); return this.startTutorial(player); }
       if (portal.kind === 'dungeon') {
         let dest = portal.instanceId && this.instances.get(portal.instanceId);
         if (!dest) {
@@ -891,6 +908,11 @@ class Game {
   }
 
   toNexus(player) {
+    // leaving the tutorial for the first time marks it complete for the account
+    if (player.instance === this.tutorial && !player.acc.tutorial_done) {
+      player.acc.tutorial_done = 1;
+      storage.setTutorialDone(player.acc.id);
+    }
     if (player.instance !== this.nexus) this.enterInstance(player, this.nexus);
   }
 
@@ -1221,9 +1243,22 @@ class Game {
     // --- expire bags & portals
     for (const [id, bag] of inst.bags) if (now > bag.expires) inst.bags.delete(id);
     for (const [id, portal] of inst.portals) if (now > portal.expires) inst.portals.delete(id);
-    // nexus always has a realm portal
-    if (inst.kind === 'nexus' && inst.portals.size === 0) {
-      this.spawnPortal(inst, inst.map.portalSpot.x, inst.map.portalSpot.y, 'realm', 'Portal do Reino', null, 1e15);
+    // nexus always offers the realm portal and a tutorial replay portal
+    if (inst.kind === 'nexus') {
+      const kinds = new Set([...inst.portals.values()].map(p => p.kind));
+      if (!kinds.has('realm')) this.spawnPortal(inst, inst.map.portalSpot.x, inst.map.portalSpot.y, 'realm', 'Portal do Reino', null, 1e15);
+      if (!kinds.has('tutorial')) this.spawnPortal(inst, inst.map.vaultSpot.x, inst.map.vaultSpot.y - 4, 'tutorial', 'Treinamento', null, 1e15);
+    }
+    // tutorial room keeps an exit portal and a training dummy available
+    if (inst === this.tutorial) {
+      if (![...inst.portals.values()].some(p => p.kind === 'nexus')) {
+        this.spawnPortal(inst, inst.map.portalSpot.x, inst.map.portalSpot.y, 'nexus', 'Portal para o Nexus', null, 1e15);
+      }
+      if (inst.enemies.size === 0) {
+        const e = new Enemy('training_dummy', inst.map.dummySpot.x, inst.map.dummySpot.y);
+        e.leash = 2;
+        inst.enemies.set(e.id, e);
+      }
     }
 
     // --- snapshots

@@ -72,6 +72,24 @@ function generateNexus() {
   return m;
 }
 
+// ---------------------------------------------------------------- tutorial
+// One small walled room: spawn on the left, a training dummy in the middle,
+// an exit portal to the Nexus on the right.
+function generateTutorial() {
+  const w = 30, h = 18;
+  const m = new GameMap(w, h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const border = x === 0 || y === 0 || x === w - 1 || y === h - 1;
+      m.set(x, y, border ? T.WALL : T.FLOOR);
+    }
+  }
+  m.spawn = { x: 3, y: (h / 2) | 0 };
+  m.dummySpot = { x: (w / 2) | 0, y: (h / 2) | 0 };
+  m.portalSpot = { x: w - 4, y: (h / 2) | 0 };
+  return m;
+}
+
 // ---------------------------------------------------------------- realm
 // Concentric difficulty: band 0 (beach) at the edge -> band 4 (gods) center.
 function generateRealm(seed) {
@@ -189,4 +207,4 @@ function generateDungeon(defn, seed) {
   return m;
 }
 
-module.exports = { T, GameMap, generateNexus, generateRealm, generateDungeon, bandAt, mulberry32 };
+module.exports = { T, GameMap, generateNexus, generateTutorial, generateRealm, generateDungeon, bandAt, mulberry32 };

@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS daily (
 );
 `);
 
+// add the tutorial flag to existing databases (no-op once the column exists)
+try { db.exec('ALTER TABLE accounts ADD COLUMN tutorial_done INTEGER NOT NULL DEFAULT 0'); } catch { /* column already present */ }
+
 // ---------------------------------------------------------------- migration
 const LEGACY = path.join(DATA_DIR, 'db.json');
 if (fs.existsSync(LEGACY)) {
@@ -169,6 +172,7 @@ const q = {
   getDaily: db.prepare('SELECT last_day, streak FROM daily WHERE account_id = ?'),
   setDaily: db.prepare(`INSERT INTO daily (account_id, last_day, streak) VALUES (?,?,?)
     ON CONFLICT(account_id) DO UPDATE SET last_day = excluded.last_day, streak = excluded.streak`),
+  setTutorial: db.prepare('UPDATE accounts SET tutorial_done = 1 WHERE id = ?'),
 };
 
 function rowToChar(row) {
@@ -273,6 +277,9 @@ const storage = {
   // rankings
   leaderboard: () => q.leaderboard.all(),
   legends: () => q.legends.all(),
+
+  // tutorial: one-time per account
+  setTutorialDone: (accountId) => q.setTutorial.run(accountId),
 
   // achievements (account-wide, permanent)
   earnAchievement: (accountId, code) => q.earnAch.run(accountId, code, Date.now()).changes > 0,

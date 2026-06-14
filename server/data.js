@@ -549,6 +549,12 @@ enemy('the_tyrant', {
     ['ringtyrant', 0.5], ['statpot', 1], ['pot_life', 1], ['pot_mana', 1]],
 });
 
+// --- tutorial training dummy (no attacks, no loot, no XP) ---
+enemy('training_dummy', {
+  name: 'Boneco de Treino', sprite: 'training_dummy', hp: 250, def: 0, xp: 0, speed: 0, size: 1.1,
+  behavior: 'wander', band: -1, shots: null, loot: [],
+});
+
 // --- world-event invasion bosses (spawned in the realm on a timer) ---
 enemy('invader_warlord', {
   name: 'Senhor da Guerra Invasor', sprite: 'invader_warlord', hp: 20000, def: 24, xp: 2400, speed: 4, size: 2.4,

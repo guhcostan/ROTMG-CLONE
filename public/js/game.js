@@ -189,6 +189,7 @@ const GameClient = (() => {
       if (e.key >= '1' && e.key <= '8') Net.send({ t: 'useitem', slot: 3 + parseInt(e.key, 10) });
       if (e.key.toLowerCase() === 'f') Net.send({ t: 'portal' });
       if (e.key.toLowerCase() === 'm' && typeof Sfx !== 'undefined') UI.notice(Sfx.toggleMute() ? 'Som desligado' : 'Som ligado');
+      if (e.key.toLowerCase() === 'h') { const o = document.getElementById('help-overlay'); if (o) o.classList.toggle('hidden'); }
     };
     onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
     canvas.onmousemove = (e) => { mouse.x = e.clientX; mouse.y = e.clientY; };
