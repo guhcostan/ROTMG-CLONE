@@ -1141,7 +1141,8 @@ class Game {
     }
     const range = d.shots ? d.shots.range : 2;
     const aggro = 121; // 11 tiles
-    const speed = d.speed * dt * (e.slowedUntil > now ? 0.5 : 1);
+    // ponytail: cap at 4.3 t/s so no mob outruns even a 0-speed player; bump if a fast-mob archetype is wanted
+    const speed = Math.min(d.speed, 4.3) * dt * (e.slowedUntil > now ? 0.5 : 1);
 
     // movement
     let mx = 0, my = 0;

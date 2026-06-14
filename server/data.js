@@ -268,7 +268,7 @@ enemy('goblin', {
 enemy('wolf', {
   name: 'Dire Wolf', sprite: 'wolf', hp: 130, def: 3, xp: 14, speed: 5.5, size: 0.9,
   behavior: 'chase', band: 1, melee: { dmg: 14, rate: 1 },
-  shots: null,
+  shots: { dmg: 8, speed: 9, range: 4, count: 1, spread: 0, rate: 1 }, // close snap
   loot: [['armor:0-1', 0.2], ['hppot', 0.18]],
 });
 enemy('bandit', {
@@ -292,7 +292,8 @@ enemy('bandit_lord', {
 enemy('wolf_alpha', {
   name: 'Alpha Dire Wolf', sprite: 'wolf_alpha', hp: 700, def: 8, xp: 90, speed: 6.5, size: 1.4,
   behavior: 'chase', band: 1, rare: true, entourage: { type: 'wolf', count: 4 },
-  melee: { dmg: 26, rate: 1.4 }, shots: null,
+  melee: { dmg: 26, rate: 1.4 },
+  shots: { dmg: 16, speed: 10, range: 5, count: 3, spread: 0.5, rate: 1 }, // close cone
   loot: [['weapon:1-2', 0.5], ['armor:1-2', 0.5], ['ringspd0', 0.15], ['hppot', 0.3]],
 });
 // --- band 2: forest

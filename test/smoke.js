@@ -41,6 +41,13 @@ function dataSanity() {
     for (const m of d.minions) if (!ENEMIES[m]) bad.push(`${key}: minion ${m}`);
   }
   check(bad.length === 0, 'data refs consistent' + (bad.length ? ' -> ' + bad.join(', ') : ''));
+
+  // every realm mob shoots, and band damage rises outward->inward (easy beach, hard center)
+  const realmMobs = Object.values(ENEMIES).filter(e => e.band >= 0);
+  check(realmMobs.every(e => e.shots), 'every realm mob has a shot attack');
+  const bandDmg = b => Math.max(...realmMobs.filter(e => e.band === b).map(e => e.shots.dmg));
+  check(bandDmg(0) < bandDmg(1) && bandDmg(1) < bandDmg(2) && bandDmg(2) < bandDmg(3) && bandDmg(3) < bandDmg(4),
+    'band damage rises from beach to center');
 }
 
 function realmCycleSanity() {
