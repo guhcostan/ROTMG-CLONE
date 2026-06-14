@@ -211,6 +211,14 @@ function balanceSanity() {
   const mid = ['crystal_caverns', 'plague_warren', 'frozen_depths', 'storm_citadel', 'sunbaked_ziggurat', 'drowned_grotto', 'volcanic_forge'];
   check(mid.every(d => hp(d) <= 16000), 'new dungeon bosses scaled into the mid curve (<=16k HP)');
   check(hp('crystal_caverns') < hp('volcanic_forge'), 'new dungeons have an internal difficulty ramp');
+
+  // legendary weapons: melee/single-target ones shouldn't lag the multi-shot ranged ones
+  const { ITEMS, LEGENDARIES } = require('../server/data');
+  const fr = 1.5 + 4.5 * (50 / 75);
+  const dps = id => { const p = ITEMS[id].proj; return (p.dmg[0] + p.dmg[1]) / 2 * fr * p.rateMul * p.count; };
+  for (const id of ['sword_kings', 'dagger_void', 'katana_tempest']) {
+    check(dps(id) >= 1000, `legendary ${id} DPS competitive (${Math.round(dps(id))})`);
+  }
 }
 
 async function api(method, p, body, token) {

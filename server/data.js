@@ -251,10 +251,10 @@ for (const [kind, tiers] of Object.entries(ARMOR_TIERS)) {
 // Legendary uniques (tier 6, white bag drops from gods and bosses)
 def('staff_cataclysm', { name: 'Cajado do Cataclisma', type: 'staff', slot: 'weapon', tier: 6, proj: { dmg: [70, 110], speed: 19, range: 8.5, count: 3, spread: 0.22, pierce: false, rateMul: 1 } });
 def('bow_tempest', { name: 'Arco da Tempestade', type: 'bow', slot: 'weapon', tier: 6, proj: { dmg: [60, 95], speed: 17, range: 7.5, count: 3, spread: 0.16, pierce: true, rateMul: 1.1 } });
-def('sword_kings', { name: 'Lamina dos Reis', type: 'sword', slot: 'weapon', tier: 6, proj: { dmg: [110, 150], speed: 15, range: 3.8, count: 1, spread: 0, pierce: false, rateMul: 1 } });
-def('wand_eclipse', { name: 'Varinha do Eclipse', type: 'wand', slot: 'weapon', tier: 6, proj: { dmg: [85, 130], speed: 19, range: 10, count: 1, spread: 0, pierce: false, rateMul: 0.9 } });
-def('dagger_void', { name: 'Adaga do Vazio', type: 'dagger', slot: 'weapon', tier: 6, proj: { dmg: [75, 115], speed: 17, range: 5.8, count: 1, spread: 0, pierce: false, rateMul: 1.45 } });
-def('katana_tempest', { name: 'Katana da Tempestade', type: 'katana', slot: 'weapon', tier: 6, proj: { dmg: [120, 160], speed: 16, range: 4.5, count: 1, spread: 0, pierce: false, rateMul: 1.2 } });
+def('sword_kings', { name: 'Lamina dos Reis', type: 'sword', slot: 'weapon', tier: 6, proj: { dmg: [200, 270], speed: 15, range: 3.8, count: 1, spread: 0, pierce: false, rateMul: 1 } });
+def('wand_eclipse', { name: 'Varinha do Eclipse', type: 'wand', slot: 'weapon', tier: 6, proj: { dmg: [160, 230], speed: 19, range: 10, count: 1, spread: 0, pierce: false, rateMul: 0.9 } });
+def('dagger_void', { name: 'Adaga do Vazio', type: 'dagger', slot: 'weapon', tier: 6, proj: { dmg: [140, 205], speed: 17, range: 5.8, count: 1, spread: 0, pierce: false, rateMul: 1.45 } });
+def('katana_tempest', { name: 'Katana da Tempestade', type: 'katana', slot: 'weapon', tier: 6, proj: { dmg: [185, 250], speed: 16, range: 4.5, count: 1, spread: 0, pierce: false, rateMul: 1.2 } });
 const LEGENDARIES = ['staff_cataclysm', 'bow_tempest', 'sword_kings', 'wand_eclipse', 'dagger_void', 'katana_tempest', 'ringking'];
 
 // Pet egg (hatches into a follower pet; drops from bosses)
