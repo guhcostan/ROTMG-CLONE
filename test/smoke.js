@@ -172,6 +172,28 @@ function abilityScalingSanity() {
   check(low > 0 && high > low, `spell damage scales with WIS (${low} -> ${high})`);
 }
 
+// co-op: a player standing near a kill earns XP even without dealing damage
+function coopXpSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const mk = (id, x) => {
+    const p = { id, x, y: 10, dead: false, instance: g.realm,
+      char: { level: 1, xp: 0, fame: 0, classId: 'wizard', stats: { hp: 100, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 }, equipment: [], hp: 100, mp: 100 },
+      kills: 0, godsKilled: 0, dungeons: 0, status: {}, ws: { readyState: 3, send() {} }, acc: null };
+    g.players.set(id, p); g.realm.players.set(id, p); return p;
+  };
+  const killer = mk(-30, 10);   // deals the damage
+  const bystander = mk(-31, 12); // 2 tiles away, no damage
+  const far = mk(-32, 200);      // far away
+  const e = g.spawnEnemy(g.realm, 'goblin', 10, 10);
+  e.hp = 1;
+  g.damageEnemy(g.realm, e, 9999, killer);
+  check(killer.char.xp > 0, 'killer earns XP');
+  check(bystander.char.xp > 0, 'nearby ally earns XP without dealing damage');
+  check(far.char.xp === 0, 'far-away player earns no XP');
+  for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
+}
+
 async function api(method, p, body, token) {
   const res = await fetch(BASE + p, {
     method,
@@ -268,6 +290,7 @@ async function main() {
   multiPhaseSanity();
   progressionSanity();
   abilityScalingSanity();
+  coopXpSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

@@ -939,9 +939,15 @@ class Game {
   killEnemy(inst, enemy) {
     inst.enemies.delete(enemy.id);
     inst.broadcastNear({ t: 'fx', k: 'die', x: enemy.x, y: enemy.y, r: enemy.def.size }, enemy.x, enemy.y);
-    // XP for everyone who contributed (full XP each, like the classic)
+    // XP for everyone who contributed OR is standing nearby (classic co-op:
+    // stand near someone killing bosses and you level up fast). Full XP each.
     const d0 = enemy.def;
-    for (const pid of enemy.damagers.keys()) {
+    const XP_RANGE2 = 15 * 15;
+    const recipients = new Set(enemy.damagers.keys());
+    for (const p of inst.players.values()) {
+      if (!p.dead && dist2(p.x, p.y, enemy.x, enemy.y) < XP_RANGE2) recipients.add(p.id);
+    }
+    for (const pid of recipients) {
       const p = this.players.get(pid);
       if (p && !p.dead) {
         this.grantXp(p, d0.xp);
