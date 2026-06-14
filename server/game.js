@@ -36,7 +36,7 @@ function rollLoot(lootTable, rng) {
       const [lo, hi] = range.split('-').map(Number);
       const tier = lo + Math.floor(Math.random() * (hi - lo + 1));
       const kinds = group === 'weapon'
-        ? ['staff', 'bow', 'sword', 'wand', 'dagger']
+        ? ['staff', 'bow', 'sword', 'wand', 'dagger', 'katana']
         : ['robe', 'leather', 'heavy'];
       const kind = kinds[Math.floor(Math.random() * kinds.length)];
       if (ITEMS[`${kind}${tier}`]) items.push(`${kind}${tier}`);
@@ -651,6 +651,18 @@ class Game {
         inst.broadcastNear({ t: 'fx', k: 'vanish', x: nx, y: ny, r: 1 }, nx, ny);
         break;
       }
+      case 'wakizashi': { // Samurai: strike + expose enemies (they take +25% dmg)
+        if (inst.kind === 'nexus') break;
+        const dmg = Math.round((70 * pw) * (0.5 + stats.att / 50));
+        for (const e of inst.enemies.values()) {
+          if (dist2(e.x, e.y, tx, ty) < 9) {
+            this.damageEnemy(inst, e, dmg, player);
+            e.exposedUntil = now + 4000;
+          }
+        }
+        inst.broadcastNear({ t: 'fx', k: 'status', x: tx, y: ty, r: 3, s: 'weak' }, tx, ty);
+        break;
+      }
     }
   }
 
@@ -871,6 +883,7 @@ class Game {
 
   // ------------------------------------------------ combat helpers
   damageEnemy(inst, enemy, rawDmg, player) {
+    if (enemy.exposedUntil > Date.now()) rawDmg = Math.round(rawDmg * 1.25); // Samurai expose
     const dmg = applyDefense(rawDmg, enemy.def.def);
     enemy.hp -= dmg;
     enemy.damagers.set(player.id, (enemy.damagers.get(player.id) || 0) + dmg);

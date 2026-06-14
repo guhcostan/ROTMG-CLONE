@@ -170,10 +170,11 @@ async function main() {
     // --- characters
     r = await api('GET', '/api/chars', null, token1);
     check(r.status === 200 && r.data.characters.length === 0, 'char list starts empty');
-    check(Object.keys(r.data.classes).length === 11, 'eleven classes available');
+    check(Object.keys(r.data.classes).length === 12, 'twelve classes available');
     check(r.data.classes.wizard.locked === false, 'starter class wizard unlocked');
     check(r.data.classes.necromancer.locked === true, 'advanced class necromancer locked initially');
     check(r.data.classes.necromancer.unlockName === 'Wizard', 'necromancer shows its unlock requirement');
+    check(r.data.classes.samurai.locked === true && r.data.classes.samurai.unlockName === 'Knight', 'samurai locked behind Knight');
 
     r = await api('POST', '/api/chars', { classId: 'wizard' }, token1);
     check(r.status === 200 && r.data.character.classId === 'wizard', 'create wizard');

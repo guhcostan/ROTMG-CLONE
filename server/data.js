@@ -83,6 +83,13 @@ const CLASSES = {
     max: { hp: 720, mp: 280, att: 50, def: 25, spd: 75, dex: 75, vit: 40, wis: 60 },
     starter: ['dagger0', 'prism0', 'leather0', null],
   },
+  samurai: {
+    name: 'Samurai', weapon: 'katana', armor: 'heavy', ability: 'wakizashi', unlock: 'knight',
+    base: { hp: 160, mp: 100, att: 15, def: 0, spd: 9, dex: 13, vit: 13, wis: 10 },
+    growth: { hp: [23, 33], mp: [3, 9], att: 1.4, def: 0, spd: 0.8, dex: 1.1, vit: 0.9, wis: 0.5 },
+    max: { hp: 740, mp: 252, att: 75, def: 30, spd: 55, dex: 65, vit: 60, wis: 50 },
+    starter: ['katana0', 'wakizashi0', 'heavy0', null],
+  },
 };
 
 // Classes available to every account from the start; the rest are unlocked.
@@ -122,6 +129,11 @@ const WEAPON_TIERS = {
     ['Twin Fang',      [45, 70]], ['Night Edge',   [55, 85]],
     ['Viper Kiss',     [70, 100]], ['Dagger of the Abyss', [80, 115]],
   ],
+  katana: [
+    ['Bamboo Katana', [30, 50]], ['Iron Katana', [45, 65]],
+    ['Folded Steel',  [60, 85]], ['Moonlight Katana', [75, 100]],
+    ['Dragontail Katana', [90, 120]], ['Katana of the Tempest', [105, 140]],
+  ],
 };
 const WEAPON_PROJ = {
   staff:  { speed: 18, range: 8,   count: 2, spread: 0.18, pierce: false, rateMul: 1 },
@@ -129,6 +141,7 @@ const WEAPON_PROJ = {
   sword:  { speed: 14, range: 3.5, count: 1, spread: 0,    pierce: false, rateMul: 1 },
   wand:   { speed: 18, range: 9,   count: 1, spread: 0,    pierce: false, rateMul: 0.9 },
   dagger: { speed: 16, range: 5.6, count: 1, spread: 0,    pierce: false, rateMul: 1.3 },
+  katana: { speed: 16, range: 4.2, count: 1, spread: 0,    pierce: false, rateMul: 1.15 },
 };
 for (const [kind, tiers] of Object.entries(WEAPON_TIERS)) {
   tiers.forEach(([name, dmg], t) => {
@@ -153,6 +166,7 @@ const ABILITY_TIERS = {
   seal:   ['Worn Seal', 'Blessed Seal', 'Holy Seal', 'Radiant Seal', 'Seal of the Divine'],        // heal + attack buff aura
   orb:    ['Glass Orb', 'Crystal Orb', 'Stasis Orb', 'Astral Orb', 'Orb of Oblivion'],             // stasis (mass stun)
   prism:  ['Dim Prism', 'Bright Prism', 'Mirror Prism', 'Phantom Prism', 'Prism of the Void'],     // blink teleport
+  wakizashi: ['Dull Wakizashi', 'Keen Wakizashi', 'Exposing Wakizashi', 'Sundering Wakizashi', 'Wakizashi of Ruin'], // expose (enemies take +dmg)
 };
 for (const [kind, tiers] of Object.entries(ABILITY_TIERS)) {
   tiers.forEach(([, x] = [], t) => {
@@ -196,7 +210,8 @@ def('bow_tempest', { name: 'Arco da Tempestade', type: 'bow', slot: 'weapon', ti
 def('sword_kings', { name: 'Lamina dos Reis', type: 'sword', slot: 'weapon', tier: 6, proj: { dmg: [110, 150], speed: 15, range: 3.8, count: 1, spread: 0, pierce: false, rateMul: 1 } });
 def('wand_eclipse', { name: 'Varinha do Eclipse', type: 'wand', slot: 'weapon', tier: 6, proj: { dmg: [85, 130], speed: 19, range: 10, count: 1, spread: 0, pierce: false, rateMul: 0.9 } });
 def('dagger_void', { name: 'Adaga do Vazio', type: 'dagger', slot: 'weapon', tier: 6, proj: { dmg: [75, 115], speed: 17, range: 5.8, count: 1, spread: 0, pierce: false, rateMul: 1.45 } });
-const LEGENDARIES = ['staff_cataclysm', 'bow_tempest', 'sword_kings', 'wand_eclipse', 'dagger_void', 'ringking'];
+def('katana_tempest', { name: 'Katana da Tempestade', type: 'katana', slot: 'weapon', tier: 6, proj: { dmg: [120, 160], speed: 16, range: 4.5, count: 1, spread: 0, pierce: false, rateMul: 1.2 } });
+const LEGENDARIES = ['staff_cataclysm', 'bow_tempest', 'sword_kings', 'wand_eclipse', 'dagger_void', 'katana_tempest', 'ringking'];
 
 // Pet egg (hatches into a follower pet; drops from bosses)
 def('pet_egg', { name: 'Mysterious Egg', type: 'consumable', tier: 5, pet: true });
