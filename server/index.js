@@ -65,6 +65,16 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/season' && req.method === 'GET') {
       return json(res, 200, game.seasonInfo());
     }
+    if (p === '/api/cosmetics') {
+      const acc = auth.authed(req.headers['x-token']);
+      if (!acc) return json(res, 401, { error: 'Sessao invalida' });
+      if (req.method === 'GET') return json(res, 200, game.cosmeticsFor(acc.id));
+      if (req.method === 'POST') {
+        const { title, color } = await readBody(req);
+        const ok = game.setCosmetic(acc.id, title || null, color || null);
+        return json(res, ok ? 200 : 400, ok ? game.cosmeticsFor(acc.id) : { error: 'Cosmetico nao desbloqueado' });
+      }
+    }
     if (p.startsWith('/api/chars')) {
       const acc = auth.authed(req.headers['x-token']);
       if (!acc) return json(res, 401, { error: 'Sessao invalida' });

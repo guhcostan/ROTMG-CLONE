@@ -107,6 +107,7 @@
     }
 
     loadSeason();
+    loadCosmetics();
 
     const bl = $('bounties-list');
     if (bl) {
@@ -161,6 +162,26 @@
         el.appendChild(div);
       });
     } catch { /* leaderboard is cosmetic */ }
+  }
+
+  async function loadCosmetics() {
+    const el = $('cosmetics');
+    if (!el) return;
+    try {
+      const c = await Net.api('GET', '/api/cosmetics');
+      el.innerHTML = '';
+      const titleSel = document.createElement('select');
+      titleSel.innerHTML = '<option value="">(sem titulo)</option>' +
+        c.titles.map(t => `<option${c.current.title === t ? ' selected' : ''}>${t}</option>`).join('');
+      const colorSel = document.createElement('select');
+      colorSel.innerHTML = '<option value="">(cor padrao)</option>' +
+        c.colors.map(o => `<option value="${o.color}"${c.current.color === o.color ? ' selected' : ''}>${o.name}</option>`).join('');
+      const save = async () => {
+        try { await Net.api('POST', '/api/cosmetics', { title: titleSel.value || null, color: colorSel.value || null }); } catch {}
+      };
+      titleSel.onchange = save; colorSel.onchange = save;
+      el.append('Titulo: ', titleSel, document.createElement('br'), 'Cor: ', colorSel);
+    } catch { el.textContent = 'Cosmeticos indisponiveis.'; }
   }
 
   async function loadSeason() {

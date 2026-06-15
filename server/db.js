@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS daily (
 
 // add the tutorial flag to existing databases (no-op once the column exists)
 try { db.exec('ALTER TABLE accounts ADD COLUMN tutorial_done INTEGER NOT NULL DEFAULT 0'); } catch { /* column already present */ }
+try { db.exec('ALTER TABLE accounts ADD COLUMN title TEXT'); } catch { /* column already present */ }
+try { db.exec('ALTER TABLE accounts ADD COLUMN name_color TEXT'); } catch { /* column already present */ }
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS bounties (
@@ -188,6 +190,10 @@ const q = {
   setDaily: db.prepare(`INSERT INTO daily (account_id, last_day, streak) VALUES (?,?,?)
     ON CONFLICT(account_id) DO UPDATE SET last_day = excluded.last_day, streak = excluded.streak`),
   setTutorial: db.prepare('UPDATE accounts SET tutorial_done = 1 WHERE id = ?'),
+  setCosmetic: db.prepare('UPDATE accounts SET title = ?, name_color = ? WHERE id = ?'),
+  bestFame: db.prepare(`SELECT MAX(f) AS best FROM (
+    SELECT fame f FROM characters WHERE account_id = @id
+    UNION ALL SELECT fame FROM graveyard WHERE account_id = @id)`),
   getBounties: db.prepare('SELECT day, data FROM bounties WHERE account_id = ?'),
   setBounties: db.prepare(`INSERT INTO bounties (account_id, day, data) VALUES (?,?,?)
     ON CONFLICT(account_id) DO UPDATE SET day = excluded.day, data = excluded.data`),
@@ -305,6 +311,10 @@ const storage = {
 
   // tutorial: one-time per account
   setTutorialDone: (accountId) => q.setTutorial.run(accountId),
+
+  // cosmetics: chosen title + name color, and the account's best fame ever
+  setCosmetic: (accountId, title, color) => q.setCosmetic.run(title, color, accountId),
+  bestFame: (accountId) => q.bestFame.get({ id: accountId }).best || 0,
 
   // daily bounties (account-wide, reset by day)
   getBounties: (accountId) => { const r = q.getBounties.get(accountId); return r ? { day: r.day, list: JSON.parse(r.data) } : null; },

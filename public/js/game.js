@@ -73,11 +73,11 @@ const GameClient = (() => {
     for (const e of msg.e) {
       const kind = e[0];
       if (kind === 'p') {
-        const [, id, name, classId, x, y, hp, maxHp, level, invis, guild, pet] = e;
+        const [, id, name, classId, x, y, hp, maxHp, level, invis, guild, pet, title, nameColor] = e;
         seen.add(id);
         let ent = entities.get(id);
         if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
-        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis, guild, pet });
+        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis, guild, pet, title, nameColor });
         if (id === myId) {
           // server correction only when badly out of sync
           if (Math.hypot(me.x - x, me.y - y) > 3) { me.x = x; me.y = y; }
@@ -317,9 +317,14 @@ const GameClient = (() => {
           const t = performance.now() / 600 + ent.id;
           drawSprite(ent.pet, px + Math.cos(t) * TILE * 0.9, py + Math.sin(t) * TILE * 0.9, TILE * 0.5);
         }
-        ctx.fillStyle = ent.id === myId ? '#f0c040' : '#fff';
-        ctx.font = '11px Courier New';
         ctx.textAlign = 'center';
+        if (ent.title) {
+          ctx.fillStyle = '#c0a0e0';
+          ctx.font = 'italic 9px Courier New';
+          ctx.fillText(ent.title, px, py - TILE * 0.65 - 11);
+        }
+        ctx.fillStyle = ent.nameColor || (ent.id === myId ? '#f0c040' : '#fff');
+        ctx.font = '11px Courier New';
         const tag = ent.guild ? `[${ent.guild}] ` : '';
         ctx.fillText(`${tag}${ent.name} ${ent.level}`, px, py - TILE * 0.65);
         if (ent.id !== myId) drawHpBar(px, py, ent.hp, ent.maxHp, 0.9);

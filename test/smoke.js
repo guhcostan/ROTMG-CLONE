@@ -281,6 +281,26 @@ function seasonSanity() {
   check(!!row, 'season leaderboard records the account best fame');
 }
 
+// cosmetics: name colors unlock by best fame; titles by achievement; ownership enforced
+function cosmeticSanity() {
+  const { Game, ACHIEVEMENTS } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const id = storage.createAccount('cosm' + Math.floor(Math.random() * 1e9), 's', 'h');
+  let c = g.cosmeticsFor(id);
+  check(c.colors.length === 1 && c.titles.length === 1, 'fresh account has only the base color + title');
+  check(g.setCosmetic(id, null, '#f0c040') === false, 'cannot pick a color that is not unlocked');
+
+  storage.bury(id, { id: -1, classId: 'wizard', level: 20, fame: 2000 }, 'teste'); // best fame -> unlocks tiers
+  storage.earnAchievement(id, 'first_boss');
+  const title = ACHIEVEMENTS.first_boss.name;
+  c = g.cosmeticsFor(id);
+  check(c.colors.length >= 4, 'higher best fame unlocks more name colors');
+  check(c.titles.includes(title), 'earning an achievement unlocks its title');
+  check(g.setCosmetic(id, title, '#a860d8') === true, 'can pick an unlocked title + color');
+  check(g.cosmeticsFor(id).current.color === '#a860d8', 'chosen cosmetic persists');
+}
+
 // balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
 function balanceSanity() {
   const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
@@ -410,6 +430,7 @@ async function main() {
   tutorialSanity();
   bountySanity();
   seasonSanity();
+  cosmeticSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

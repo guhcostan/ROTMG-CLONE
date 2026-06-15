@@ -47,6 +47,15 @@ const SEASON_MODIFIERS = [
 const currentSeason = () => Math.floor(Date.now() / SEASON_MS);
 const seasonModifier = (season) => SEASON_MODIFIERS[((season % SEASON_MODIFIERS.length) + SEASON_MODIFIERS.length) % SEASON_MODIFIERS.length];
 
+// Earnable cosmetics (no purchase): name colors by best fame, titles by achievement.
+const COLOR_TIERS = [
+  { min: 0, color: '#dddddd', name: 'Comum' },
+  { min: 100, color: '#48b048', name: 'Veterano' },
+  { min: 500, color: '#4878e0', name: 'Heroico' },
+  { min: 1500, color: '#a860d8', name: 'Lendario' },
+  { min: 5000, color: '#f0c040', name: 'Mitico' },
+];
+
 let nextId = 1;
 const uid = () => nextId++;
 
@@ -287,6 +296,7 @@ class Game {
       status: {},                       // statusType -> expiresAt (ms)
       kills: 0, godsKilled: 0, dungeons: 0, // fame-bonus counters (per life)
       bounties: this.getDailyBounties(acc.id),
+      title: acc.title || null, nameColor: acc.name_color || null,
     };
     this.players.set(player.id, player);
     // first-ever login on this account starts in the tutorial; everyone else in the Nexus
@@ -319,6 +329,30 @@ class Game {
       send(player.ws, { t: 'notice', text: `Conquista: ${ACHIEVEMENTS[code].name}!` });
       send(player.ws, { t: 'chat', from: '', text: `${player.name} desbloqueou a conquista "${ACHIEVEMENTS[code].name}".`, sys: 1 });
     }
+  }
+
+  // cosmetics an account has unlocked (name colors by best fame, titles by achievement)
+  cosmeticsFor(accountId) {
+    const best = storage.bestFame(accountId);
+    const colors = COLOR_TIERS.filter(t => best >= t.min).map(t => ({ color: t.color, name: t.name }));
+    const earned = new Set(storage.listAchievements(accountId));
+    const titles = ['Aventureiro', ...Object.entries(ACHIEVEMENTS).filter(([c]) => earned.has(c)).map(([, a]) => a.name)];
+    const acc = storage.getAccountById(accountId);
+    return { titles, colors, current: { title: acc.title || null, color: acc.name_color || null } };
+  }
+
+  // validate ownership, then save the chosen title + color
+  setCosmetic(accountId, title, color) {
+    const { titles, colors } = this.cosmeticsFor(accountId);
+    const okTitle = title == null || titles.includes(title);
+    const okColor = color == null || colors.some(c => c.color === color);
+    if (!okTitle || !okColor) return false;
+    storage.setCosmetic(accountId, title || null, color || null);
+    for (const p of this.players.values()) if (p.acc && p.acc.id === accountId) {
+      p.acc.title = title || null; p.acc.name_color = color || null;
+      p.title = title || null; p.nameColor = color || null;
+    }
+    return true;
   }
 
   // current season: active modifier, this season's leaderboard, and a hall of fame
@@ -1508,7 +1542,8 @@ class Game {
         ents.push(['p', o.id, o.name, o.char.classId, round1(o.x), round1(o.y),
           Math.round(o.char.hp), effectiveMaxHp(o), o.char.level,
           o.invisUntil > now ? 1 : 0,
-          o.guild ? o.guild.name : '', o.pet || '']);
+          o.guild ? o.guild.name : '', o.pet || '',
+          o.title || '', o.nameColor || '']);
       }
       // account vault chest in the nexus (contents are per-player)
       if (inst.kind === 'nexus' && inst.map.vaultSpot) {
