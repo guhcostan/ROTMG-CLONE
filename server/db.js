@@ -92,6 +92,7 @@ try { db.exec('ALTER TABLE accounts ADD COLUMN name_color TEXT'); } catch { /* c
 try { db.exec('ALTER TABLE accounts ADD COLUMN pet_level INTEGER NOT NULL DEFAULT 1'); } catch { /* column already present */ }
 try { db.exec('ALTER TABLE accounts ADD COLUMN pet_xp INTEGER NOT NULL DEFAULT 0'); } catch { /* column already present */ }
 try { db.exec("ALTER TABLE accounts ADD COLUMN pet_aura TEXT NOT NULL DEFAULT 'heal'"); } catch { /* column already present */ }
+try { db.exec('ALTER TABLE accounts ADD COLUMN gold INTEGER NOT NULL DEFAULT 0'); } catch { /* column already present */ }
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS bounties (
@@ -146,6 +147,7 @@ const q = {
   insAcc: db.prepare('INSERT INTO accounts (username, username_lc, salt, hash, created_at) VALUES (?,?,?,?,?)'),
   setPet: db.prepare('UPDATE accounts SET pet = ? WHERE id = ?'),
   setPetState: db.prepare('UPDATE accounts SET pet = ?, pet_level = ?, pet_xp = ?, pet_aura = ? WHERE id = ?'),
+  setGold: db.prepare('UPDATE accounts SET gold = ? WHERE id = ?'),
 
   insSession: db.prepare('INSERT INTO sessions (token, account_id, created_at, expires_at) VALUES (?,?,?,?)'),
   getSession: db.prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > ?'),
@@ -230,6 +232,7 @@ const storage = {
     q.insAcc.run(username, username.toLowerCase(), salt, hash, Date.now()).lastInsertRowid,
   setPet: (accountId, pet) => q.setPet.run(pet, accountId),
   setPetState: (accountId, pet, level, xp, aura) => q.setPetState.run(pet, level, xp, aura, accountId),
+  setGold: (accountId, gold) => q.setGold.run(gold, accountId),
 
   // sessions (30 days)
   createSession: (token, accountId) => {

@@ -62,6 +62,7 @@
   <div id="hud">
     <div id="hud-right">
       <div id="hud-name"></div>
+      <div id="hud-gold">Ouro: 0</div>
       <div class="bar"><div id="bar-hp" class="fill hp"></div><span id="txt-hp"></span></div>
       <div class="bar"><div id="bar-mp" class="fill mp"></div><span id="txt-mp"></span></div>
       <div class="bar"><div id="bar-xp" class="fill xp"></div><span id="txt-xp"></span></div>
@@ -83,6 +84,22 @@
     <div id="chat">
       <div id="chat-log"></div>
       <input id="chat-input" type="text" maxlength="200" placeholder="ENTER para falar..." class="hidden">
+    </div>
+    <div id="shop-overlay" class="hidden">
+      <div class="panel shop-panel">
+        <div class="shop-head">Mercador <span id="shop-gold"></span></div>
+        <div class="shop-cols">
+          <div>
+            <div class="inv-label">Comprar</div>
+            <div id="shop-buy"></div>
+          </div>
+          <div>
+            <div class="inv-label">Vender (clique no item)</div>
+            <div id="shop-sell" class="slots"></div>
+          </div>
+        </div>
+        <button id="shop-close" class="btn">Fechar</button>
+      </div>
     </div>
     <div id="notice"></div>
     <div id="help-overlay" class="hidden">

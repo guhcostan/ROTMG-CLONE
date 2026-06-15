@@ -772,6 +772,16 @@ ooRRyyyyRRoo
 ...yy...
 ...y.y..
 ...yyy..`,
+  merchant: `
+...yyyy...
+..ySSSSy..
+..ySkkSy..
+..ySSSSy..
+.nyYYYYyn.
+.nyYYYYyn.
+..yYYYYy..
+..yY..Yy..
+..nn..nn..`,
   training_dummy: `
 ....ss....
 ...sSSs...

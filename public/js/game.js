@@ -302,9 +302,13 @@ const GameClient = (() => {
         const name = ent.tier >= 6 ? 'bag_white' : (ent.tier >= 4 ? 'bag_gold' : (ent.tier >= 2 ? 'bag_purple' : 'bag_brown'));
         drawSprite(name, px, py, TILE * 0.8);
       } else if (ent.kind === 'o') {
-        const spr = ent.pkind === 'dungeon' ? 'portal_red' : 'portal_blue';
-        const pulse = 1 + Math.sin(performance.now() / 300) * 0.08;
-        drawSprite(spr, px, py, TILE * 1.2 * pulse);
+        if (ent.pkind === 'shop') {
+          drawSprite('merchant', px, py, TILE * 1.1);
+        } else {
+          const spr = ent.pkind === 'dungeon' ? 'portal_red' : 'portal_blue';
+          const pulse = 1 + Math.sin(performance.now() / 300) * 0.08;
+          drawSprite(spr, px, py, TILE * 1.2 * pulse);
+        }
         ctx.fillStyle = '#fff';
         ctx.font = '12px Courier New';
         ctx.textAlign = 'center';
@@ -514,6 +518,7 @@ const GameClient = (() => {
       chat: m => UI.chat(m.from, m.text, m.sys),
       bounties: m => UI.setBounties(m.list),
       pet: m => UI.setPet(m),
+      shop: m => UI.showShop(m),
       tradereq: m => UI.tradeRequest(m.from),
       tradestate: m => UI.tradeState(m),
       tradedone: () => UI.tradeEnd(true),

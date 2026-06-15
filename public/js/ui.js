@@ -15,6 +15,8 @@ const UI = (() => {
   async function init() {
     ITEMS = await Net.api('GET', '/api/items');
     buildSlots();
+    const close = $('shop-close');
+    if (close) close.onclick = () => hideShop();
   }
 
   function buildSlots() {
@@ -204,6 +206,8 @@ const UI = (() => {
 
   function update(self) {
     currentSelf = self;
+    if (self.gold !== undefined) $('hud-gold').textContent = `Ouro: ${self.gold}`;
+    if (shopOpen) renderShopSell();
     setBar('bar-hp', 'txt-hp', self.hp, self.maxHp);
     setBar('bar-mp', 'txt-mp', self.mp, self.maxMp);
     if (self.level >= 20) {
@@ -323,6 +327,40 @@ const UI = (() => {
     el.appendChild(row);
   }
 
+  let shopOpen = false;
+  function renderShopSell() {
+    const el = $('shop-sell');
+    if (!el || !currentSelf) return;
+    el.innerHTML = '';
+    currentSelf.inv.forEach((id, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'slot';
+      if (id) {
+        const spr = Sprites.forItem(id, ITEMS);
+        if (spr) { const cv = document.createElement('canvas'); cv.width = spr.width; cv.height = spr.height; cv.getContext('2d').drawImage(spr, 0, 0); cell.appendChild(cv); }
+        cell.title = ITEMS[id] ? ITEMS[id].name : id;
+        cell.onclick = () => Net.send({ t: 'shopsell', slot: 4 + i });
+      }
+      el.appendChild(cell);
+    });
+  }
+  function showShop(m) {
+    shopOpen = true;
+    $('shop-overlay').classList.remove('hidden');
+    $('shop-gold').textContent = `(Ouro: ${m.gold})`;
+    const buy = $('shop-buy');
+    buy.innerHTML = '';
+    for (const b of m.buy) {
+      const row = document.createElement('button');
+      row.className = 'btn small shop-buy-row';
+      row.textContent = `${b.name} — ${b.price}`;
+      row.onclick = () => Net.send({ t: 'shopbuy', item: b.id });
+      buy.appendChild(row);
+    }
+    renderShopSell();
+  }
+  function hideShop() { shopOpen = false; $('shop-overlay').classList.add('hidden'); }
+
   function setBounties(list) {
     const el = $('hud-bounties');
     if (!el) return;
@@ -336,7 +374,7 @@ const UI = (() => {
   }
 
   return {
-    init, update, showBag, showVault, chat, notice, setName, setBounties, setPet,
+    init, update, showBag, showVault, chat, notice, setName, setBounties, setPet, showShop, hideShop,
     tradeRequest, tradeState, tradeEnd,
     get items() { return ITEMS; },
   };

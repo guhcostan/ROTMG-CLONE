@@ -66,6 +66,24 @@ const PET_MAX_LEVEL = 20;
 const petXpToNext = (level) => level * 50;
 const petTypeFor = () => ['pet_wolf', 'pet_imp', 'pet_sprite'][Math.floor(Math.random() * 3)];
 
+// Nexus merchant: a fixed buy catalog (gold prices) + sell any item for its value.
+const SHOP_CATALOG = [
+  { id: 'hppot', price: 30 },
+  { id: 'mppot', price: 30 },
+  { id: 'key_lesser', price: 120 },
+  { id: 'key_greater', price: 350 },
+  { id: 'pet_egg', price: 600 },
+];
+// gold an item is worth (sell price); buying costs more (see SHOP_CATALOG)
+function itemValue(id) {
+  const it = ITEMS[id];
+  if (!it) return 0;
+  if (it.dungeons) return 60 + it.tier * 40;     // keys
+  if (it.pet) return 200;                         // egg
+  if (it.type === 'consumable') return 8 + it.tier * 6;
+  return 15 + (it.tier || 0) * 25;                // gear scales with tier
+}
+
 let nextId = 1;
 const uid = () => nextId++;
 
@@ -204,6 +222,8 @@ class Game {
     this.seasonMod = seasonModifier(this.season);
     this.realms = [];
     this.ensureRealms();              // open the initial pool of realms + their portals
+    const ms = this.nexus.map.marketSpot;
+    this.spawnPortal(this.nexus, ms.x, ms.y, 'shop', 'Mercador', null, 1e15); // Nexus merchant
     setInterval(() => this.tick(), TICK);
     setInterval(() => this.autosave(), 30000);
   }
@@ -327,6 +347,7 @@ class Game {
       guildInviteId: null,
       pet: acc.pet || null,
       petLevel: acc.pet_level || 1, petXp: acc.pet_xp || 0, petAura: acc.pet_aura || 'heal',
+      gold: acc.gold || 0,
       vault: storage.getVault(acc.id),
       trade: null, tradeReqFrom: null,
       status: {},                       // statusType -> expiresAt (ms)
@@ -373,6 +394,43 @@ class Game {
       send(player.ws, { t: 'notice', text: `Conquista: ${ACHIEVEMENTS[code].name}!` });
       send(player.ws, { t: 'chat', from: '', text: `${player.name} desbloqueou a conquista "${ACHIEVEMENTS[code].name}".`, sys: 1 });
     }
+  }
+
+  // ------------------------------------------------ merchant / gold economy
+  persistGold(player) { if (player.acc) storage.setGold(player.acc.id, player.gold); }
+
+  openShop(player) {
+    if (player.instance !== this.nexus) return;
+    send(player.ws, {
+      t: 'shop', gold: player.gold,
+      buy: SHOP_CATALOG.map(c => ({ id: c.id, name: ITEMS[c.id].name, price: c.price })),
+    });
+  }
+
+  onShopBuy(player, itemId) {
+    if (player.instance !== this.nexus) return;
+    const entry = SHOP_CATALOG.find(c => c.id === itemId);
+    if (!entry) return;
+    if (player.gold < entry.price) return send(player.ws, { t: 'notice', text: 'Ouro insuficiente.' });
+    const slot = player.char.inventory.indexOf(null);
+    if (slot === -1) return send(player.ws, { t: 'notice', text: 'Inventario cheio!' });
+    player.gold -= entry.price;
+    player.char.inventory[slot] = itemId;
+    this.persistGold(player); this.persist(player);
+    this.openShop(player);
+  }
+
+  onShopSell(player, slot) {
+    if (player.instance !== this.nexus) return;
+    if (slot < 4 || slot > 11) return; // sell from inventory only
+    const itemId = this.getSlot(player, slot);
+    if (!itemId) return;
+    const value = itemValue(itemId);
+    this.setSlot(player, slot, null);
+    player.gold += value;
+    this.persistGold(player); this.persist(player);
+    send(player.ws, { t: 'notice', text: `Vendido por ${value} de ouro.` });
+    this.openShop(player);
   }
 
   // ------------------------------------------------ pets (level + aura)
@@ -565,6 +623,7 @@ class Game {
     if (player.instance) player.instance.players.delete(player.id);
     this.players.delete(player.id);
     this.persist(player);
+    this.persistGold(player);
     this.cleanupInstances();
   }
 
@@ -592,6 +651,8 @@ class Game {
       case 'useitem': this.onUseItem(player, msg); break;
       case 'feedpet': this.feedPet(player, msg.slot | 0); break;
       case 'petaura': this.setPetAura(player, String(msg.aura || '')); break;
+      case 'shopbuy': this.onShopBuy(player, String(msg.item || '')); break;
+      case 'shopsell': this.onShopSell(player, msg.slot | 0); break;
       case 'dropitem': this.onDropItem(player, msg); break;
       case 'portal': this.onPortal(player); break;
       case 'nexus': this.toNexus(player); break;
@@ -1126,6 +1187,7 @@ class Game {
         return this.enterInstance(player, realm);
       }
       if (portal.kind === 'nexus') return this.toNexus(player);
+      if (portal.kind === 'shop') return this.openShop(player);
       if (portal.kind === 'tutorial') return this.enterTutorial(player);
       if (portal.kind === 'dungeon') {
         let dest = portal.instanceId && this.instances.get(portal.instanceId);
@@ -1211,6 +1273,7 @@ class Game {
       const p = this.players.get(pid);
       if (p && !p.dead) {
         this.grantXp(p, d0.xp);
+        p.gold += Math.ceil(d0.xp / 4); // gold scales with enemy strength
         p.kills++;
         if (d0.god) p.godsKilled++;
         // account achievements for notable kills
@@ -1699,7 +1762,7 @@ class Game {
         self: {
           hp: Math.round(ch.hp), maxHp: effectiveMaxHp(p),
           mp: Math.round(ch.mp), maxMp: effectiveMaxMp(p),
-          xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame,
+          xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame, gold: p.gold,
           stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
           st: this.activeStatus(p), quest,
         },

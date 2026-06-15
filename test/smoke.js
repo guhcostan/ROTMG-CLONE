@@ -358,6 +358,28 @@ function petSanity() {
   check(g.petMult(player, 'mp') > 1 && g.petMult(player, 'hp') === 1, 'switching aura moves the bonus to MP');
 }
 
+// merchant economy: kills give gold; buying costs gold, selling pays it
+function shopSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const id = storage.createAccount('shop' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const player = {
+    id: -80, acc: storage.getAccountById(id), ws: { readyState: 3, send() {} }, instance: g.nexus,
+    gold: 500, char: { classId: 'wizard', stats: {}, equipment: [null, null, null, null], inventory: new Array(8).fill(null), hp: 100, mp: 100, level: 1, xp: 0, fame: 0 },
+  };
+  // buy a health potion (price 30)
+  g.onShopBuy(player, 'hppot');
+  check(player.gold === 470 && player.char.inventory.includes('hppot'), 'buying deducts gold and grants the item');
+  g.onShopBuy(player, 'pet_egg'); // 600 > 470 -> rejected
+  check(player.gold === 470, 'cannot buy without enough gold');
+  // sell the potion back
+  const slot = 4 + player.char.inventory.indexOf('hppot');
+  g.onShopSell(player, slot);
+  check(player.gold > 470 && !player.char.inventory.includes('hppot'), 'selling removes the item and pays gold');
+  check(storage.getAccountById(id).gold === player.gold, 'gold persists to the account');
+}
+
 // dungeon keys: using one in the Nexus opens a dungeon portal and consumes it
 function keySanity() {
   const { Game } = require('../server/game');
@@ -510,6 +532,7 @@ async function main() {
   cosmeticSanity();
   petSanity();
   keySanity();
+  shopSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);
