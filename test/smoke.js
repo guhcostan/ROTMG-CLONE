@@ -138,6 +138,7 @@ function raidSanity() {
   for (let i = 0; i < 4; i++) inst.players.set(-200 - i, { id: -200 - i, x: 0, y: 0, dead: false, ws: { readyState: 3, send() {} } });
   g.damageEnemy(inst, archon, 1, { id: -1, char: { fame: 0 }, kills: 0, godsKilled: 0, dead: false });
   check(archon.maxHp > baseHp && archon.scaled, 'raid boss HP scales up with the group');
+  for (let i = 0; i < 4; i++) inst.players.delete(-200 - i); // don't leave partial players in the ticking Game
 }
 
 // multi-realm: a pool of capped realms, one Nexus portal each, refilled on close
