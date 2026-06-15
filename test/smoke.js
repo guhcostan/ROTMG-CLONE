@@ -187,7 +187,7 @@ function coopXpSanity() {
   const { Game } = require('../server/game');
   const g = new Game();
   const mk = (id, x) => {
-    const p = { id, x, y: 10, dead: false, instance: g.realm,
+    const p = { id, x, y: 10, dead: false, instance: g.realm, invisUntil: 0, name: 'P' + id,
       char: { level: 1, xp: 0, fame: 0, classId: 'wizard', stats: { hp: 100, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 }, equipment: [], hp: 100, mp: 100 },
       kills: 0, godsKilled: 0, dungeons: 0, status: {}, ws: { readyState: 3, send() {} }, acc: null };
     g.players.set(id, p); g.realm.players.set(id, p); return p;
@@ -201,6 +201,16 @@ function coopXpSanity() {
   check(killer.char.xp > 0, 'killer earns XP');
   check(bystander.char.xp > 0, 'nearby ally earns XP without dealing damage');
   check(far.char.xp === 0, 'far-away player earns no XP');
+
+  // teleport-to-player: same instance only, with a cooldown
+  killer.x = 10; killer.y = 10; bystander.x = 80; bystander.y = 80;
+  g.teleportToPlayer(killer, bystander.name = 'Beta');
+  check(Math.round(killer.x) === 80 && Math.round(killer.y) === 80, 'teleport moves player to the target');
+  killer.x = 5; killer.y = 5;
+  g.teleportToPlayer(killer, 'Beta'); // still on cooldown -> ignored
+  check(killer.x === 5, 'teleport respects the cooldown');
+  check(typeof g.teleportToPlayer === 'function', 'teleport command exists');
+
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 

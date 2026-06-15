@@ -909,6 +909,8 @@ class Game {
       const names = [...player.instance.players.values()].map(p => p.name).join(', ');
       return this.sysMsg(player, `Online aqui: ${names}`);
     }
+    if (text.startsWith('/teleport ')) return this.teleportToPlayer(player, text.slice(10).trim());
+    if (text.startsWith('/tp ')) return this.teleportToPlayer(player, text.slice(4).trim());
     if (text.startsWith('/trade ')) {
       return this.onTrade(player, { cmd: 'request', name: text.slice(7).trim() });
     }
@@ -918,6 +920,21 @@ class Game {
   }
 
   sysMsg(player, text) { send(player.ws, { t: 'chat', from: '', text, sys: 1 }); }
+
+  // teleport to another player in the same instance (classic QoL); short cooldown
+  teleportToPlayer(player, name) {
+    name = String(name || '').trim();
+    if (!name) return this.sysMsg(player, 'Use: /teleport <nome do jogador>');
+    const now = Date.now();
+    if (now - (player.lastTeleport || 0) < 5000) return this.sysMsg(player, 'Aguarde para teleportar de novo.');
+    const target = [...player.instance.players.values()]
+      .find(p => p !== player && !p.dead && p.invisUntil <= now && p.name.toLowerCase() === name.toLowerCase());
+    if (!target) return this.sysMsg(player, `Jogador "${name}" nao esta nesta area.`);
+    player.lastTeleport = now;
+    player.x = target.x; player.y = target.y;
+    send(player.ws, { t: 'blink', x: player.x, y: player.y });
+    this.sysMsg(player, `Voce teleportou para ${target.name}.`);
+  }
 
   guildChat(player, text) {
     if (!player.guild) return this.sysMsg(player, 'Voce nao esta em uma guilda');
