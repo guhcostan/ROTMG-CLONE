@@ -124,6 +124,15 @@ function worldEventSanity() {
   check(g.realm.eventBossId === null, 'defeating invasion boss clears the event');
 }
 
+// discord feed: notable bosses produce a message, trash mobs do not
+function webhookSanity() {
+  const { notableKillMessage } = require('../server/game');
+  const { ENEMIES } = require('../server/data');
+  check(typeof notableKillMessage(ENEMIES.the_archon, 'Hero') === 'string', 'raid boss kill makes a feed message');
+  check(typeof notableKillMessage(ENEMIES.void_keeper, 'Hero') === 'string', 'god kill makes a feed message');
+  check(notableKillMessage(ENEMIES.goblin, 'Hero') === null, 'trash mob makes no feed message');
+}
+
 // speedrun: best (fastest) time per dungeon is kept; leaderboard sorts ascending
 function speedrunSanity() {
   const storage = require('../server/db');
@@ -579,6 +588,7 @@ async function main() {
   statusAndFameSanity();
   iceBiomeSanity();
   worldEventSanity();
+  webhookSanity();
   speedrunSanity();
   raidSanity();
   multiRealmSanity();

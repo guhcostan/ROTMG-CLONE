@@ -44,6 +44,15 @@ const SEASON_MODIFIERS = [
   { id: 'loot', name: 'Semana da Pilhagem', xpMul: 1, fameMul: 1, lootMul: 1.4 },
   { id: 'fame', name: 'Semana da Gloria', xpMul: 1, fameMul: 1.5, lootMul: 1 },
 ];
+// optional Discord community feed: a one-liner for notable kills (null = skip)
+function notableKillMessage(def, killer) {
+  if (def.raid) return `🏆 ${killer} derrotou o chefe de raid **${def.name}**!`;
+  if (def.type === 'the_tyrant' || def.name === 'O Tirano') return `👑 ${killer} venceu **${def.name}**, o chefe secreto final!`;
+  if (def.god) return `⚔️ ${killer} abateu o deus **${def.name}**.`;
+  if (def.event) return `🛡️ ${killer} repeliu a invasao de **${def.name}**.`;
+  return null;
+}
+
 const REALM_COUNT = 3;          // realms open at once
 const REALM_CAP = 20;           // max players per realm
 const REALM_GOD_TARGET = 25;    // gods slain before a realm closes
@@ -228,6 +237,7 @@ class Game {
     this.nexus = this.addInstance(new Instance('nexus', 'Nexus', generateNexus()));
     this.season = currentSeason();
     this.seasonMod = seasonModifier(this.season);
+    this.webhook = process.env.DISCORD_WEBHOOK || null; // optional community feed
     this.realms = [];
     this.ensureRealms();              // open the initial pool of realms + their portals
     const ms = this.nexus.map.marketSpot;
@@ -1066,6 +1076,13 @@ class Game {
 
   sysMsg(player, text) { send(player.ws, { t: 'chat', from: '', text, sys: 1 }); }
 
+  // post a line to the configured Discord webhook (no-op if unset)
+  postWebhook(text) {
+    if (!this.webhook || !text) return false;
+    try { fetch(this.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: text }) }).catch(() => {}); } catch { /* ignore */ }
+    return true;
+  }
+
   // ------------------------------------------------ party (ephemeral group)
   partyChat(player, text) {
     if (!player.party) return this.sysMsg(player, 'Voce nao esta em um grupo. /party convidar <nome>');
@@ -1412,6 +1429,12 @@ class Game {
         if (d0.god) this.progressBounty(p, 'kill_gods');
         if (d0.event) this.progressBounty(p, 'kill_event');
       }
+    }
+    // community feed: announce notable boss kills to Discord (if configured)
+    if (this.webhook) {
+      const killer = this.players.get([...recipients][0]);
+      const msg = notableKillMessage(d0, killer ? killer.name : 'Alguem');
+      if (msg) this.postWebhook(msg);
     }
     // loot
     const drops = rollLoot(enemy.def.loot, null, this.seasonMod.lootMul);
@@ -1935,4 +1958,4 @@ function effectiveMaxMp(player) {
 function round1(n) { return Math.round(n * 10) / 10; }
 function send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 
-module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED };
+module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage };
