@@ -40,6 +40,9 @@ function dataSanity() {
     if (!ENEMIES[d.boss]) bad.push(`${key}: boss ${d.boss}`);
     for (const m of d.minions) if (!ENEMIES[m]) bad.push(`${key}: minion ${m}`);
   }
+  for (const [iid, it] of Object.entries(ITEMS)) {
+    if (it.dungeons) for (const dk of it.dungeons) if (!DUNGEONS[dk]) bad.push(`${iid}: key dungeon ${dk}`);
+  }
   check(bad.length === 0, 'data refs consistent' + (bad.length ? ' -> ' + bad.join(', ') : ''));
 
   // every dungeon is reachable via a portal drop (except the two special finales)
@@ -323,6 +326,25 @@ function petSanity() {
   check(g.petMult(player, 'mp') > 1 && g.petMult(player, 'hp') === 1, 'switching aura moves the bonus to MP');
 }
 
+// dungeon keys: using one in the Nexus opens a dungeon portal and consumes it
+function keySanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const player = {
+    id: -70, acc: null, ws: { readyState: 3, send() {} }, instance: g.nexus, x: 20, y: 20,
+    char: { classId: 'wizard', stats: {}, equipment: [null, null, null, null], inventory: ['key_lesser', null, null, null, null, null, null, null], hp: 100, mp: 100 },
+  };
+  const before = g.nexus.portals.size;
+  g.onUseItem(player, { slot: 4 });
+  check(g.nexus.portals.size === before + 1, 'using a key opens a dungeon portal in the nexus');
+  check(player.char.inventory[0] === null, 'the key is consumed on use');
+  // a key cannot be used outside the Nexus
+  player.instance = g.realm;
+  player.char.inventory[1] = 'key_master';
+  g.onUseItem(player, { slot: 5 });
+  check(player.char.inventory[1] === 'key_master', 'key is not consumed when used outside the Nexus');
+}
+
 // balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
 function balanceSanity() {
   const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
@@ -454,6 +476,7 @@ async function main() {
   seasonSanity();
   cosmeticSanity();
   petSanity();
+  keySanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

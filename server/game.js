@@ -1036,6 +1036,13 @@ class Game {
       send(player.ws, { t: 'notice', text: 'O ovo chocou! Alimente o pet (ALT+1-8) para subir de nivel.' });
       this.sendPet(player);
     }
+    else if (item.dungeons) { // dungeon key: open a portal on demand in the Nexus
+      if (player.instance !== this.nexus) return send(player.ws, { t: 'notice', text: 'Use a chave no Nexus.' });
+      const key = item.dungeons[Math.floor(Math.random() * item.dungeons.length)];
+      const defn = DUNGEONS[key];
+      this.spawnPortal(this.nexus, player.x, player.y - 1, 'dungeon', defn.name, key);
+      send(player.ws, { t: 'notice', text: `Portal aberto: ${defn.name}. Aperte F para entrar.` });
+    }
     else if (item.stat) {
       const s = item.stat;
       const cap = cls.max[s];

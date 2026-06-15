@@ -260,6 +260,11 @@ const LEGENDARIES = ['staff_cataclysm', 'bow_tempest', 'sword_kings', 'wand_ecli
 // Pet egg (hatches into a follower pet; drops from bosses)
 def('pet_egg', { name: 'Mysterious Egg', type: 'consumable', tier: 5, pet: true });
 
+// Dungeon keys: used in the Nexus to open a portal on demand (no waiting for a random drop)
+def('key_lesser', { name: 'Chave Menor', type: 'consumable', tier: 2, dungeons: ['goblin_warren', 'spider_grotto', 'crystal_caverns', 'plague_warren'] });
+def('key_greater', { name: 'Chave Maior', type: 'consumable', tier: 4, dungeons: ['cursed_keep', 'sunken_tomb', 'storm_citadel', 'frozen_depths', 'sunbaked_ziggurat', 'drowned_grotto'] });
+def('key_master', { name: 'Chave Mestra', type: 'consumable', tier: 6, dungeons: ['infernal_depths', 'abyssal_rift', 'volcanic_forge'] });
+
 // Consumables
 def('hppot', { name: 'Health Potion', type: 'consumable', tier: 0, heal: 100 });
 def('mppot', { name: 'Magic Potion', type: 'consumable', tier: 0, restore: 100 });
@@ -413,7 +418,7 @@ enemy('flame_titan', {
   name: 'Flame Titan', sprite: 'flame_titan', hp: 2200, def: 18, xp: 180, speed: 3, size: 1.6,
   behavior: 'orbit', band: 4, god: true,
   shots: { dmg: 45, speed: 11, range: 8, count: 5, spread: 0.9, rate: 1.6, ring: 10, ringRate: 0.2 },
-  loot: [['weapon:3-4', 0.3], ['armor:3-4', 0.3], ['statpot', 0.5], ['portal:infernal_depths', 0.07], ['legendary', 0.015]],
+  loot: [['weapon:3-4', 0.3], ['armor:3-4', 0.3], ['statpot', 0.5], ['portal:infernal_depths', 0.07], ['legendary', 0.015], ['key_greater', 0.15]],
 });
 enemy('storm_seraph', {
   name: 'Storm Seraph', sprite: 'storm_seraph', hp: 1800, def: 15, xp: 170, speed: 5, size: 1.4,
@@ -451,7 +456,7 @@ enemy('goblin_king', {
   name: 'Goblin King', sprite: 'goblin_king', hp: 1500, def: 8, xp: 150, speed: 3.5, size: 1.8,
   behavior: 'boss', band: -1,
   shots: { dmg: 22, speed: 10, range: 7, count: 5, spread: 1.2, rate: 1.4, ring: 8, ringRate: 0.3 },
-  loot: [['weapon:1-3', 1], ['armor:1-3', 1], ['pot_def', 0.6], ['pot_spd', 0.5], ['ringhp1', 0.2], ['legendary', 0.02]],
+  loot: [['weapon:1-3', 1], ['armor:1-3', 1], ['pot_def', 0.6], ['pot_spd', 0.5], ['ringhp1', 0.2], ['legendary', 0.02], ['key_lesser', 0.25]],
 });
 enemy('spiderling', {
   name: 'Spiderling', sprite: 'spider', hp: 160, def: 3, xp: 18, speed: 5.5, size: 0.7,
@@ -475,7 +480,7 @@ enemy('keep_lord', {
   name: 'Lord of the Cursed Keep', sprite: 'keep_lord', hp: 6000, def: 18, xp: 500, speed: 3.5, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'keep_knight', max: 3, rate: 0.1 },
   shots: { dmg: 40, speed: 11, range: 8, count: 5, spread: 1, rate: 1.8, ring: 16, ringRate: 0.3 },
-  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_vit', 0.8], ['pot_wis', 0.8], ['statpot', 1], ['ringall0', 0.25], ['legendary', 0.05], ['pet_egg', 0.08]],
+  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_vit', 0.8], ['pot_wis', 0.8], ['statpot', 1], ['ringall0', 0.25], ['legendary', 0.05], ['pet_egg', 0.08], ['key_greater', 0.25]],
 });
 enemy('imp', {
   name: 'Infernal Imp', sprite: 'imp', hp: 700, def: 14, xp: 70, speed: 5.5, size: 0.9,
@@ -488,7 +493,7 @@ enemy('inferno_lord', {
   behavior: 'boss', band: -1, spawns: { type: 'imp', max: 4, rate: 0.12 },
   enrage: { hpPct: 0.4, rateMul: 1.4, dmgMul: 1.2 },
   shots: { dmg: 60, speed: 12, range: 9, count: 7, spread: 1.4, rate: 2, ring: 20, ringRate: 0.4 },
-  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.7], ['pot_mana', 0.7], ['statpot', 1], ['ringall0', 0.4], ['legendary', 0.08], ['pet_egg', 0.15]],
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['pot_life', 0.7], ['pot_mana', 0.7], ['statpot', 1], ['ringall0', 0.4], ['legendary', 0.08], ['pet_egg', 0.15], ['key_master', 0.3]],
 });
 
 enemy('mummy', {

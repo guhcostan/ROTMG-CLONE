@@ -763,6 +763,15 @@ ooRRyyyyRRoo
 ...o.RR.o...
 ...o....o...`,
 
+  key: `
+...yy...
+..yccy..
+..yccy..
+...yy...
+...y....
+...yy...
+...y.y..
+...yyy..`,
   training_dummy: `
 ....ss....
 ...sSSs...
@@ -1140,6 +1149,7 @@ const Sprites = (() => {
       if (id === 'mppot') return get('potion_blue');
       if (id === 'pot_life' || id === 'pot_mana') return get('potion_life');
       if (id === 'pet_egg') return get('egg');
+      if (id.startsWith('key_')) return get('key');
       return get('potion_stat');
     }
     return null;
