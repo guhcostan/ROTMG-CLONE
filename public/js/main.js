@@ -179,11 +179,14 @@
       const colorSel = document.createElement('select');
       colorSel.innerHTML = '<option value="">(cor padrao)</option>' +
         c.colors.map(o => `<option value="${o.color}"${c.current.color === o.color ? ' selected' : ''}>${o.name}</option>`).join('');
+      const skinSel = document.createElement('select');
+      skinSel.innerHTML = '<option value="">(sem skin)</option>' +
+        (c.skins || []).map(o => `<option value="${o.color}"${c.current.skin === o.color ? ' selected' : ''}>${o.name}</option>`).join('');
       const save = async () => {
-        try { await Net.api('POST', '/api/cosmetics', { title: titleSel.value || null, color: colorSel.value || null }); } catch {}
+        try { await Net.api('POST', '/api/cosmetics', { title: titleSel.value || null, color: colorSel.value || null, skin: skinSel.value || null }); } catch {}
       };
-      titleSel.onchange = save; colorSel.onchange = save;
-      el.append('Titulo: ', titleSel, document.createElement('br'), 'Cor: ', colorSel);
+      titleSel.onchange = save; colorSel.onchange = save; skinSel.onchange = save;
+      el.append('Titulo: ', titleSel, document.createElement('br'), 'Cor: ', colorSel, document.createElement('br'), 'Skin: ', skinSel);
     } catch { el.textContent = 'Cosmeticos indisponiveis.'; }
   }
 

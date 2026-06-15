@@ -93,6 +93,7 @@ try { db.exec('ALTER TABLE accounts ADD COLUMN pet_level INTEGER NOT NULL DEFAUL
 try { db.exec('ALTER TABLE accounts ADD COLUMN pet_xp INTEGER NOT NULL DEFAULT 0'); } catch { /* column already present */ }
 try { db.exec("ALTER TABLE accounts ADD COLUMN pet_aura TEXT NOT NULL DEFAULT 'heal'"); } catch { /* column already present */ }
 try { db.exec('ALTER TABLE accounts ADD COLUMN gold INTEGER NOT NULL DEFAULT 0'); } catch { /* column already present */ }
+try { db.exec('ALTER TABLE accounts ADD COLUMN skin TEXT'); } catch { /* column already present */ }
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS bounties (
@@ -209,7 +210,7 @@ const q = {
   setDaily: db.prepare(`INSERT INTO daily (account_id, last_day, streak) VALUES (?,?,?)
     ON CONFLICT(account_id) DO UPDATE SET last_day = excluded.last_day, streak = excluded.streak`),
   setTutorial: db.prepare('UPDATE accounts SET tutorial_done = 1 WHERE id = ?'),
-  setCosmetic: db.prepare('UPDATE accounts SET title = ?, name_color = ? WHERE id = ?'),
+  setCosmetic: db.prepare('UPDATE accounts SET title = ?, name_color = ?, skin = ? WHERE id = ?'),
   bestFame: db.prepare(`SELECT MAX(f) AS best FROM (
     SELECT fame f FROM characters WHERE account_id = @id
     UNION ALL SELECT fame FROM graveyard WHERE account_id = @id)`),
@@ -342,7 +343,7 @@ const storage = {
   setTutorialDone: (accountId) => q.setTutorial.run(accountId),
 
   // cosmetics: chosen title + name color, and the account's best fame ever
-  setCosmetic: (accountId, title, color) => q.setCosmetic.run(title, color, accountId),
+  setCosmetic: (accountId, title, color, skin) => q.setCosmetic.run(title, color, skin, accountId),
   bestFame: (accountId) => q.bestFame.get({ id: accountId }).best || 0,
 
   // daily bounties (account-wide, reset by day)

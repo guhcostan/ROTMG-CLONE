@@ -73,11 +73,11 @@ const GameClient = (() => {
     for (const e of msg.e) {
       const kind = e[0];
       if (kind === 'p') {
-        const [, id, name, classId, x, y, hp, maxHp, level, invis, guild, pet, title, nameColor] = e;
+        const [, id, name, classId, x, y, hp, maxHp, level, invis, guild, pet, title, nameColor, skin] = e;
         seen.add(id);
         let ent = entities.get(id);
         if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
-        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis, guild, pet, title, nameColor });
+        Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis, guild, pet, title, nameColor, skin });
         if (id === myId) {
           // server correction only when badly out of sync
           if (Math.hypot(me.x - x, me.y - y) > 3) { me.x = x; me.y = y; }
@@ -318,7 +318,13 @@ const GameClient = (() => {
         drawHpBar(px, py, ent.hp, ent.maxHp, spriteScale(ent.type));
       } else if (ent.kind === 'p') {
         ctx.globalAlpha = ent.invis ? 0.35 : 1;
-        drawSprite(ent.classId, px, py, TILE * 0.95);
+        const skinned = ent.skin && Sprites.tinted(ent.classId, ent.skin);
+        if (skinned) {
+          const ratio = skinned.height / skinned.width, size = TILE * 0.95;
+          ctx.drawImage(skinned, px - size / 2, py - (size * ratio) / 2, size, size * ratio);
+        } else {
+          drawSprite(ent.classId, px, py, TILE * 0.95);
+        }
         ctx.globalAlpha = 1;
         if (ent.pet) {
           const t = performance.now() / 600 + ent.id;

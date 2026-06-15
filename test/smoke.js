@@ -403,6 +403,12 @@ function cosmeticSanity() {
   check(c.titles.includes(title), 'earning an achievement unlocks its title');
   check(g.setCosmetic(id, title, '#a860d8') === true, 'can pick an unlocked title + color');
   check(g.cosmeticsFor(id).current.color === '#a860d8', 'chosen cosmetic persists');
+  // skins unlock by best fame (2000 -> Rubi/Esmeralda/Safira)
+  const skins = c.skins.map(s => s.color);
+  check(c.skins.length >= 3, 'best fame unlocks earnable skins');
+  check(g.setCosmetic(id, title, '#a860d8', skins[0]) === true, 'can equip an unlocked skin');
+  check(g.cosmeticsFor(id).current.skin === skins[0], 'chosen skin persists');
+  check(g.setCosmetic(id, null, null, '#000000') === false, 'cannot equip a locked skin');
 }
 
 // pets: feeding consumables levels the pet; aura choice scales regen

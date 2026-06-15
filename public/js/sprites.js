@@ -1176,5 +1176,23 @@ const Sprites = (() => {
     }
     return null;
   }
-  return { get, forItem };
+  // a recolored copy of a sprite (player skins), cached per name+color
+  const tintCache = {};
+  function tinted(name, color) {
+    const key = name + color;
+    if (tintCache[key]) return tintCache[key];
+    const base = get(name);
+    if (!base) return null;
+    const cv = document.createElement('canvas');
+    cv.width = base.width; cv.height = base.height;
+    const c = cv.getContext('2d');
+    c.drawImage(base, 0, 0);
+    c.globalCompositeOperation = 'source-atop'; // tint only the drawn pixels
+    c.globalAlpha = 0.45;
+    c.fillStyle = color;
+    c.fillRect(0, 0, cv.width, cv.height);
+    tintCache[key] = cv;
+    return cv;
+  }
+  return { get, forItem, tinted };
 })();

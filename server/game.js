@@ -101,6 +101,14 @@ function itemValue(id) {
   return 15 + (it.tier || 0) * 25;                // gear scales with tier
 }
 
+// earnable character skins: a tint over the class sprite, unlocked by best fame
+const SKIN_TINTS = [
+  { min: 200, color: '#ff6060', name: 'Rubi' },
+  { min: 800, color: '#60ff90', name: 'Esmeralda' },
+  { min: 2000, color: '#60a0ff', name: 'Safira' },
+  { min: 5000, color: '#f0c040', name: 'Ouro' },
+];
+
 let nextId = 1;
 const uid = () => nextId++;
 
@@ -372,7 +380,7 @@ class Game {
       status: {},                       // statusType -> expiresAt (ms)
       kills: 0, godsKilled: 0, dungeons: 0, // fame-bonus counters (per life)
       bounties: this.getDailyBounties(acc.id),
-      title: acc.title || null, nameColor: acc.name_color || null,
+      title: acc.title || null, nameColor: acc.name_color || null, skin: acc.skin || null,
     };
     this.players.set(player.id, player);
     // first-ever login on this account starts in the tutorial; everyone else in the Nexus
@@ -503,22 +511,24 @@ class Game {
   cosmeticsFor(accountId) {
     const best = storage.bestFame(accountId);
     const colors = COLOR_TIERS.filter(t => best >= t.min).map(t => ({ color: t.color, name: t.name }));
+    const skins = SKIN_TINTS.filter(t => best >= t.min).map(t => ({ color: t.color, name: t.name }));
     const earned = new Set(storage.listAchievements(accountId));
     const titles = ['Aventureiro', ...Object.entries(ACHIEVEMENTS).filter(([c]) => earned.has(c)).map(([, a]) => a.name)];
     const acc = storage.getAccountById(accountId);
-    return { titles, colors, current: { title: acc.title || null, color: acc.name_color || null } };
+    return { titles, colors, skins, current: { title: acc.title || null, color: acc.name_color || null, skin: acc.skin || null } };
   }
 
-  // validate ownership, then save the chosen title + color
-  setCosmetic(accountId, title, color) {
-    const { titles, colors } = this.cosmeticsFor(accountId);
+  // validate ownership, then save the chosen title + color + skin tint
+  setCosmetic(accountId, title, color, skin) {
+    const { titles, colors, skins } = this.cosmeticsFor(accountId);
     const okTitle = title == null || titles.includes(title);
     const okColor = color == null || colors.some(c => c.color === color);
-    if (!okTitle || !okColor) return false;
-    storage.setCosmetic(accountId, title || null, color || null);
+    const okSkin = skin == null || skins.some(s => s.color === skin);
+    if (!okTitle || !okColor || !okSkin) return false;
+    storage.setCosmetic(accountId, title || null, color || null, skin || null);
     for (const p of this.players.values()) if (p.acc && p.acc.id === accountId) {
-      p.acc.title = title || null; p.acc.name_color = color || null;
-      p.title = title || null; p.nameColor = color || null;
+      p.acc.title = title || null; p.acc.name_color = color || null; p.acc.skin = skin || null;
+      p.title = title || null; p.nameColor = color || null; p.skin = skin || null;
     }
     return true;
   }
@@ -1889,7 +1899,7 @@ class Game {
           Math.round(o.char.hp), effectiveMaxHp(o), o.char.level,
           o.invisUntil > now ? 1 : 0,
           o.guild ? o.guild.name : '', o.pet || '',
-          o.title || '', o.nameColor || '']);
+          o.title || '', o.nameColor || '', o.skin || '']);
       }
       // account vault chest in the nexus (contents are per-player)
       if (inst.kind === 'nexus' && inst.map.vaultSpot) {

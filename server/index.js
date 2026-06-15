@@ -84,8 +84,8 @@ const server = http.createServer(async (req, res) => {
       if (!acc) return json(res, 401, { error: 'Sessao invalida' });
       if (req.method === 'GET') return json(res, 200, game.cosmeticsFor(acc.id));
       if (req.method === 'POST') {
-        const { title, color } = await readBody(req);
-        const ok = game.setCosmetic(acc.id, title || null, color || null);
+        const { title, color, skin } = await readBody(req);
+        const ok = game.setCosmetic(acc.id, title || null, color || null, skin || null);
         return json(res, ok ? 200 : 400, ok ? game.cosmeticsFor(acc.id) : { error: 'Cosmetico nao desbloqueado' });
       }
     }
