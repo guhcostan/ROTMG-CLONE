@@ -107,6 +107,7 @@
     }
 
     loadSeason();
+    loadPass();
     loadCosmetics();
 
     const bl = $('bounties-list');
@@ -182,6 +183,41 @@
       titleSel.onchange = save; colorSel.onchange = save;
       el.append('Titulo: ', titleSel, document.createElement('br'), 'Cor: ', colorSel);
     } catch { el.textContent = 'Cosmeticos indisponiveis.'; }
+  }
+
+  async function loadPass() {
+    const el = $('pass-track');
+    if (!el) return;
+    try {
+      const info = await renderPass(el);
+      return info;
+    } catch { el.textContent = 'Passe indisponivel.'; }
+  }
+  async function renderPass(el) {
+    const info = await Net.api('GET', '/api/pass');
+    el.innerHTML = '';
+    const head = document.createElement('div');
+    head.style.color = '#f0c040';
+    head.textContent = `Fama da temporada: ${info.fame} (${info.perTier} por tier)`;
+    el.appendChild(head);
+    for (const t of info.tiers) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:2px 0';
+      const txt = document.createElement('span');
+      txt.style.flex = '1';
+      txt.style.color = t.unlocked ? '#ccc' : '#666';
+      txt.textContent = `Tier ${t.tier} (${t.need}): ${t.reward}`;
+      row.appendChild(txt);
+      if (t.claimed) { const s = document.createElement('span'); s.style.color = '#50c050'; s.textContent = 'coletado'; row.appendChild(s); }
+      else if (t.unlocked) {
+        const b = document.createElement('button');
+        b.className = 'btn small'; b.textContent = 'Coletar';
+        b.onclick = async () => { try { await Net.api('POST', '/api/pass', { tier: t.tier }); renderPass(el); } catch (e) { alert(e.message); } };
+        row.appendChild(b);
+      }
+      el.appendChild(row);
+    }
+    return info;
   }
 
   async function loadSeason() {

@@ -47,6 +47,14 @@ const SEASON_MODIFIERS = [
 const REALM_COUNT = 3;          // realms open at once
 const REALM_CAP = 20;           // max players per realm
 const REALM_GOD_TARGET = 25;    // gods slain before a realm closes
+// free season pass: a 10-tier reward track, one tier per 100 season fame
+const PASS_FAME_PER_TIER = 100;
+const PASS_REWARDS = [
+  { gold: 50 }, { items: ['hppot', 'mppot'] }, { gold: 100 }, { items: ['statpot'] },
+  { gold: 150 }, { items: ['key_lesser'] }, { gold: 250 }, { items: ['statpot'] },
+  { items: ['key_greater'] }, { items: ['pet_egg'] },
+];
+const passRewardLabel = (r) => r.gold ? `${r.gold} de ouro` : r.items.map(i => ITEMS[i] ? ITEMS[i].name : i).join(' + ');
 const currentSeason = () => Math.floor(Date.now() / SEASON_MS);
 const seasonModifier = (season) => SEASON_MODIFIERS[((season % SEASON_MODIFIERS.length) + SEASON_MODIFIERS.length) % SEASON_MODIFIERS.length];
 
@@ -503,6 +511,41 @@ class Game {
       p.title = title || null; p.nameColor = color || null;
     }
     return true;
+  }
+
+  // free season pass progress + claimable rewards for an account
+  passInfo(accountId) {
+    const season = this.season;
+    const fame = storage.seasonFameOf(accountId, season);
+    const claimed = new Set(storage.claimedPassTiers(accountId, season));
+    const tiers = PASS_REWARDS.map((r, i) => {
+      const tier = i + 1, need = tier * PASS_FAME_PER_TIER;
+      return { tier, need, reward: r.gold ? `${r.gold} de ouro` : r.items.map(it => it === 'statpot' ? 'Pocao de atributo' : (ITEMS[it] ? ITEMS[it].name : it)).join(' + '),
+        unlocked: fame >= need, claimed: claimed.has(tier) };
+    });
+    return { season, fame, perTier: PASS_FAME_PER_TIER, tiers };
+  }
+
+  // claim a pass tier at the storage level (works whether or not the player is
+  // online); an online player picks up the new vault/gold on their next join
+  claimPass(accountId, tier) {
+    tier = tier | 0;
+    if (tier < 1 || tier > PASS_REWARDS.length) return { error: 'Tier invalido' };
+    const season = this.season;
+    if (storage.seasonFameOf(accountId, season) < tier * PASS_FAME_PER_TIER) return { error: 'Fama insuficiente' };
+    if (!storage.claimPassTier(accountId, season, tier)) return { error: 'Ja coletado' };
+    const r = PASS_REWARDS[tier - 1];
+    const acc = storage.getAccountById(accountId);
+    if (r.gold) storage.setGold(accountId, (acc.gold || 0) + r.gold);
+    else {
+      const vault = storage.getVault(accountId);
+      for (const it of r.items) {
+        const item = it === 'statpot' ? STAT_POTS[Math.floor(Math.random() * STAT_POTS.length)] : it;
+        const i = vault.indexOf(null); if (i !== -1) vault[i] = item;
+      }
+      storage.setVault(accountId, vault);
+    }
+    return { ok: true, info: this.passInfo(accountId) };
   }
 
   // current season: active modifier, this season's leaderboard, and a hall of fame

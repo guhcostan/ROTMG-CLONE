@@ -107,6 +107,12 @@ CREATE TABLE IF NOT EXISTS season_scores (
   PRIMARY KEY (account_id, season)
 );
 CREATE INDEX IF NOT EXISTS idx_season ON season_scores(season, fame DESC);
+CREATE TABLE IF NOT EXISTS pass_claims (
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  season INTEGER NOT NULL,
+  tier INTEGER NOT NULL,
+  PRIMARY KEY (account_id, season, tier)
+);
 `);
 
 // ---------------------------------------------------------------- migration
@@ -210,6 +216,9 @@ const q = {
   seasonWinner: db.prepare(`SELECT a.username, s.fame FROM season_scores s JOIN accounts a ON a.id = s.account_id
     WHERE s.season = ? ORDER BY s.fame DESC LIMIT 1`),
   pastSeasons: db.prepare('SELECT DISTINCT season FROM season_scores WHERE season < ? ORDER BY season DESC LIMIT 8'),
+  seasonFameOf: db.prepare('SELECT fame FROM season_scores WHERE account_id = ? AND season = ?'),
+  claimedTiers: db.prepare('SELECT tier FROM pass_claims WHERE account_id = ? AND season = ?'),
+  claimTier: db.prepare('INSERT OR IGNORE INTO pass_claims (account_id, season, tier) VALUES (?,?,?)'),
 };
 
 function rowToChar(row) {
@@ -333,6 +342,9 @@ const storage = {
   seasonLeaderboard: (season) => q.seasonTop.all(season),
   seasonWinner: (season) => q.seasonWinner.get(season),
   pastSeasons: (currentSeason) => q.pastSeasons.all(currentSeason).map(r => r.season),
+  seasonFameOf: (accountId, season) => { const r = q.seasonFameOf.get(accountId, season); return r ? r.fame : 0; },
+  claimedPassTiers: (accountId, season) => q.claimedTiers.all(accountId, season).map(r => r.tier),
+  claimPassTier: (accountId, season, tier) => q.claimTier.run(accountId, season, tier).changes > 0,
 
   // achievements (account-wide, permanent)
   earnAchievement: (accountId, code) => q.earnAch.run(accountId, code, Date.now()).changes > 0,

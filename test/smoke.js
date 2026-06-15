@@ -331,6 +331,22 @@ function seasonSanity() {
   check(!!row, 'season leaderboard records the account best fame');
 }
 
+// free season pass: tiers unlock by season fame; claiming is once per tier
+function passSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const id = storage.createAccount('pass' + Math.floor(Math.random() * 1e9), 's', 'h');
+  storage.recordSeasonFame(id, g.season, 250); // unlocks tiers 1 and 2 (100, 200)
+  let info = g.passInfo(id);
+  check(info.tiers[0].unlocked && info.tiers[1].unlocked && !info.tiers[2].unlocked, 'tiers unlock by season fame');
+  const before = storage.getAccountById(id).gold;
+  const r = g.claimPass(id, 1); // tier 1 = 50 gold
+  check(r.ok && storage.getAccountById(id).gold === before + 50, 'claiming a tier grants its reward');
+  check(g.claimPass(id, 1).error, 'a tier cannot be claimed twice');
+  check(g.claimPass(id, 3).error, 'a locked tier cannot be claimed');
+}
+
 // cosmetics: name colors unlock by best fame; titles by achievement; ownership enforced
 function cosmeticSanity() {
   const { Game, ACHIEVEMENTS } = require('../server/game');
@@ -545,6 +561,7 @@ async function main() {
   bountySanity();
   partySanity();
   seasonSanity();
+  passSanity();
   cosmeticSanity();
   petSanity();
   keySanity();

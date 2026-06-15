@@ -65,6 +65,16 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/season' && req.method === 'GET') {
       return json(res, 200, game.seasonInfo());
     }
+    if (p === '/api/pass') {
+      const acc = auth.authed(req.headers['x-token']);
+      if (!acc) return json(res, 401, { error: 'Sessao invalida' });
+      if (req.method === 'GET') return json(res, 200, game.passInfo(acc.id));
+      if (req.method === 'POST') {
+        const { tier } = await readBody(req);
+        const r = game.claimPass(acc.id, tier);
+        return json(res, r.error ? 400 : 200, r.error ? r : r.info);
+      }
+    }
     if (p === '/api/cosmetics') {
       const acc = auth.authed(req.headers['x-token']);
       if (!acc) return json(res, 401, { error: 'Sessao invalida' });
