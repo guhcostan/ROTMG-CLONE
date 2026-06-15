@@ -653,6 +653,7 @@ class Game {
       case 'petaura': this.setPetAura(player, String(msg.aura || '')); break;
       case 'shopbuy': this.onShopBuy(player, String(msg.item || '')); break;
       case 'shopsell': this.onShopSell(player, msg.slot | 0); break;
+      case 'teleport': this.teleportToPlayer(player, String(msg.name || '')); break;
       case 'dropitem': this.onDropItem(player, msg); break;
       case 'portal': this.onPortal(player); break;
       case 'nexus': this.toNexus(player); break;
@@ -1765,6 +1766,7 @@ class Game {
           xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame, gold: p.gold,
           stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
           st: this.activeStatus(p), quest,
+          mates: [...inst.players.values()].filter(o => o !== p && o.invisUntil <= now).slice(0, 30).map(o => o.name),
         },
       });
     }

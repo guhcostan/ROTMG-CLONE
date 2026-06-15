@@ -207,6 +207,7 @@ const UI = (() => {
   function update(self) {
     currentSelf = self;
     if (self.gold !== undefined) $('hud-gold').textContent = `Ouro: ${self.gold}`;
+    renderMates(self.mates);
     if (shopOpen) renderShopSell();
     setBar('bar-hp', 'txt-hp', self.hp, self.maxHp);
     setBar('bar-mp', 'txt-mp', self.mp, self.maxMp);
@@ -325,6 +326,23 @@ const UI = (() => {
       row.appendChild(b);
     }
     el.appendChild(row);
+  }
+
+  function renderMates(mates) {
+    const label = $('mates-label'), el = $('hud-mates');
+    if (!el) return;
+    mates = mates || [];
+    if (!mates.length) { label.style.display = 'none'; el.innerHTML = ''; return; }
+    label.style.display = '';
+    el.innerHTML = '';
+    for (const name of mates) {
+      const b = document.createElement('div');
+      b.className = 'mate';
+      b.textContent = name;
+      b.title = 'Clique para teleportar ate ' + name;
+      b.onclick = () => Net.send({ t: 'teleport', name });
+      el.appendChild(b);
+    }
   }
 
   let shopOpen = false;
