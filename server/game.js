@@ -1324,6 +1324,8 @@ class Game {
     const map = generateDungeon(defn, (Math.random() * 1e9) | 0);
     const inst = this.addInstance(new Instance('dungeon', defn.name, map));
     inst.dungeonDef = defn;
+    inst.dungeonKey = key;
+    inst.startedAt = Date.now(); // for speedrun timing
     // minions across rooms (skip entry room)
     const rooms = map.rooms.slice(1, -1);
     for (let i = 0; i < defn.minionCount && rooms.length; i++) {
@@ -1444,6 +1446,17 @@ class Game {
       this.spawnPortal(inst, enemy.x, enemy.y, 'nexus', 'Portal para o Nexus', null, 10 * 60 * 1000);
       inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi derrotado!` });
       inst.broadcast({ t: 'chat', from: '', text: `A masmorra ${inst.name} foi concluida!`, sys: 1 });
+      // speedrun timing: record clear time per player + flag personal bests
+      if (inst.startedAt && inst.dungeonKey) {
+        const ms = Date.now() - inst.startedAt;
+        const secs = (ms / 1000).toFixed(1);
+        for (const p of inst.players.values()) {
+          if (p.dead || !p.acc) continue;
+          const prev = storage.bestDungeonTime(p.acc.id, inst.dungeonKey);
+          storage.recordDungeonTime(p.acc.id, inst.dungeonKey, ms);
+          this.sysMsg(p, prev !== null && ms >= prev ? `Tempo: ${secs}s (recorde pessoal: ${(prev / 1000).toFixed(1)}s)` : `Novo recorde pessoal: ${secs}s!`);
+        }
+      }
       // the Mad King's defeat opens the secret path to the Tyrant's Sanctum
       if (enemy.type === 'mad_king') {
         this.spawnPortal(inst, enemy.x + 2, enemy.y, 'dungeon', DUNGEONS.tyrant_sanctum.name, 'tyrant_sanctum', 5 * 60 * 1000);

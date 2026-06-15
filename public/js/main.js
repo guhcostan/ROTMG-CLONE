@@ -109,6 +109,7 @@
 
     loadSeason();
     loadPass();
+    loadSpeedrun();
     loadCosmetics();
 
     const bl = $('bounties-list');
@@ -184,6 +185,29 @@
       titleSel.onchange = save; colorSel.onchange = save;
       el.append('Titulo: ', titleSel, document.createElement('br'), 'Cor: ', colorSel);
     } catch { el.textContent = 'Cosmeticos indisponiveis.'; }
+  }
+
+  const DUNGEON_NAMES = {
+    goblin_warren: 'Goblin Warren', spider_grotto: 'Spider Grotto', cursed_keep: 'Cursed Keep',
+    infernal_depths: 'Infernal Depths', sunken_tomb: 'Sunken Tomb', abyssal_rift: 'Abyssal Rift',
+    frozen_depths: 'Frozen Depths', crystal_caverns: 'Crystal Caverns', storm_citadel: 'Storm Citadel',
+    plague_warren: 'Plague Warren', sunbaked_ziggurat: 'Sunbaked Ziggurat', drowned_grotto: 'Drowned Grotto',
+    volcanic_forge: 'Volcanic Forge', celestial_sanctum: 'Celestial Sanctum', tyrant_sanctum: 'Santuario do Tirano',
+  };
+  function loadSpeedrun() {
+    const pick = $('speedrun-pick'), list = $('speedrun-list');
+    if (!pick) return;
+    pick.innerHTML = Object.entries(DUNGEON_NAMES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+    const render = async () => {
+      try {
+        const r = await Net.api('GET', '/api/speedrun?dungeon=' + pick.value);
+        list.innerHTML = r.times.length
+          ? r.times.map((t, i) => `${i + 1}. ${t.username} — ${(t.ms / 1000).toFixed(1)}s`).join('<br>')
+          : '<span style="color:#888">Sem tempos ainda.</span>';
+      } catch { list.textContent = 'Indisponivel.'; }
+    };
+    pick.onchange = render;
+    render();
   }
 
   async function loadPass() {

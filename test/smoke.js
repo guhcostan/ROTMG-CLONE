@@ -124,6 +124,18 @@ function worldEventSanity() {
   check(g.realm.eventBossId === null, 'defeating invasion boss clears the event');
 }
 
+// speedrun: best (fastest) time per dungeon is kept; leaderboard sorts ascending
+function speedrunSanity() {
+  const storage = require('../server/db');
+  const a = storage.createAccount('spd' + Math.floor(Math.random() * 1e9), 's', 'h');
+  storage.recordDungeonTime(a, 'goblin_warren', 9000);
+  storage.recordDungeonTime(a, 'goblin_warren', 12000); // slower -> ignored
+  storage.recordDungeonTime(a, 'goblin_warren', 7000);  // faster -> kept
+  check(storage.bestDungeonTime(a, 'goblin_warren') === 7000, 'fastest dungeon time is kept');
+  const top = storage.topDungeonTimes('goblin_warren');
+  check(top.length >= 1 && top[0].ms <= 7000, 'speedrun leaderboard sorts by fastest');
+}
+
 // endgame raid: a mid-boss + a raid boss whose HP scales with the group
 function raidSanity() {
   const { Game } = require('../server/game');
@@ -567,6 +579,7 @@ async function main() {
   statusAndFameSanity();
   iceBiomeSanity();
   worldEventSanity();
+  speedrunSanity();
   raidSanity();
   multiRealmSanity();
   multiPhaseSanity();

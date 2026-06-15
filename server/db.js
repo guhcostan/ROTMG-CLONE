@@ -113,6 +113,13 @@ CREATE TABLE IF NOT EXISTS pass_claims (
   tier INTEGER NOT NULL,
   PRIMARY KEY (account_id, season, tier)
 );
+CREATE TABLE IF NOT EXISTS dungeon_times (
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  dungeon TEXT NOT NULL,
+  ms INTEGER NOT NULL,
+  PRIMARY KEY (account_id, dungeon)
+);
+CREATE INDEX IF NOT EXISTS idx_dtimes ON dungeon_times(dungeon, ms ASC);
 `);
 
 // ---------------------------------------------------------------- migration
@@ -219,6 +226,11 @@ const q = {
   seasonFameOf: db.prepare('SELECT fame FROM season_scores WHERE account_id = ? AND season = ?'),
   claimedTiers: db.prepare('SELECT tier FROM pass_claims WHERE account_id = ? AND season = ?'),
   claimTier: db.prepare('INSERT OR IGNORE INTO pass_claims (account_id, season, tier) VALUES (?,?,?)'),
+  recordTime: db.prepare(`INSERT INTO dungeon_times (account_id, dungeon, ms) VALUES (?,?,?)
+    ON CONFLICT(account_id, dungeon) DO UPDATE SET ms = MIN(ms, excluded.ms)`),
+  bestTime: db.prepare('SELECT ms FROM dungeon_times WHERE account_id = ? AND dungeon = ?'),
+  topTimes: db.prepare(`SELECT a.username, t.ms FROM dungeon_times t JOIN accounts a ON a.id = t.account_id
+    WHERE t.dungeon = ? ORDER BY t.ms ASC LIMIT 10`),
 };
 
 function rowToChar(row) {
@@ -345,6 +357,9 @@ const storage = {
   seasonFameOf: (accountId, season) => { const r = q.seasonFameOf.get(accountId, season); return r ? r.fame : 0; },
   claimedPassTiers: (accountId, season) => q.claimedTiers.all(accountId, season).map(r => r.tier),
   claimPassTier: (accountId, season, tier) => q.claimTier.run(accountId, season, tier).changes > 0,
+  recordDungeonTime: (accountId, dungeon, ms) => q.recordTime.run(accountId, dungeon, ms),
+  bestDungeonTime: (accountId, dungeon) => { const r = q.bestTime.get(accountId, dungeon); return r ? r.ms : null; },
+  topDungeonTimes: (dungeon) => q.topTimes.all(dungeon),
 
   // achievements (account-wide, permanent)
   earnAchievement: (accountId, code) => q.earnAch.run(accountId, code, Date.now()).changes > 0,

@@ -65,6 +65,10 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/season' && req.method === 'GET') {
       return json(res, 200, game.seasonInfo());
     }
+    if (p === '/api/speedrun' && req.method === 'GET') {
+      const dungeon = url.searchParams.get('dungeon') || '';
+      return json(res, 200, { dungeon, times: storage.topDungeonTimes(dungeon) });
+    }
     if (p === '/api/pass') {
       const acc = auth.authed(req.headers['x-token']);
       if (!acc) return json(res, 401, { error: 'Sessao invalida' });
