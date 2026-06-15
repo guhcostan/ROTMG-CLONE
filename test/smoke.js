@@ -175,6 +175,12 @@ function multiRealmSanity() {
   g.closeRealm(first);
   check(!g.realms.includes(first) && g.realms.length === 3, 'closing a realm opens a replacement (pool stays full)');
   check([...g.nexus.portals.values()].filter(p => p.kind === 'realm').length === 3, 'Nexus portals refresh after a realm closes');
+
+  // realm portal labels show population and conquest progress
+  const r0 = g.realms[0];
+  r0.godKills = r0.godKillTarget;
+  g.refreshRealmLabels();
+  check(/\(0\/20\)/.test(r0.portal.name) && /100%/.test(r0.portal.name), 'realm portal label shows population and conquest %');
 }
 
 // multi-phase boss: crossing an HP threshold teleports it and swaps its pattern

@@ -281,9 +281,22 @@ class Game {
     const spots = this.nexus.map.portalSpots || [this.nexus.map.portalSpot];
     this.realms.forEach((r, i) => {
       const spot = spots[i % spots.length];
-      const portal = this.spawnPortal(this.nexus, spot.x, spot.y, 'realm', `Reino ${i + 1}`, null, 1e15);
+      const portal = this.spawnPortal(this.nexus, spot.x, spot.y, 'realm', this.realmLabel(r, i), null, 1e15);
       portal.instanceId = r.id;
+      r.portal = portal;
     });
+  }
+
+  // portal label shows live population (X/cap) and conquest progress
+  realmLabel(realm, i) {
+    const pct = Math.min(100, Math.round((realm.godKills / realm.godKillTarget) * 100));
+    const full = realm.players.size >= REALM_CAP ? ' CHEIO' : '';
+    return `Reino ${i + 1} (${realm.players.size}/${REALM_CAP}) ${pct}%${full}`;
+  }
+
+  // keep the Nexus realm-portal labels current
+  refreshRealmLabels() {
+    this.realms.forEach((r, i) => { if (r.portal) r.portal.name = this.realmLabel(r, i); });
   }
 
   // ------------------------------------------------ realm population
@@ -1608,6 +1621,7 @@ class Game {
     }
     if ((this._respawnT = (this._respawnT || 0) + 1) % 40 === 0) {
       this.respawnRealm();
+      this.refreshRealmLabels();
       const s = currentSeason();
       if (s !== this.season) { // week rolled over: new season + modifier
         this.season = s; this.seasonMod = seasonModifier(s);
