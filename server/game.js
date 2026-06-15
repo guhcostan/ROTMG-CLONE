@@ -348,6 +348,7 @@ class Game {
       pet: acc.pet || null,
       petLevel: acc.pet_level || 1, petXp: acc.pet_xp || 0, petAura: acc.pet_aura || 'heal',
       gold: acc.gold || 0,
+      party: null, partyInviteFrom: null,
       vault: storage.getVault(acc.id),
       trade: null, tradeReqFrom: null,
       status: {},                       // statusType -> expiresAt (ms)
@@ -620,6 +621,7 @@ class Game {
 
   leavePlayer(player) {
     this.cancelTrade(player, true);
+    this.leaveParty(player);
     if (player.instance) player.instance.players.delete(player.id);
     this.players.delete(player.id);
     this.persist(player);
@@ -1014,10 +1016,73 @@ class Game {
     }
     if (text.startsWith('/g ')) return this.guildChat(player, text.slice(3));
     if (text.startsWith('/guilda')) return this.guildCommand(player, text.split(/\s+/).slice(1));
+    if (text.startsWith('/p ')) return this.partyChat(player, text.slice(3));
+    if (text.startsWith('/party')) return this.partyCommand(player, text.split(/\s+/).slice(1));
     player.instance.broadcast({ t: 'chat', from: player.name, text });
   }
 
   sysMsg(player, text) { send(player.ws, { t: 'chat', from: '', text, sys: 1 }); }
+
+  // ------------------------------------------------ party (ephemeral group)
+  partyChat(player, text) {
+    if (!player.party) return this.sysMsg(player, 'Voce nao esta em um grupo. /party convidar <nome>');
+    text = text.slice(0, 200).trim();
+    if (!text) return;
+    for (const pid of player.party.members) {
+      const m = this.players.get(pid);
+      if (m) send(m.ws, { t: 'chat', from: `(grupo) ${player.name}`, text });
+    }
+  }
+
+  partyCommand(player, args) {
+    const sub = (args[0] || '').toLowerCase();
+    if (sub === 'convidar') {
+      const target = [...this.players.values()].find(p => p !== player && p.name.toLowerCase() === (args[1] || '').toLowerCase());
+      if (!target) return this.sysMsg(player, 'Jogador nao encontrado.');
+      if (target.party) return this.sysMsg(player, 'Jogador ja esta em um grupo.');
+      target.partyInviteFrom = player.id;
+      this.sysMsg(player, `Convite enviado para ${target.name}.`);
+      this.sysMsg(target, `${player.name} convidou voce para o grupo. Digite /party aceitar`);
+      return;
+    }
+    if (sub === 'aceitar') {
+      const inviter = player.partyInviteFrom && this.players.get(player.partyInviteFrom);
+      player.partyInviteFrom = null;
+      if (!inviter) return this.sysMsg(player, 'Nenhum convite pendente.');
+      let party = inviter.party;
+      if (!party) { party = { leaderId: inviter.id, members: new Set([inviter.id]) }; inviter.party = party; }
+      party.members.add(player.id);
+      player.party = party;
+      this.partyBroadcast(party, `${player.name} entrou no grupo.`);
+      return;
+    }
+    if (sub === 'sair') return this.leaveParty(player);
+    if (sub === 'info') {
+      if (!player.party) return this.sysMsg(player, 'Voce nao esta em um grupo.');
+      const names = [...player.party.members].map(id => this.players.get(id)?.name).filter(Boolean).join(', ');
+      return this.sysMsg(player, `Grupo: ${names}`);
+    }
+    this.sysMsg(player, 'Comandos: /party convidar <nome> | aceitar | sair | info — chat: /p <msg>');
+  }
+
+  partyBroadcast(party, text) {
+    for (const pid of party.members) { const m = this.players.get(pid); if (m) this.sysMsg(m, text); }
+  }
+
+  leaveParty(player) {
+    const party = player.party;
+    if (!party) return;
+    party.members.delete(player.id);
+    player.party = null;
+    this.sysMsg(player, 'Voce saiu do grupo.');
+    if (party.members.size <= 1) {
+      for (const pid of party.members) { const m = this.players.get(pid); if (m) { m.party = null; this.sysMsg(m, 'O grupo foi desfeito.'); } }
+      party.members.clear();
+    } else {
+      if (party.leaderId === player.id) party.leaderId = [...party.members][0];
+      this.partyBroadcast(party, `${player.name} saiu do grupo.`);
+    }
+  }
 
   // teleport to another player in the same instance (classic QoL); short cooldown
   teleportToPlayer(player, name) {
@@ -1397,6 +1462,7 @@ class Game {
 
   killPlayer(player, killedBy) {
     player.dead = true;
+    this.leaveParty(player);
     const ch = player.char;
     const inst = player.instance;
     const baseFame = ch.fame;
@@ -1767,6 +1833,8 @@ class Game {
           stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
           st: this.activeStatus(p), quest,
           mates: [...inst.players.values()].filter(o => o !== p && o.invisUntil <= now).slice(0, 30).map(o => o.name),
+          party: p.party ? [...p.party.members].map(id => this.players.get(id)).filter(Boolean)
+            .map(o => ({ name: o.name, level: o.char.level, hp: Math.round(o.char.hp), maxHp: effectiveMaxHp(o), here: o.instance === inst })) : null,
         },
       });
     }

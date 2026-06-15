@@ -101,6 +101,12 @@ h3 { margin: 18px 0 8px; color: #f0c040; font-size: 14px; }
 .cosmetics { font-size: 12px; color: #aaa; line-height: 2; }
 .cosmetics select { background: #0d0d15; color: #eee; border: 1px solid #3a3a55; border-radius: 4px; padding: 3px 6px; font-family: inherit; }
 #hud-gold { color: #f0c040; font-size: 12px; text-align: center; margin-bottom: 4px; }
+#hud-party { font-size: 11px; margin-bottom: 6px; }
+.party-mate { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 1px 3px; }
+.party-mate:hover { background: #2a2a40; }
+.party-mate .pm-name { flex: 1; }
+.party-mate .pm-hp { width: 50px; height: 6px; background: #300; border-radius: 2px; overflow: hidden; }
+.party-mate .pm-hp span { display: block; height: 100%; background: #e03030; }
 #hud-mates { font-size: 11px; line-height: 1.4; max-height: 90px; overflow-y: auto; margin-bottom: 6px; }
 #hud-mates .mate { color: #70b0ff; cursor: pointer; padding: 1px 3px; }
 #hud-mates .mate:hover { background: #2a2a40; color: #a0d0ff; }

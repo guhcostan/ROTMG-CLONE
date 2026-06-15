@@ -207,6 +207,7 @@ const UI = (() => {
   function update(self) {
     currentSelf = self;
     if (self.gold !== undefined) $('hud-gold').textContent = `Ouro: ${self.gold}`;
+    renderParty(self.party);
     renderMates(self.mates);
     if (shopOpen) renderShopSell();
     setBar('bar-hp', 'txt-hp', self.hp, self.maxHp);
@@ -326,6 +327,24 @@ const UI = (() => {
       row.appendChild(b);
     }
     el.appendChild(row);
+  }
+
+  function renderParty(party) {
+    const label = $('party-label'), el = $('hud-party');
+    if (!el) return;
+    if (!party || !party.length) { label.style.display = 'none'; el.innerHTML = ''; return; }
+    label.style.display = '';
+    el.innerHTML = '';
+    for (const m of party) {
+      const row = document.createElement('div');
+      row.className = 'party-mate';
+      const pct = Math.max(0, Math.min(100, (m.hp / m.maxHp) * 100));
+      row.innerHTML = `<span class="pm-name" style="color:${m.here ? '#8fe08f' : '#999'}">${m.name} ${m.level}</span>` +
+        `<span class="pm-hp"><span style="width:${pct}%"></span></span>`;
+      row.title = m.here ? 'Clique para teleportar' : 'Em outra area';
+      if (m.here) row.onclick = () => Net.send({ t: 'teleport', name: m.name });
+      el.appendChild(row);
+    }
   }
 
   function renderMates(mates) {

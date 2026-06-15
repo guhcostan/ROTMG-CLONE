@@ -299,6 +299,21 @@ function bountySanity() {
   check(player.vault.some(s => s !== null), 'completed bounty drops a reward in the vault');
 }
 
+// party: invite -> accept forms a group; leaving disbands a pair
+function partySanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const mk = (id, name) => { const p = { id, name, instance: g.nexus, char: { level: 1, hp: 100 }, ws: { readyState: 3, send() {} }, party: null, partyInviteFrom: null, dead: false }; g.players.set(id, p); return p; };
+  const a = mk(-90, 'Alpha'), b = mk(-91, 'Bravo');
+  g.partyCommand(a, ['convidar', 'Bravo']);
+  check(b.partyInviteFrom === a.id, 'invite reaches the target');
+  g.partyCommand(b, ['aceitar']);
+  check(a.party && a.party === b.party && a.party.members.size === 2, 'accepting forms a shared party');
+  g.leaveParty(b);
+  check(b.party === null && a.party === null, 'leaving a pair disbands the party');
+  g.players.delete(-90); g.players.delete(-91);
+}
+
 // seasons: a rotating weekly modifier + a per-season fame leaderboard
 function seasonSanity() {
   const { Game } = require('../server/game');
@@ -528,6 +543,7 @@ async function main() {
   bleedSanity();
   tutorialSanity();
   bountySanity();
+  partySanity();
   seasonSanity();
   cosmeticSanity();
   petSanity();
