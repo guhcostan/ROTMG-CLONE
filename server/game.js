@@ -44,6 +44,9 @@ const SEASON_MODIFIERS = [
   { id: 'loot', name: 'Semana da Pilhagem', xpMul: 1, fameMul: 1, lootMul: 1.4 },
   { id: 'fame', name: 'Semana da Gloria', xpMul: 1, fameMul: 1.5, lootMul: 1 },
 ];
+const REALM_COUNT = 3;          // realms open at once
+const REALM_CAP = 20;           // max players per realm
+const REALM_GOD_TARGET = 25;    // gods slain before a realm closes
 const currentSeason = () => Math.floor(Date.now() / SEASON_MS);
 const seasonModifier = (season) => SEASON_MODIFIERS[((season % SEASON_MODIFIERS.length) + SEASON_MODIFIERS.length) % SEASON_MODIFIERS.length];
 
@@ -197,20 +200,45 @@ class Game {
     this.players = new Map(); // playerId -> Player
     this.instances = new Map();
     this.nexus = this.addInstance(new Instance('nexus', 'Nexus', generateNexus()));
-    this.realmSeed = (Math.random() * 1e9) | 0;
-    this.realm = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(this.realmSeed)));
-    this.godKills = 0;
-    this.godKillTarget = 25; // gods slain before the realm closes
-    this.eventBossId = null;
-    this.nextEvent = Date.now() + 3 * 60 * 1000; // first invasion 3 min after boot
     this.season = currentSeason();
     this.seasonMod = seasonModifier(this.season);
-    this.populateRealm();
+    this.realms = [];
+    this.ensureRealms();              // open the initial pool of realms + their portals
     setInterval(() => this.tick(), TICK);
     setInterval(() => this.autosave(), 30000);
   }
 
   addInstance(inst) { this.instances.set(inst.id, inst); return inst; }
+
+  // first/primary realm — kept for callers that just want "a realm"
+  get realm() { return this.realms[0]; }
+
+  // ------------------------------------------------ realm pool
+  // Several realms run at once, each capped; a realm closes when conquered
+  // (enough gods slain) and a fresh one opens, so the Nexus always offers portals.
+  createRealm() {
+    const seed = (Math.random() * 1e9) | 0;
+    const inst = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(seed)));
+    inst.godKills = 0;
+    inst.godKillTarget = REALM_GOD_TARGET;
+    inst.eventBossId = null;
+    inst.nextEvent = Date.now() + 3 * 60 * 1000;
+    this.populateRealm(inst);
+    this.realms.push(inst);
+    return inst;
+  }
+
+  // keep the pool topped up to REALM_COUNT and (re)publish one Nexus portal per realm
+  ensureRealms() {
+    while (this.realms.length < REALM_COUNT) this.createRealm();
+    for (const [id, p] of this.nexus.portals) if (p.kind === 'realm') this.nexus.portals.delete(id);
+    const spots = this.nexus.map.portalSpots || [this.nexus.map.portalSpot];
+    this.realms.forEach((r, i) => {
+      const spot = spots[i % spots.length];
+      const portal = this.spawnPortal(this.nexus, spot.x, spot.y, 'realm', `Reino ${i + 1}`, null, 1e15);
+      portal.instanceId = r.id;
+    });
+  }
 
   // ------------------------------------------------ realm population
   bandTypes() {
@@ -243,8 +271,8 @@ class Game {
     return e;
   }
 
-  populateRealm() {
-    const m = this.realm.map;
+  populateRealm(realm = this.realm) {
+    const m = realm.map;
     const counts = [90, 140, 140, 110, 40]; // enemies per band
     const byBand = this.bandTypes();
     for (let band = 0; band < 5; band++) {
@@ -256,29 +284,30 @@ class Game {
         const y = m.center.y + Math.sin(a) * m.maxR * Math.max(0.02, fr);
         if (m.blocks(x, y) || m.get(x, y) === T.WATER || m.get(x, y) === T.LAVA) continue;
         if (bandAt(Math.hypot(x - m.center.x, y - m.center.y), m.maxR) !== band) continue;
-        this.spawnEnemy(this.realm, this.randomBandType(byBand, band), x, y);
+        this.spawnEnemy(realm, this.randomBandType(byBand, band), x, y);
         placed++;
       }
     }
   }
 
-  // keep realm population topped up
+  // keep every open realm's population topped up
   respawnRealm() {
-    if (this.realm.enemies.size > 450) return;
-    const m = this.realm.map;
     const byBand = this.bandTypes();
-    for (let i = 0; i < 10; i++) {
-      const band = Math.floor(Math.random() * 5);
-      const a = Math.random() * Math.PI * 2;
-      const fr = [0.94, 0.75, 0.5, 0.27, 0.08][band];
-      const x = m.center.x + Math.cos(a) * m.maxR * fr;
-      const y = m.center.y + Math.sin(a) * m.maxR * fr;
-      if (m.blocks(x, y) || m.get(x, y) === T.WATER || m.get(x, y) === T.LAVA) continue;
-      // don't spawn on top of someone
-      let near = false;
-      for (const p of this.realm.players.values()) if (dist2(p.x, p.y, x, y) < 144) { near = true; break; }
-      if (near) continue;
-      this.spawnEnemy(this.realm, this.randomBandType(byBand, band), x, y);
+    for (const realm of this.realms) {
+      if (realm.enemies.size > 450) continue;
+      const m = realm.map;
+      for (let i = 0; i < 10; i++) {
+        const band = Math.floor(Math.random() * 5);
+        const a = Math.random() * Math.PI * 2;
+        const fr = [0.94, 0.75, 0.5, 0.27, 0.08][band];
+        const x = m.center.x + Math.cos(a) * m.maxR * fr;
+        const y = m.center.y + Math.sin(a) * m.maxR * fr;
+        if (m.blocks(x, y) || m.get(x, y) === T.WATER || m.get(x, y) === T.LAVA) continue;
+        let near = false;
+        for (const p of realm.players.values()) if (dist2(p.x, p.y, x, y) < 144) { near = true; break; }
+        if (near) continue;
+        this.spawnEnemy(realm, this.randomBandType(byBand, band), x, y);
+      }
     }
   }
 
@@ -1090,7 +1119,12 @@ class Game {
     const inst = player.instance;
     for (const portal of inst.portals.values()) {
       if (dist2(portal.x, portal.y, player.x, player.y) > 4) continue;
-      if (portal.kind === 'realm') return this.enterInstance(player, this.realm);
+      if (portal.kind === 'realm') {
+        const realm = (portal.instanceId && this.instances.get(portal.instanceId)) || this.realm;
+        if (!realm) return;
+        if (realm.players.size >= REALM_CAP) return this.sysMsg(player, 'Reino cheio! Tente outro portal.');
+        return this.enterInstance(player, realm);
+      }
       if (portal.kind === 'nexus') return this.toNexus(player);
       if (portal.kind === 'tutorial') return this.enterTutorial(player);
       if (portal.kind === 'dungeon') {
@@ -1138,20 +1172,18 @@ class Game {
     return inst;
   }
 
-  // realm closes: everyone inside is summoned to the final castle and a
-  // brand-new realm is generated
-  closeRealm() {
-    const old = this.realm;
+  // a realm closes when conquered: its heroes are summoned to the final castle,
+  // the realm is removed from the pool, and a fresh one opens in its place
+  closeRealm(old = this.realm) {
     const castle = this.createDungeon('mad_castle', DUNGEONS.mad_castle);
-    for (const p of this.players.values()) {
+    for (const p of [...old.players.values()]) {
       send(p.ws, { t: 'chat', from: '', text: 'O Reino caiu! O Rei Demente convoca os herois ao seu castelo!', sys: 1 });
+      this.enterInstance(p, castle);
     }
-    for (const p of [...old.players.values()]) this.enterInstance(p, castle);
-    this.realmSeed = (Math.random() * 1e9) | 0;
-    this.realm = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(this.realmSeed)));
-    this.godKills = 0;
-    this.populateRealm();
+    const idx = this.realms.indexOf(old);
+    if (idx !== -1) this.realms.splice(idx, 1);
     this.instances.delete(old.id);
+    this.ensureRealms(); // open a replacement and refresh the Nexus portals
   }
 
   // ------------------------------------------------ combat helpers
@@ -1205,19 +1237,19 @@ class Game {
     }
     if (bagItems.length) this.spawnBag(inst, enemy.x, enemy.y, bagItems);
     // world-event boss defeated: announce + clear so the next can spawn
-    if (enemy.def.event && enemy.id === this.eventBossId) {
-      this.eventBossId = null;
+    if (enemy.def.event && enemy.id === inst.eventBossId) {
+      inst.eventBossId = null;
       inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi repelido!` });
       inst.broadcast({ t: 'chat', from: '', text: `A invasao foi repelida! ${enemy.def.name} caiu.`, sys: 1 });
     }
-    // realm cycle: enough gods slain -> the realm closes into the final castle
-    if (inst === this.realm && enemy.def.god) {
-      this.godKills++;
-      const left = this.godKillTarget - this.godKills;
+    // realm cycle: enough gods slain -> this realm closes into the final castle
+    if (inst.kind === 'realm' && enemy.def.god) {
+      inst.godKills = (inst.godKills || 0) + 1;
+      const left = inst.godKillTarget - inst.godKills;
       if (left > 0 && left % 5 === 0) {
         inst.broadcast({ t: 'chat', from: '', text: `Os deuses enfraquecem: restam ${left} para o Reino cair!`, sys: 1 });
       }
-      if (left <= 0) this.closeRealm();
+      if (left <= 0) this.closeRealm(inst);
     }
     // dungeon completion: boss dies -> open a portal back + announce
     if (inst.kind === 'dungeon' && enemy.id === inst.bossId) {
@@ -1353,30 +1385,32 @@ class Game {
     this.cleanupInstances();
   }
 
-  // timed realm invasion: a named boss spawns; killing it drops a guaranteed
-  // white bag (legendary). One active at a time. ponytail: fixed 8-min cadence.
+  // timed realm invasion: each open realm runs its own ~8-min invasion timer;
+  // killing the boss drops a guaranteed white bag (legendary). One per realm.
   maybeWorldEvent(now) {
-    if (this.eventBossId && !this.realm.enemies.has(this.eventBossId)) this.eventBossId = null;
-    if (this.eventBossId || now < this.nextEvent) return;
-    if (this.realm.players.size === 0) { this.nextEvent = now + 30000; return; } // wait for players
-    this.triggerWorldEvent();
-    this.nextEvent = now + 8 * 60 * 1000;
+    for (const realm of this.realms) {
+      if (realm.eventBossId && !realm.enemies.has(realm.eventBossId)) realm.eventBossId = null;
+      if (realm.eventBossId || now < realm.nextEvent) continue;
+      if (realm.players.size === 0) { realm.nextEvent = now + 30000; continue; } // wait for players
+      this.triggerWorldEvent(realm);
+      realm.nextEvent = now + 8 * 60 * 1000;
+    }
   }
 
-  triggerWorldEvent() {
+  triggerWorldEvent(realm = this.realm) {
     const types = ['invader_warlord', 'invader_archmage'];
     const type = types[Math.floor(Math.random() * types.length)];
-    const m = this.realm.map;
+    const m = realm.map;
     let x = m.center.x, y = m.center.y;
     for (let i = 0; i < 40; i++) {
       const a = Math.random() * Math.PI * 2, r = m.maxR * (0.4 + Math.random() * 0.2);
       const tx = m.center.x + Math.cos(a) * r, ty = m.center.y + Math.sin(a) * r;
       if (!m.blocks(tx, ty) && m.get(tx, ty) !== T.WATER && m.get(tx, ty) !== T.LAVA) { x = tx; y = ty; break; }
     }
-    const e = this.spawnEnemy(this.realm, type, x, y);
-    this.eventBossId = e.id;
-    this.realm.broadcast({ t: 'notice', text: `INVASAO: ${e.def.name}!` });
-    this.realm.broadcast({ t: 'chat', from: '', text: `${e.def.name} invadiu o Reino! Derrote-o por um item lendario. (siga a bussola)`, sys: 1 });
+    const e = this.spawnEnemy(realm, type, x, y);
+    realm.eventBossId = e.id;
+    realm.broadcast({ t: 'notice', text: `INVASAO: ${e.def.name}!` });
+    realm.broadcast({ t: 'chat', from: '', text: `${e.def.name} invadiu o Reino! Derrote-o por um item lendario. (siga a bussola)`, sys: 1 });
     return e;
   }
 
@@ -1455,10 +1489,10 @@ class Game {
     // --- expire bags & portals
     for (const [id, bag] of inst.bags) if (now > bag.expires) inst.bags.delete(id);
     for (const [id, portal] of inst.portals) if (now > portal.expires) inst.portals.delete(id);
-    // nexus always offers the realm portal and a tutorial replay portal
+    // nexus realm portals are managed by ensureRealms/closeRealm; just keep the
+    // tutorial replay portal available here
     if (inst.kind === 'nexus') {
       const kinds = new Set([...inst.portals.values()].map(p => p.kind));
-      if (!kinds.has('realm')) this.spawnPortal(inst, inst.map.portalSpot.x, inst.map.portalSpot.y, 'realm', 'Portal do Reino', null, 1e15);
       if (!kinds.has('tutorial')) this.spawnPortal(inst, inst.map.vaultSpot.x, inst.map.vaultSpot.y - 4, 'tutorial', 'Treinamento', null, 1e15);
     }
     // tutorial room keeps an exit portal and a training dummy available

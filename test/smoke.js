@@ -116,12 +116,27 @@ function worldEventSanity() {
   const { ENEMIES } = require('../server/data');
   const g = new Game();
   const e = g.triggerWorldEvent();
-  check(g.eventBossId === e.id && g.realm.enemies.has(e.id), 'invasion boss spawned in realm');
+  check(g.realm.eventBossId === e.id && g.realm.enemies.has(e.id), 'invasion boss spawned in realm');
   check(e.def.event && e.def.loot.some(([s, c]) => s === 'legendary' && c === 1), 'invasion boss guarantees a legendary');
   // killing it clears the active event
   e.hp = 1;
   g.damageEnemy(g.realm, e, 9999, { id: -3, char: { fame: 0 }, kills: 0, godsKilled: 0, dead: false });
-  check(g.eventBossId === null, 'defeating invasion boss clears the event');
+  check(g.realm.eventBossId === null, 'defeating invasion boss clears the event');
+}
+
+// multi-realm: a pool of capped realms, one Nexus portal each, refilled on close
+function multiRealmSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  check(g.realms.length === 3, 'three realms open at once');
+  const realmPortals = [...g.nexus.portals.values()].filter(p => p.kind === 'realm');
+  check(realmPortals.length === 3, 'one Nexus portal per realm');
+  check(realmPortals.every(p => g.instances.has(p.instanceId)), 'each realm portal points to a live realm');
+  check(g.realms.every(r => r.godKills === 0 && r.godKillTarget > 0), 'each realm tracks its own god-kill progress');
+  const first = g.realms[0];
+  g.closeRealm(first);
+  check(!g.realms.includes(first) && g.realms.length === 3, 'closing a realm opens a replacement (pool stays full)');
+  check([...g.nexus.portals.values()].filter(p => p.kind === 'realm').length === 3, 'Nexus portals refresh after a realm closes');
 }
 
 // multi-phase boss: crossing an HP threshold teleports it and swaps its pattern
@@ -482,6 +497,7 @@ async function main() {
   statusAndFameSanity();
   iceBiomeSanity();
   worldEventSanity();
+  multiRealmSanity();
   multiPhaseSanity();
   progressionSanity();
   abilityScalingSanity();
