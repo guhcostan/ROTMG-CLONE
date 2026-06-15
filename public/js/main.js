@@ -37,7 +37,8 @@
       return;
     }
     show('screen-chars');
-    $('chars-title').textContent = `Personagens de ${data.username}`;
+    $('chars-title').innerHTML = `Personagens de ${data.username} ` +
+      `<a href="/u/${encodeURIComponent(data.username)}" target="_blank" style="font-size:12px;color:#70b0ff">(perfil publico)</a>`;
 
     const list = $('char-list');
     list.innerHTML = '';

@@ -625,6 +625,12 @@ async function main() {
     r = await api('GET', '/api/leaderboard', null);
     check(r.status === 200 && Array.isArray(r.data.alive), 'leaderboard endpoint');
 
+    // public profile: by username, no auth
+    r = await api('GET', '/api/profile?name=' + user1, null);
+    check(r.status === 200 && r.data.username === user1 && Array.isArray(r.data.characters), 'public profile endpoint');
+    r = await api('GET', '/api/profile?name=naoexiste_zzz', null);
+    check(r.status === 404, 'unknown profile returns 404');
+
     // --- gameplay: two clients in the nexus
     const c1 = client(token1, char1);
     const c2 = client(token2, char2);

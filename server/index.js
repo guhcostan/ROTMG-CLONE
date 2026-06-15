@@ -130,8 +130,30 @@ const server = http.createServer(async (req, res) => {
       // client needs item metadata for rendering/tooltips
       return json(res, 200, ITEMS);
     }
+    if (p === '/api/profile' && req.method === 'GET') {
+      const acc = storage.getAccountByName(url.searchParams.get('name') || '');
+      if (!acc) return json(res, 404, { error: 'Jogador nao encontrado' });
+      const earned = new Set(storage.listAchievements(acc.id));
+      return json(res, 200, {
+        username: acc.username,
+        title: acc.title || null, nameColor: acc.name_color || null,
+        bestFame: storage.bestFame(acc.id),
+        characters: storage.listChars(acc.id).map(c => ({ classId: c.classId, className: CLASSES[c.classId] ? CLASSES[c.classId].name : c.classId, level: c.level, fame: c.fame })),
+        graveyard: storage.listGraves(acc.id).map(g => ({ classId: g.class_id, level: g.level, fame: g.fame, killedBy: g.killed_by, diedAt: g.died_at })),
+        achievements: Object.entries(ACHIEVEMENTS).filter(([c]) => earned.has(c)).map(([, a]) => a.name),
+        seasonFame: storage.seasonFameOf(acc.id, game.season),
+      });
+    }
 
     // ---------------- static files
+    // public shareable profile pages: /u/<name> -> profile.html (client fetches /api/profile)
+    if (p.startsWith('/u/')) {
+      return fs.readFile(path.join(PUBLIC, 'profile.html'), (err, data) => {
+        if (err) { res.writeHead(404); return res.end('not found'); }
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(data);
+      });
+    }
     let file = p === '/' ? '/index.html' : p;
     file = path.normalize(file).replace(/^(\.\.[/\\])+/, '');
     const full = path.join(PUBLIC, file);

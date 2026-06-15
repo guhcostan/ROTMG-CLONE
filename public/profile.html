@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perfil - Realm Reborn</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .profile { max-width: 640px; margin: 30px auto; }
+  .profile h1 { font-size: 30px; color: #f0c040; }
+  .profile h3 { color: #f0c040; margin: 18px 0 8px; }
+  .profile .row { font-size: 13px; color: #ccc; line-height: 1.7; }
+  .profile .muted { color: #888; font-size: 12px; }
+  .profile a.back { color: #70b0ff; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="profile panel">
+  <a class="back" href="/">&larr; Jogar Realm Reborn</a>
+  <h1 id="pname">...</h1>
+  <div id="psub" class="muted"></div>
+  <h3>Personagens vivos</h3>
+  <div id="pchars" class="row"></div>
+  <h3>Conquistas</h3>
+  <div id="pach" class="row"></div>
+  <h3>Cemiterio</h3>
+  <div id="pgrave" class="row"></div>
+</div>
+<script>
+(async () => {
+  const name = decodeURIComponent(location.pathname.replace(/^\/u\//, '').replace(/\/$/, ''));
+  const $ = id => document.getElementById(id);
+  try {
+    const res = await fetch('/api/profile?name=' + encodeURIComponent(name));
+    if (!res.ok) throw new Error('Jogador nao encontrado');
+    const p = await res.json();
+    document.title = `${p.username} - Realm Reborn`;
+    $('pname').textContent = p.username;
+    if (p.title) $('pname').textContent = `${p.title} ${p.username}`;
+    if (p.nameColor) $('pname').style.color = p.nameColor;
+    $('psub').textContent = `Melhor fama: ${p.bestFame} · Fama nesta temporada: ${p.seasonFame}`;
+    $('pchars').innerHTML = p.characters.length
+      ? p.characters.map(c => `${c.className} nivel ${c.level} — fama ${c.fame}`).join('<br>')
+      : '<span class="muted">Nenhum personagem vivo.</span>';
+    $('pach').innerHTML = p.achievements.length
+      ? p.achievements.map(a => '★ ' + a).join('<br>')
+      : '<span class="muted">Nenhuma conquista ainda.</span>';
+    $('pgrave').innerHTML = p.graveyard.length
+      ? p.graveyard.map(g => `☠ ${g.classId} nivel ${g.level}, fama ${g.fame} — morto por ${g.killedBy}`).join('<br>')
+      : '<span class="muted">Nenhum heroi caido.</span>';
+  } catch (e) {
+    $('pname').textContent = 'Jogador nao encontrado';
+    $('psub').textContent = name;
+  }
+})();
+</script>
+</body>
+</html>
