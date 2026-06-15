@@ -197,7 +197,6 @@ class Game {
     this.players = new Map(); // playerId -> Player
     this.instances = new Map();
     this.nexus = this.addInstance(new Instance('nexus', 'Nexus', generateNexus()));
-    this.tutorial = this.addInstance(new Instance('tutorial', 'Treinamento', generateTutorial()));
     this.realmSeed = (Math.random() * 1e9) | 0;
     this.realm = this.addInstance(new Instance('realm', 'Reino Selvagem', generateRealm(this.realmSeed)));
     this.godKills = 0;
@@ -308,7 +307,7 @@ class Game {
     };
     this.players.set(player.id, player);
     // first-ever login on this account starts in the tutorial; everyone else in the Nexus
-    if (!acc.tutorial_done) { this.enterInstance(player, this.tutorial); this.startTutorial(player); }
+    if (!acc.tutorial_done) { this.enterTutorial(player); }
     else this.enterInstance(player, this.nexus);
     this.grantDaily(player);
     send(player.ws, { t: 'bounties', list: player.bounties });
@@ -318,6 +317,13 @@ class Game {
   }
 
   // training-room onboarding: drip a few tips; a dummy lets the player practice
+  // each player gets their own tutorial room (instanced), cleaned up when empty
+  enterTutorial(player) {
+    const inst = this.addInstance(new Instance('tutorial', 'Treinamento', generateTutorial()));
+    this.enterInstance(player, inst);
+    this.startTutorial(player);
+  }
+
   startTutorial(player) {
     const tips = [
       'Bem-vindo! Use WASD ou as setas para se mover.',
@@ -536,10 +542,11 @@ class Game {
   cleanupInstances() {
     const now = Date.now();
     for (const inst of this.instances.values()) {
-      if (inst.kind !== 'dungeon') continue;
+      if (inst.kind !== 'dungeon' && inst.kind !== 'tutorial') continue;
       if (inst.players.size > 0) { inst.emptySince = 0; continue; }
       if (!inst.emptySince) inst.emptySince = now;
-      if (now - inst.emptySince > 60000) this.instances.delete(inst.id);
+      const ttl = inst.kind === 'tutorial' ? 5000 : 60000;
+      if (now - inst.emptySince > ttl) this.instances.delete(inst.id);
     }
   }
 
@@ -1085,7 +1092,7 @@ class Game {
       if (dist2(portal.x, portal.y, player.x, player.y) > 4) continue;
       if (portal.kind === 'realm') return this.enterInstance(player, this.realm);
       if (portal.kind === 'nexus') return this.toNexus(player);
-      if (portal.kind === 'tutorial') { this.enterInstance(player, this.tutorial); return this.startTutorial(player); }
+      if (portal.kind === 'tutorial') return this.enterTutorial(player);
       if (portal.kind === 'dungeon') {
         let dest = portal.instanceId && this.instances.get(portal.instanceId);
         if (!dest) {
@@ -1100,7 +1107,7 @@ class Game {
 
   toNexus(player) {
     // leaving the tutorial for the first time marks it complete for the account
-    if (player.instance === this.tutorial && !player.acc.tutorial_done) {
+    if (player.instance.kind === 'tutorial' && !player.acc.tutorial_done) {
       player.acc.tutorial_done = 1;
       storage.setTutorialDone(player.acc.id);
     }
@@ -1455,7 +1462,7 @@ class Game {
       if (!kinds.has('tutorial')) this.spawnPortal(inst, inst.map.vaultSpot.x, inst.map.vaultSpot.y - 4, 'tutorial', 'Treinamento', null, 1e15);
     }
     // tutorial room keeps an exit portal and a training dummy available
-    if (inst === this.tutorial) {
+    if (inst.kind === 'tutorial') {
       if (![...inst.portals.values()].some(p => p.kind === 'nexus')) {
         this.spawnPortal(inst, inst.map.portalSpot.x, inst.map.portalSpot.y, 'nexus', 'Portal para o Nexus', null, 1e15);
       }

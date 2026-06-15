@@ -56,19 +56,24 @@ class GameMap {
 
 // ---------------------------------------------------------------- nexus
 function generateNexus() {
-  const size = 40;
+  const size = 64;
   const m = new GameMap(size, size);
   const c = size / 2;
+  // large town square: a wide NEXUS plaza with a paved ROAD avenue down the middle
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const d = Math.hypot(x - c + 0.5, y - c + 0.5);
-      if (d < 16) m.set(x, y, T.NEXUS);
-      if (d < 5) m.set(x, y, T.ROAD);
+      const dx = x - c + 0.5, dy = y - c + 0.5;
+      const d = Math.hypot(dx, dy);
+      if (d < 28) m.set(x, y, T.NEXUS);                 // open plaza (lots of room)
+      if (Math.abs(dx) < 4 || d < 8) m.set(x, y, T.ROAD); // central avenue + roundabout
     }
   }
-  m.spawn = { x: c, y: c + 6 };
-  m.portalSpot = { x: c, y: c - 6 }; // realm portal location
-  m.vaultSpot = { x: c - 6, y: c };  // account vault chest
+  // playable cluster kept compact (within one screen of the spawn) on a big plaza
+  m.spawn = { x: c, y: c + 8 };           // arrive just south of the roundabout
+  m.portalSpot = { x: c, y: c - 8 };      // realm portal plaza to the north
+  m.portalSpots = [ { x: c - 6, y: c - 8 }, { x: c, y: c - 8 }, { x: c + 6, y: c - 8 } ];
+  m.vaultSpot = { x: c - 9, y: c };       // account vault to the west
+  m.marketSpot = { x: c + 9, y: c };      // open east side as a trading/drop area
   return m;
 }
 

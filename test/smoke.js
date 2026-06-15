@@ -252,7 +252,14 @@ function tutorialSanity() {
     equipment: ['staff0', 'spell0', 'robe0', null], inventory: new Array(8).fill(null) };
   const ws = { readyState: 1, send() {} };
   const p = g.joinPlayer(ws, acc, char);
-  check(p.instance === g.tutorial, 'new account starts in the tutorial');
+  check(p.instance.kind === 'tutorial', 'new account starts in its own tutorial room');
+
+  // a second new account gets a DIFFERENT tutorial instance (per-player, not shared)
+  const id2 = storage.createAccount('tut' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const p2 = g.joinPlayer(ws, storage.getAccountById(id2), { ...char, id: 2 });
+  check(p2.instance.kind === 'tutorial' && p2.instance !== p.instance, 'each player gets their own tutorial room');
+  g.leavePlayer(p2);
+
   g.toNexus(p);
   check(p.instance === g.nexus, 'leaving the tutorial drops into the Nexus');
   check(storage.getAccountById(id).tutorial_done === 1, 'tutorial completion persists on the account');
