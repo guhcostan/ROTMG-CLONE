@@ -1335,6 +1335,13 @@ class Game {
       e.leash = 14;
       inst.enemies.set(e.id, e);
     }
+    // optional mid-bosses placed in middle rooms (raid pacing)
+    for (const type of defn.midbosses || []) {
+      const r = rooms.length ? rooms[Math.floor(Math.random() * rooms.length)] : map.bossRoom;
+      const e = new Enemy(type, r.cx || (r.x + r.w / 2), r.cy || (r.y + r.h / 2));
+      e.leash = 16;
+      inst.enemies.set(e.id, e);
+    }
     const br = map.bossRoom;
     const boss = new Enemy(defn.boss, br.cx, br.cy);
     boss.leash = Math.max(br.w, br.h);
@@ -1359,6 +1366,13 @@ class Game {
 
   // ------------------------------------------------ combat helpers
   damageEnemy(inst, enemy, rawDmg, player) {
+    // raid bosses scale HP with the group present the first time they're hit
+    if (enemy.def.raid && !enemy.scaled) {
+      enemy.scaled = true;
+      const mult = 0.6 + 0.4 * Math.max(1, inst.players.size);
+      enemy.maxHp = Math.round(enemy.maxHp * mult);
+      enemy.hp = enemy.maxHp;
+    }
     if (enemy.exposedUntil > Date.now()) rawDmg = Math.round(rawDmg * 1.25); // Samurai expose
     const dmg = applyDefense(rawDmg, enemy.def.def);
     enemy.hp -= dmg;

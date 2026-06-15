@@ -124,6 +124,22 @@ function worldEventSanity() {
   check(g.realm.eventBossId === null, 'defeating invasion boss clears the event');
 }
 
+// endgame raid: a mid-boss + a raid boss whose HP scales with the group
+function raidSanity() {
+  const { Game } = require('../server/game');
+  const { DUNGEONS } = require('../server/data');
+  const g = new Game();
+  const inst = g.createDungeon('celestial_sanctum', DUNGEONS.celestial_sanctum);
+  check([...inst.enemies.values()].some(e => e.type === 'the_archon'), 'raid boss present');
+  check([...inst.enemies.values()].some(e => e.type === 'celestial_warden'), 'raid mid-boss present');
+  const archon = [...inst.enemies.values()].find(e => e.type === 'the_archon');
+  const baseHp = archon.maxHp;
+  // simulate 4 players in the instance, then a first hit
+  for (let i = 0; i < 4; i++) inst.players.set(-200 - i, { id: -200 - i, x: 0, y: 0, dead: false, ws: { readyState: 3, send() {} } });
+  g.damageEnemy(inst, archon, 1, { id: -1, char: { fame: 0 }, kills: 0, godsKilled: 0, dead: false });
+  check(archon.maxHp > baseHp && archon.scaled, 'raid boss HP scales up with the group');
+}
+
 // multi-realm: a pool of capped realms, one Nexus portal each, refilled on close
 function multiRealmSanity() {
   const { Game } = require('../server/game');
@@ -550,6 +566,7 @@ async function main() {
   statusAndFameSanity();
   iceBiomeSanity();
   worldEventSanity();
+  raidSanity();
   multiRealmSanity();
   multiPhaseSanity();
   progressionSanity();

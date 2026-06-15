@@ -772,6 +772,18 @@ ooRRyyyyRRoo
 ...yy...
 ...y.y..
 ...yyy..`,
+  archon: `
+.y.y.yy.y.y.
+.yYwwwwwwYy.
+.ywYkYYkYwy.
+.ywYYYYYYwy.
+yyYYwwwwYYyy
+.ywYYYYYYwy.
+.ywYYwwYYwy.
+.ywYYYYYYwy.
+..yYYYYYYy..
+...y.YY.y...
+...y....y...`,
   merchant: `
 ...yyyy...
 ..ySSSSy..

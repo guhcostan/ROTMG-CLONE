@@ -430,7 +430,7 @@ enemy('void_keeper', {
   name: 'Void Keeper', sprite: 'void_keeper', hp: 2500, def: 20, xp: 200, speed: 2.5, size: 1.6,
   behavior: 'orbit', band: 4, god: true,
   shots: { dmg: 55, speed: 8, range: 8, count: 1, spread: 0, rate: 1, ring: 14, ringRate: 0.35, ringStatus: { type: 'sick', dur: 3000, chance: 0.6 } }, // curse of the void
-  loot: [['armor:3-4', 0.3], ['statpot', 0.55], ['portal:infernal_depths', 0.08], ['portal:abyssal_rift', 0.06], ['legendary', 0.02]],
+  loot: [['armor:3-4', 0.3], ['statpot', 0.55], ['portal:infernal_depths', 0.08], ['portal:abyssal_rift', 0.06], ['portal:celestial_sanctum', 0.04], ['legendary', 0.02]],
 });
 enemy('ancient_colossus', {
   name: 'Ancient Colossus', sprite: 'colossus', hp: 3000, def: 22, xp: 220, speed: 2, size: 1.8,
@@ -720,8 +720,33 @@ enemy('frost_monarch', {
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['pot_life', 0.5], ['legendary', 0.1], ['ringall0', 0.4]],
 });
 
+// --- Celestial Sanctum (endgame raid: scales with group size, theme keep) ---
+enemy('sanctum_guardian', { name: 'Sanctum Guardian', sprite: 'golem', hp: 2000, def: 24, xp: 120, speed: 2.5, size: 1.4, behavior: 'chase', band: -1,
+  shots: { dmg: 46, speed: 9, range: 6.5, count: 4, spread: 0.7, rate: 0.8 }, loot: [['armor:3-4', 0.16], ['hppot', 0.2]] });
+enemy('sanctum_seer', { name: 'Sanctum Seer', sprite: 'witch', hp: 1400, def: 14, xp: 110, speed: 3, size: 1.1, behavior: 'orbit', band: -1,
+  shots: { dmg: 40, speed: 10, range: 8, count: 3, spread: 0.5, rate: 1.2, ring: 12, ringRate: 0.32, spiral: true, status: { type: 'slow', dur: 1500, chance: 0.3 } }, loot: [['weapon:3-4', 0.16], ['statpot', 0.2]] });
+enemy('celestial_warden', { name: 'Celestial Warden', sprite: 'storm_sovereign', hp: 16000, def: 22, xp: 900, speed: 3, size: 2.2, behavior: 'boss', band: -1,
+  spawns: { type: 'sanctum_seer', max: 3, rate: 0.12 }, enrage: { hpPct: 0.4, rateMul: 1.5, dmgMul: 1.25 },
+  shots: { dmg: 52, speed: 11, range: 9, count: 5, spread: 1, rate: 1.6, ring: 18, ringRate: 0.4, spiral: true },
+  loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['statpot', 1], ['legendary', 0.2]] });
+enemy('the_archon', { name: 'O Arconte', sprite: 'archon', hp: 40000, def: 30, xp: 5000, speed: 3.5, size: 2.8,
+  behavior: 'boss', band: -1, raid: true, spawns: { type: 'sanctum_guardian', max: 4, rate: 0.14 },
+  enrage: { hpPct: 0.35, rateMul: 1.6, dmgMul: 1.3 },
+  shots: { dmg: 70, speed: 12, range: 11, count: 9, spread: 1.6, rate: 2, ring: 26, ringRate: 0.45, spiral: true,
+    status: { type: 'weak', dur: 2500, chance: 0.4 }, ringStatus: { type: 'slow', dur: 1500, chance: 0.5 } },
+  phases: [
+    { hpPct: 0.66, cry: 'invoca o ceu!', shots: { dmg: 65, speed: 13, range: 11, count: 13, spread: 0.6, rate: 2.8 } },
+    { hpPct: 0.33, cry: 'desata o juizo!', shots: { dmg: 78, speed: 12, range: 12, count: 5, spread: 1.2, rate: 2, ring: 38, ringRate: 0.7, spiral: true, ringStatus: { type: 'paralyze', dur: 1000, chance: 0.4 } } },
+  ],
+  loot: [['weapon:5-5', 1], ['armor:5-5', 1], ['legendary', 1], ['legendary', 0.5], ['statpot', 1], ['pot_life', 1], ['pot_mana', 1], ['ringall0', 0.6]] });
+
 // ---------------------------------------------------------------- dungeons
 const DUNGEONS = {
+  celestial_sanctum: {
+    name: 'Celestial Sanctum', theme: 'keep', size: 130, rooms: 14,
+    minions: ['sanctum_guardian', 'sanctum_seer'], minionCount: 40, boss: 'the_archon',
+    midbosses: ['celestial_warden'],
+  },
   frozen_depths: {
     name: 'Frozen Depths', theme: 'ice', size: 110, rooms: 11,
     minions: ['frost_imp', 'snow_wolf', 'ice_golem', 'frost_archer', 'yeti', 'ice_wisp', 'frost_shaman'],
