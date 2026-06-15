@@ -1,30 +1,30 @@
-# Fly.io config for Realm Reborn.
-# Deploy:  fly launch --no-deploy   (then keep this file)  ->  fly volumes create realm_data --size 1 --region gru  ->  fly deploy
-# The SQLite database lives on the mounted volume so it survives deploys/restarts.
+# fly.toml app configuration file generated for realm-reborn on 2026-06-15T13:43:09-03:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "realm-reborn"          # change to a unique name (fly will reject duplicates)
-primary_region = "gru"        # São Paulo; pick the region closest to your players
+app = 'realm-reborn'
+primary_region = 'gru'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  PORT = "8080"
-  DATA_DIR = "/app/data"
-  NODE_ENV = "production"
+  DATA_DIR = '/app/data'
+  NODE_ENV = 'production'
+  PORT = '8080'
 
-# persistent disk for the SQLite database (create it once with `fly volumes create realm_data`)
 [[mounts]]
-  source = "realm_data"
-  destination = "/app/data"
+  source = 'realm_data'
+  destination = '/app/data'
 
 [http_service]
   internal_port = 8080
-  force_https = true          # client auto-upgrades ws -> wss behind TLS
-  auto_stop_machines = "stop" # scale to zero when idle (free-tier friendly)
-  auto_start_machines = true  # wake on the next request
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
   min_machines_running = 0
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  size = 'shared-cpu-1x'
+  memory = '256mb'
