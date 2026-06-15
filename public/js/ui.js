@@ -298,6 +298,30 @@ const UI = (() => {
 
   function setName(text) { $('hud-name').textContent = text; }
 
+  function setPet(p) {
+    const label = $('pet-label'), el = $('hud-pet');
+    if (!el) return;
+    if (!p || !p.pet) { label.style.display = 'none'; el.style.display = 'none'; return; }
+    label.style.display = ''; el.style.display = '';
+    el.innerHTML = '';
+    const info = document.createElement('div');
+    info.style.fontSize = '11px';
+    info.textContent = `Nivel ${p.level} (${p.xp}/${p.next} xp) - alimente com ALT+1-8`;
+    el.appendChild(info);
+    const auraNames = { heal: 'Cura HP', magic: 'Cura MP', vigor: 'Vigor (ambos)' };
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:4px;margin-top:3px';
+    for (const a of p.auras) {
+      const b = document.createElement('button');
+      b.className = 'btn small';
+      b.textContent = auraNames[a] || a;
+      b.style.cssText = 'flex:1;font-size:10px;padding:3px' + (p.aura === a ? ';background:#7a2020' : '');
+      b.onclick = () => Net.send({ t: 'petaura', aura: a });
+      row.appendChild(b);
+    }
+    el.appendChild(row);
+  }
+
   function setBounties(list) {
     const el = $('hud-bounties');
     if (!el) return;
@@ -311,7 +335,7 @@ const UI = (() => {
   }
 
   return {
-    init, update, showBag, showVault, chat, notice, setName, setBounties,
+    init, update, showBag, showVault, chat, notice, setName, setBounties, setPet,
     tradeRequest, tradeState, tradeEnd,
     get items() { return ITEMS; },
   };

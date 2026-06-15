@@ -301,6 +301,28 @@ function cosmeticSanity() {
   check(g.cosmeticsFor(id).current.color === '#a860d8', 'chosen cosmetic persists');
 }
 
+// pets: feeding consumables levels the pet; aura choice scales regen
+function petSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const id = storage.createAccount('pet' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const player = {
+    id: -60, acc: storage.getAccountById(id), ws: { readyState: 3, send() {} },
+    pet: 'pet_wolf', petLevel: 1, petXp: 0, petAura: 'heal',
+    char: { equipment: [null, null, null, null], inventory: ['pot_att', null, null, null, null, null, null, null] },
+  };
+  const baseHeal = g.petMult(player, 'hp');
+  check(baseHeal > 1, 'pet with heal aura boosts HP regen');
+  check(g.petMult(player, 'mp') === 1, 'heal aura does not boost MP regen');
+  // feed the stat potion (tier 4) -> 75 xp, enough to pass level 1 (needs 50)
+  g.feedPet(player, 4);
+  check(player.petLevel === 2 && player.char.inventory[0] === null, 'feeding a consumable levels the pet and consumes it');
+  check(g.petMult(player, 'hp') > baseHeal, 'higher pet level gives a stronger aura');
+  g.setPetAura(player, 'magic');
+  check(g.petMult(player, 'mp') > 1 && g.petMult(player, 'hp') === 1, 'switching aura moves the bonus to MP');
+}
+
 // balance: no mob can outrun even a 0-SPD player; new dungeon bosses fit the curve
 function balanceSanity() {
   const { MOB_SPEED_CAP, PLAYER_MIN_SPEED } = require('../server/game');
@@ -431,6 +453,7 @@ async function main() {
   bountySanity();
   seasonSanity();
   cosmeticSanity();
+  petSanity();
   let server = await startServer();
   const user1 = 'alpha' + Math.floor(Math.random() * 1e6);
   const user2 = 'beta' + Math.floor(Math.random() * 1e6);

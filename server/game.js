@@ -56,6 +56,13 @@ const COLOR_TIERS = [
   { min: 5000, color: '#f0c040', name: 'Mitico' },
 ];
 
+// Pet auras (chooseable) and leveling. Pets level by being fed consumables;
+// their aura strength scales with level.
+const PET_AURAS = ['heal', 'magic', 'vigor']; // HP regen | MP regen | both (weaker)
+const PET_MAX_LEVEL = 20;
+const petXpToNext = (level) => level * 50;
+const petTypeFor = () => ['pet_wolf', 'pet_imp', 'pet_sprite'][Math.floor(Math.random() * 3)];
+
 let nextId = 1;
 const uid = () => nextId++;
 
@@ -291,6 +298,7 @@ class Game {
       guild: guild ? { id: guild.id, name: guild.name, rank: guild.rank } : null,
       guildInviteId: null,
       pet: acc.pet || null,
+      petLevel: acc.pet_level || 1, petXp: acc.pet_xp || 0, petAura: acc.pet_aura || 'heal',
       vault: storage.getVault(acc.id),
       trade: null, tradeReqFrom: null,
       status: {},                       // statusType -> expiresAt (ms)
@@ -305,6 +313,7 @@ class Game {
     this.grantDaily(player);
     send(player.ws, { t: 'bounties', list: player.bounties });
     send(player.ws, { t: 'chat', from: '', text: `Temporada ativa: ${this.seasonMod.name}.`, sys: 1 });
+    if (player.pet) this.sendPet(player);
     return player;
   }
 
@@ -329,6 +338,53 @@ class Game {
       send(player.ws, { t: 'notice', text: `Conquista: ${ACHIEVEMENTS[code].name}!` });
       send(player.ws, { t: 'chat', from: '', text: `${player.name} desbloqueou a conquista "${ACHIEVEMENTS[code].name}".`, sys: 1 });
     }
+  }
+
+  // ------------------------------------------------ pets (level + aura)
+  persistPet(player) {
+    if (player.acc) storage.setPetState(player.acc.id, player.pet, player.petLevel, player.petXp, player.petAura);
+  }
+
+  sendPet(player) {
+    send(player.ws, { t: 'pet', pet: player.pet, level: player.petLevel, xp: player.petXp, next: petXpToNext(player.petLevel), aura: player.petAura, auras: PET_AURAS });
+  }
+
+  // regen multiplier the pet grants, by aura + level (1.0 with no pet)
+  petMult(player, kind) {
+    if (!player.pet) return 1;
+    const power = 1 + 0.05 * (player.petLevel - 1); // +5% per level over heal/magic
+    if (player.petAura === 'vigor') return 1 + 0.15 * power;        // both stats, weaker
+    if (kind === 'hp' && player.petAura === 'heal') return 1 + 0.3 * power;
+    if (kind === 'mp' && player.petAura === 'magic') return 1 + 0.3 * power;
+    return 1;
+  }
+
+  // feed an inventory consumable to the pet for XP; level up at thresholds
+  feedPet(player, slot) {
+    if (!player.pet) return send(player.ws, { t: 'notice', text: 'Voce nao tem um pet.' });
+    if (player.petLevel >= PET_MAX_LEVEL) return send(player.ws, { t: 'notice', text: 'Pet ja esta no nivel maximo!' });
+    if (slot < 4 || slot > 11) return;
+    const itemId = this.getSlot(player, slot);
+    const item = itemId && ITEMS[itemId];
+    if (!item || item.type !== 'consumable') return send(player.ws, { t: 'notice', text: 'Alimente o pet com pocoes/itens consumiveis.' });
+    this.setSlot(player, slot, null);
+    player.petXp += (item.tier + 1) * 15;
+    let leveled = false;
+    while (player.petLevel < PET_MAX_LEVEL && player.petXp >= petXpToNext(player.petLevel)) {
+      player.petXp -= petXpToNext(player.petLevel);
+      player.petLevel++;
+      leveled = true;
+    }
+    if (leveled) send(player.ws, { t: 'notice', text: `Pet subiu para o nivel ${player.petLevel}!` });
+    this.persistPet(player);
+    this.sendPet(player);
+  }
+
+  setPetAura(player, aura) {
+    if (!player.pet || !PET_AURAS.includes(aura)) return;
+    player.petAura = aura;
+    this.persistPet(player);
+    this.sendPet(player);
   }
 
   // cosmetics an account has unlocked (name colors by best fame, titles by achievement)
@@ -498,6 +554,8 @@ class Game {
       case 'pickup': this.onPickup(player, msg); break;
       case 'invswap': this.onInvSwap(player, msg); break;
       case 'useitem': this.onUseItem(player, msg); break;
+      case 'feedpet': this.feedPet(player, msg.slot | 0); break;
+      case 'petaura': this.setPetAura(player, String(msg.aura || '')); break;
       case 'dropitem': this.onDropItem(player, msg); break;
       case 'portal': this.onPortal(player); break;
       case 'nexus': this.toNexus(player); break;
@@ -972,10 +1030,11 @@ class Game {
     if (item.heal) ch.hp = Math.min(effectiveMaxHp(player), ch.hp + item.heal);
     else if (item.restore) ch.mp = Math.min(effectiveMaxMp(player), ch.mp + item.restore);
     else if (item.pet) {
-      const types = ['pet_wolf', 'pet_imp', 'pet_sprite'];
-      player.pet = types[Math.floor(Math.random() * types.length)];
-      storage.setPet(player.acc.id, player.pet);
-      send(player.ws, { t: 'notice', text: 'O ovo chocou! Um pet agora segue voce (cura ao longo do tempo).' });
+      player.pet = petTypeFor();
+      player.petLevel = 1; player.petXp = 0; player.petAura = 'heal';
+      this.persistPet(player);
+      send(player.ws, { t: 'notice', text: 'O ovo chocou! Alimente o pet (ALT+1-8) para subir de nivel.' });
+      this.sendPet(player);
     }
     else if (item.stat) {
       const s = item.stat;
@@ -1298,11 +1357,10 @@ class Game {
       const stats = effectiveStats(p);
       const inCombat = now - p.lastHit < 4000;
       const regenMul = inst.kind === 'nexus' ? 10 : (inCombat ? 0.4 : 1);
-      const petBonus = p.pet ? 1.3 : 1;
       const sick = p.status.sick > now;     // no HP recovery
       const quiet = p.status.quiet > now;   // no MP recovery
-      if (!sick) p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + (1 + stats.vit * 0.24) * dt * regenMul * petBonus);
-      if (!quiet) p.char.mp = Math.min(effectiveMaxMp(p), p.char.mp + (0.5 + stats.wis * 0.12) * dt * regenMul * petBonus);
+      if (!sick) p.char.hp = Math.min(effectiveMaxHp(p), p.char.hp + (1 + stats.vit * 0.24) * dt * regenMul * this.petMult(p, 'hp'));
+      if (!quiet) p.char.mp = Math.min(effectiveMaxMp(p), p.char.mp + (0.5 + stats.wis * 0.12) * dt * regenMul * this.petMult(p, 'mp'));
       if (p.status.bleed > now) {
         // scale with max HP so bleed isn't a death sentence on low-level characters
         if (!p._bleedT || now - p._bleedT >= 500) { p._bleedT = now; this.hurtPlayer(p, Math.max(6, Math.round(effectiveMaxHp(p) * 0.012)), 'sangramento'); }

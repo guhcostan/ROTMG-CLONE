@@ -186,7 +186,10 @@ const GameClient = (() => {
         e.preventDefault();
       }
       if (e.key === 'Escape' || e.key.toLowerCase() === 'r') Net.send({ t: 'nexus' });
-      if (e.key >= '1' && e.key <= '8') Net.send({ t: 'useitem', slot: 3 + parseInt(e.key, 10) });
+      if (e.key >= '1' && e.key <= '8') {
+        if (e.altKey) { Net.send({ t: 'feedpet', slot: 3 + parseInt(e.key, 10) }); e.preventDefault(); }
+        else Net.send({ t: 'useitem', slot: 3 + parseInt(e.key, 10) });
+      }
       if (e.key.toLowerCase() === 'f') Net.send({ t: 'portal' });
       if (e.key.toLowerCase() === 'm' && typeof Sfx !== 'undefined') UI.notice(Sfx.toggleMute() ? 'Som desligado' : 'Som ligado');
       if (e.key.toLowerCase() === 'h') { const o = document.getElementById('help-overlay'); if (o) o.classList.toggle('hidden'); }
@@ -510,6 +513,7 @@ const GameClient = (() => {
       notice: m => UI.notice(m.text),
       chat: m => UI.chat(m.from, m.text, m.sys),
       bounties: m => UI.setBounties(m.list),
+      pet: m => UI.setPet(m),
       tradereq: m => UI.tradeRequest(m.from),
       tradestate: m => UI.tradeState(m),
       tradedone: () => UI.tradeEnd(true),
