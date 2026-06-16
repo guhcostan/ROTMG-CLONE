@@ -84,11 +84,11 @@ const GameClient = (() => {
           ent.tx = me.x; ent.ty = me.y;
         }
       } else if (kind === 'e') {
-        const [, id, type, x, y, hp, maxHp] = e;
+        const [, id, type, x, y, hp, maxHp, elite] = e;
         seen.add(id);
         let ent = entities.get(id);
         if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
-        Object.assign(ent, { kind, id, type, tx: x, ty: y, hp, maxHp });
+        Object.assign(ent, { kind, id, type, tx: x, ty: y, hp, maxHp, elite });
       } else if (kind === 'b') {
         const [, id, x, y, tier, items] = e;
         seen.add(id);
@@ -314,8 +314,19 @@ const GameClient = (() => {
         ctx.textAlign = 'center';
         ctx.fillText(ent.name + ' [F]', px, py - TILE * 0.8);
       } else if (ent.kind === 'e') {
-        drawSprite(ent.type, px, py, TILE * (spriteScale(ent.type)));
-        drawHpBar(px, py, ent.hp, ent.maxHp, spriteScale(ent.type));
+        const sc = spriteScale(ent.type);
+        if (ent.elite) {
+          ctx.save();
+          ctx.strokeStyle = '#f0c040';
+          ctx.globalAlpha = 0.6 + Math.sin(performance.now() / 200) * 0.3;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(px, py, TILE * sc * 0.6, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        drawSprite(ent.type, px, py, TILE * sc * (ent.elite ? 1.2 : 1));
+        drawHpBar(px, py, ent.hp, ent.maxHp, sc);
       } else if (ent.kind === 'p') {
         ctx.globalAlpha = ent.invis ? 0.35 : 1;
         const skinned = ent.skin && Sprites.tinted(ent.classId, ent.skin);

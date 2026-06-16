@@ -318,6 +318,12 @@ class Game {
   // spawns the enemy plus its escort pack (entourage follows the leader)
   spawnEnemy(inst, type, x, y) {
     const e = new Enemy(type, x, y);
+    // a few overworld mobs spawn as elites: much tankier, better rewards
+    if (e.def.band >= 0 && e.def.behavior !== 'boss' && !e.def.rare && Math.random() < 0.04) {
+      e.elite = true;
+      e.maxHp = Math.round(e.maxHp * 3);
+      e.hp = e.maxHp;
+    }
     inst.enemies.set(e.id, e);
     const ent = e.def.entourage;
     if (ent) {
@@ -1437,8 +1443,9 @@ class Game {
     for (const pid of recipients) {
       const p = this.players.get(pid);
       if (p && !p.dead) {
-        this.grantXp(p, d0.xp);
-        p.gold += Math.ceil(d0.xp / 4); // gold scales with enemy strength
+        const xpMul = enemy.elite ? 2.5 : 1;
+        this.grantXp(p, Math.round(d0.xp * xpMul));
+        p.gold += Math.ceil(d0.xp / 4 * xpMul); // gold scales with enemy strength
         p.kills++;
         if (d0.god) p.godsKilled++;
         // account achievements for notable kills
@@ -1468,6 +1475,10 @@ class Game {
         const defn = DUNGEONS[key];
         if (defn) this.spawnPortal(inst, enemy.x, enemy.y, 'dungeon', defn.name, key);
       } else bagItems.push(d);
+    }
+    if (enemy.elite) { // elites drop a bonus bag (extra potions / a tier roll)
+      const bonus = rollLoot([['statpot', 0.5], ['weapon:2-4', 0.5], ['armor:2-4', 0.5], ['legendary', 0.01]], null, this.seasonMod.lootMul);
+      if (bonus.length) this.spawnBag(inst, enemy.x, enemy.y, bonus);
     }
     if (bagItems.length) this.spawnBag(inst, enemy.x, enemy.y, bagItems);
     // world-event boss defeated: announce + clear so the next can spawn
@@ -1922,7 +1933,7 @@ class Game {
       }
       for (const e of inst.enemies.values()) {
         if (dist2(e.x, e.y, p.x, p.y) > r2) continue;
-        ents.push(['e', e.id, e.def.sprite || e.type, round1(e.x), round1(e.y), Math.round(e.hp), e.maxHp]);
+        ents.push(['e', e.id, e.def.sprite || e.type, round1(e.x), round1(e.y), Math.round(e.hp), e.maxHp, e.elite ? 1 : 0]);
       }
       for (const b of inst.bags.values()) {
         if (dist2(b.x, b.y, p.x, p.y) > r2) continue;

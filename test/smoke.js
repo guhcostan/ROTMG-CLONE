@@ -145,6 +145,24 @@ function speedrunSanity() {
   check(top.length >= 1 && top[0].ms <= 7000, 'speedrun leaderboard sorts by fastest');
 }
 
+// elite mobs: forced elite has boosted HP + flag + a bonus loot bag on death
+function eliteSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  // force the elite roll deterministically
+  const realRandom = Math.random;
+  Math.random = () => 0.001; // < 0.04 elite chance, and small for loot rolls
+  const e = g.spawnEnemy(g.realm, 'goblin', g.realm.map.center.x, g.realm.map.center.y);
+  Math.random = realRandom;
+  check(e.elite === true, 'overworld mob can spawn as an elite');
+  const { ENEMIES } = require('../server/data');
+  check(e.maxHp === ENEMIES.goblin.hp * 3, 'elite has triple HP');
+  const bagsBefore = g.realm.bags.size;
+  e.hp = 1;
+  g.damageEnemy(g.realm, e, 9999, { id: -1, char: { fame: 0 }, gold: 0, kills: 0, godsKilled: 0, dead: false, instance: g.realm, x: e.x, y: e.y, ws: { readyState: 3, send() {} } });
+  check(g.realm.bags.size > bagsBefore, 'killing an elite drops a bonus bag');
+}
+
 // endgame raid: a mid-boss + a raid boss whose HP scales with the group
 function raidSanity() {
   const { Game } = require('../server/game');
@@ -602,6 +620,7 @@ async function main() {
   worldEventSanity();
   webhookSanity();
   speedrunSanity();
+  eliteSanity();
   raidSanity();
   multiRealmSanity();
   multiPhaseSanity();
