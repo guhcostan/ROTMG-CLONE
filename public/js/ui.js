@@ -292,6 +292,7 @@ const UI = (() => {
     if (it.restore) html += `Restaura ${it.restore} MP<br>`;
     if (it.stat) html += `+${it.amount} ${it.stat.toUpperCase()} permanente<br>`;
     if (it.dungeons) html += 'Abre uma masmorra no Nexus<br>';
+    if (it.buff) html += `+${Math.round((it.buff.mul - 1) * 100)}% ${it.buff.stat.toUpperCase()} por ${it.buff.durMs / 1000}s<br>`;
     if (it.type === 'consumable') html += '<i>Duplo clique para usar</i>';
     else html += '<i>Duplo clique para equipar - botao direito solta</i>';
     tip.innerHTML = html;

@@ -271,6 +271,12 @@ def('mppot', { name: 'Magic Potion', type: 'consumable', tier: 0, restore: 100 }
 for (const s of ['att', 'def', 'spd', 'dex', 'vit', 'wis']) {
   def(`pot_${s}`, { name: `Potion of ${{ att: 'Attack', def: 'Defense', spd: 'Speed', dex: 'Dexterity', vit: 'Vitality', wis: 'Wisdom' }[s]}`, type: 'consumable', tier: 4, stat: s, amount: 1 });
 }
+// timed combat elixirs (active power, not a permanent stat gain)
+def('elixir_rage', { name: 'Elixir de Furia', type: 'consumable', tier: 3, buff: { stat: 'att', mul: 1.5, durMs: 8000 } });
+def('elixir_haste', { name: 'Tonico de Velocidade', type: 'consumable', tier: 3, buff: { stat: 'spd', mul: 1.4, durMs: 8000 } });
+def('elixir_stone', { name: 'Pele de Pedra', type: 'consumable', tier: 3, buff: { stat: 'def', mul: 2, durMs: 8000 } });
+def('elixir_focus', { name: 'Foco Arcano', type: 'consumable', tier: 3, buff: { stat: 'dex', mul: 1.4, durMs: 8000 } });
+
 def('pot_life', { name: 'Potion of Life', type: 'consumable', tier: 6, stat: 'hp', amount: 20 });
 def('pot_mana', { name: 'Potion of Mana', type: 'consumable', tier: 6, stat: 'mp', amount: 20 });
 
@@ -381,7 +387,7 @@ enemy('ogre', {
   name: 'Highland Ogre', sprite: 'ogre', hp: 700, def: 10, xp: 60, speed: 3, size: 1.4,
   behavior: 'chase', band: 3,
   shots: { dmg: 34, speed: 8, range: 5.5, count: 4, spread: 0.8, rate: 0.8 }, // brutal shotgun
-  loot: [['weapon:2-3', 0.25], ['armor:2-3', 0.25], ['ringspd0', 0.08], ['portal:cursed_keep', 0.06], ['portal:storm_citadel', 0.05]],
+  loot: [['weapon:2-3', 0.25], ['armor:2-3', 0.25], ['ringspd0', 0.08], ['portal:cursed_keep', 0.06], ['portal:storm_citadel', 0.05], ['elixir_stone', 0.2], ['elixir_focus', 0.2]],
 });
 enemy('gargoyle', {
   name: 'Gargoyle', sprite: 'gargoyle', hp: 550, def: 14, xp: 55, speed: 4.5, size: 1.1,
@@ -468,7 +474,7 @@ enemy('brood_mother', {
   name: 'Brood Mother', sprite: 'brood_mother', hp: 3000, def: 12, xp: 280, speed: 3, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'spiderling', max: 4, rate: 0.15 },
   shots: { dmg: 28, speed: 10, range: 7.5, count: 3, spread: 0.7, rate: 1.6, ring: 12, ringRate: 0.25 },
-  loot: [['weapon:2-4', 1], ['armor:2-4', 1], ['pot_dex', 0.7], ['pot_att', 0.6], ['ringmp1', 0.2], ['legendary', 0.03], ['pet_egg', 0.05]],
+  loot: [['weapon:2-4', 1], ['armor:2-4', 1], ['pot_dex', 0.7], ['pot_att', 0.6], ['ringmp1', 0.2], ['legendary', 0.03], ['pet_egg', 0.05], ['elixir_rage', 0.3], ['elixir_haste', 0.3]],
 });
 enemy('keep_knight', {
   name: 'Cursed Knight', sprite: 'keep_knight', hp: 500, def: 12, xp: 45, speed: 4, size: 1,

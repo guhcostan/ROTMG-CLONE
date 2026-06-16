@@ -145,6 +145,22 @@ function speedrunSanity() {
   check(top.length >= 1 && top[0].ms <= 7000, 'speedrun leaderboard sorts by fastest');
 }
 
+// combat elixirs: a buff potion temporarily raises a stat
+function elixirSanity() {
+  const { Game } = require('../server/game');
+  const { CLASSES } = require('../server/data');
+  const g = new Game();
+  const base = Object.assign({}, CLASSES.warrior.base);
+  const player = {
+    id: -120, acc: null, ws: { readyState: 3, send() {} }, instance: g.realm, x: 5, y: 5, buffs: {},
+    char: { classId: 'warrior', stats: base, equipment: [null, null, null, null], inventory: ['elixir_rage', null, null, null, null, null, null, null], hp: 100, mp: 100 },
+  };
+  const attBefore = g.effectiveStats ? null : null; // effectiveStats is module-internal; check via stats math
+  g.onUseItem(player, { slot: 4 });
+  check(player.buffs.att && player.buffs.att.until > Date.now() && player.buffs.att.mul === 1.5, 'rage elixir applies a timed attack buff');
+  check(player.char.inventory[0] === null, 'elixir is consumed on use');
+}
+
 // loot QoL: pick an item straight from a bag into an equipment slot
 function pickupToSlotSanity() {
   const { Game } = require('../server/game');
@@ -181,7 +197,9 @@ function eliteSanity() {
   check(e.maxHp === ENEMIES.goblin.hp * 3, 'elite has triple HP');
   const bagsBefore = g.realm.bags.size;
   e.hp = 1;
+  Math.random = () => 0.001; // force the bonus-loot rolls to land deterministically
   g.damageEnemy(g.realm, e, 9999, { id: -1, char: { fame: 0 }, gold: 0, kills: 0, godsKilled: 0, dead: false, instance: g.realm, x: e.x, y: e.y, ws: { readyState: 3, send() {} } });
+  Math.random = realRandom;
   check(g.realm.bags.size > bagsBefore, 'killing an elite drops a bonus bag');
 }
 
@@ -655,6 +673,7 @@ async function main() {
   webhookSanity();
   speedrunSanity();
   eliteSanity();
+  elixirSanity();
   pickupToSlotSanity();
   raidSanity();
   multiRealmSanity();

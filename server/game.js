@@ -158,6 +158,14 @@ function effectiveStats(player) {
   }
   if (player.berserkUntil > Date.now()) { s.dex = Math.round(s.dex * 1.5); s.spd = Math.round(s.spd * 1.25); }
   if (player.attBuffUntil > Date.now()) s.att = Math.round(s.att * 1.25);
+  // timed buff elixirs (att/spd/def/...)
+  if (player.buffs) {
+    const now = Date.now();
+    for (const k of ['att', 'spd', 'def', 'dex', 'vit', 'wis']) {
+      const b = player.buffs[k];
+      if (b && b.until > now) s[k] = Math.round(s[k] * b.mul);
+    }
+  }
   if (player.status && player.status.weak > Date.now()) s.att = Math.max(1, Math.round(s.att * 0.5));
   return s;
 }
@@ -393,7 +401,7 @@ class Game {
       pet: acc.pet || null,
       petLevel: acc.pet_level || 1, petXp: acc.pet_xp || 0, petAura: acc.pet_aura || 'heal',
       gold: acc.gold || 0,
-      party: null, partyInviteFrom: null,
+      party: null, partyInviteFrom: null, buffs: {},
       vault: storage.getVault(acc.id),
       trade: null, tradeReqFrom: null,
       status: {},                       // statusType -> expiresAt (ms)
@@ -1320,6 +1328,12 @@ class Game {
       const defn = DUNGEONS[key];
       this.spawnPortal(this.nexus, player.x, player.y - 1, 'dungeon', defn.name, key);
       send(player.ws, { t: 'notice', text: `Portal aberto: ${defn.name}. Aperte F para entrar.` });
+    }
+    else if (item.buff) { // timed combat elixir (att/spd/def boost)
+      if (!player.buffs) player.buffs = {};
+      player.buffs[item.buff.stat] = { until: Date.now() + item.buff.durMs, mul: item.buff.mul };
+      send(player.ws, { t: 'notice', text: `${item.name} ativado!` });
+      player.instance.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 1 }, player.x, player.y);
     }
     else if (item.stat) {
       const s = item.stat;
