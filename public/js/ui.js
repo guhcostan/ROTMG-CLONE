@@ -198,18 +198,31 @@ const UI = (() => {
     if (cur === (itemId || '')) return;
     el.dataset.item = itemId || '';
     el.innerHTML = '';
+    el.style.boxShadow = '';
+    el.classList.remove('rarity');
     if (!itemId) return;
     const it = ITEMS[itemId];
+    const [, rcolor] = it ? rarity(it.tier) : ['', ''];
     const spr = Sprites.forItem(itemId, ITEMS);
     if (spr) {
       const cv = document.createElement('canvas');
       cv.width = spr.width; cv.height = spr.height;
-      cv.getContext('2d').drawImage(spr, 0, 0);
+      const c = cv.getContext('2d');
+      c.drawImage(spr, 0, 0);
+      if (it && it.tier >= 2) { // rarer items get a tint so they read at a glance
+        c.globalCompositeOperation = 'source-atop';
+        c.globalAlpha = it.tier >= 6 ? 0.4 : 0.22;
+        c.fillStyle = rcolor;
+        c.fillRect(0, 0, cv.width, cv.height);
+      }
       el.appendChild(cv);
     }
     if (it && it.tier > 0) {
+      el.classList.add('rarity');
+      el.style.boxShadow = `inset 0 0 0 1px ${rcolor}`;
       const t = document.createElement('span');
-      t.className = 'tier'; t.textContent = 'T' + it.tier;
+      t.className = 'tier'; t.textContent = it.tier >= 6 ? '★' : 'T' + it.tier;
+      t.style.color = rcolor;
       el.appendChild(t);
     }
   }
