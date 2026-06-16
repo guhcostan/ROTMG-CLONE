@@ -385,23 +385,34 @@ const UI = (() => {
       if (id) {
         const spr = Sprites.forItem(id, ITEMS);
         if (spr) { const cv = document.createElement('canvas'); cv.width = spr.width; cv.height = spr.height; cv.getContext('2d').drawImage(spr, 0, 0); cell.appendChild(cv); }
-        cell.title = ITEMS[id] ? ITEMS[id].name : id;
+        cell.onmousemove = e => showTooltip(e, id);
+        cell.onmouseleave = hideTooltip;
         cell.onclick = () => Net.send({ t: 'shopsell', slot: 4 + i });
       }
       el.appendChild(cell);
     });
   }
+  let shopGold = 0;
   function showShop(m) {
     shopOpen = true;
+    shopGold = m.gold;
     $('shop-overlay').classList.remove('hidden');
-    $('shop-gold').textContent = `(Ouro: ${m.gold})`;
+    $('shop-gold').textContent = `Ouro: ${m.gold}`;
     const buy = $('shop-buy');
     buy.innerHTML = '';
     for (const b of m.buy) {
-      const row = document.createElement('button');
-      row.className = 'btn small shop-buy-row';
-      row.textContent = `${b.name} — ${b.price}`;
-      row.onclick = () => Net.send({ t: 'shopbuy', item: b.id });
+      const row = document.createElement('div');
+      row.className = 'shop-buy-row' + (m.gold < b.price ? ' poor' : '');
+      const icon = document.createElement('div');
+      icon.className = 'shop-icon';
+      const spr = Sprites.forItem(b.id, ITEMS);
+      if (spr) { const cv = document.createElement('canvas'); cv.width = spr.width; cv.height = spr.height; cv.getContext('2d').drawImage(spr, 0, 0); icon.appendChild(cv); }
+      const name = document.createElement('span'); name.className = 'shop-name'; name.textContent = b.name;
+      const price = document.createElement('span'); price.className = 'shop-price'; price.textContent = `${b.price} ⦿`;
+      row.append(icon, name, price);
+      row.onmousemove = e => showTooltip(e, b.id);
+      row.onmouseleave = hideTooltip;
+      row.onclick = () => { if (shopGold >= b.price) Net.send({ t: 'shopbuy', item: b.id }); };
       buy.appendChild(row);
     }
     renderShopSell();

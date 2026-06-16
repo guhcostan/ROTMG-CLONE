@@ -114,11 +114,23 @@ h3 { margin: 18px 0 8px; color: #f0c040; font-size: 14px; }
 #hud-mates .mate:hover { background: #2a2a40; color: #a0d0ff; }
 #hud-bounties { font-size: 11px; line-height: 1.5; margin-bottom: 6px; }
 #shop-overlay { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 80; pointer-events: auto; }
-.shop-panel { width: 380px; }
+.shop-panel { width: 420px; }
 .shop-head { color: #f0c040; font-size: 16px; margin-bottom: 10px; text-align: center; }
 .shop-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.shop-buy-row { display: block; width: 100%; margin-bottom: 5px; text-align: left; }
-#shop-sell { grid-template-columns: repeat(4, 1fr); }
+.shop-buy-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 5px;
+  padding: 5px 8px; background: #0d0d15; border: 1px solid #3a3a55; border-radius: 4px; cursor: pointer;
+}
+.shop-buy-row:hover { border-color: #f0c040; background: #15151f; }
+.shop-buy-row.poor { opacity: .5; cursor: not-allowed; }
+.shop-buy-row .shop-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.shop-buy-row .shop-icon canvas { width: 20px; height: 20px; image-rendering: pixelated; }
+.shop-buy-row .shop-name { flex: 1; font-size: 12px; }
+.shop-buy-row .shop-price { color: #f0c040; font-size: 12px; }
+#shop-gold { color: #f0c040; }
+#shop-sell { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+#shop-sell .slot { cursor: pointer; }
+#shop-sell .slot:hover { border-color: #e05050; }
 #shop-close { margin-top: 12px; width: 100%; }
 #hud-bounties .bounty { color: #ccc; }
 #hud-bounties .bounty.done { color: #50c050; text-decoration: line-through; }
