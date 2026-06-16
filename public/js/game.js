@@ -66,9 +66,16 @@ const GameClient = (() => {
   }
 
   // ------------------------------------------------ network handlers
+  let lowHpWarned = false;
   function onTick(msg) {
     self = msg.self;
     UI.update(self);
+    // alert sound the moment HP crosses below 30% (rearmed once you recover)
+    if (self.maxHp) {
+      const low = self.hp / self.maxHp < 0.3;
+      if (low && !lowHpWarned) { lowHpWarned = true; if (typeof Sfx !== 'undefined') Sfx.hit(); UI.notice('VIDA BAIXA!'); }
+      else if (!low && self.hp / self.maxHp > 0.45) lowHpWarned = false;
+    }
     const seen = new Set();
     for (const e of msg.e) {
       const kind = e[0];
@@ -424,8 +431,28 @@ const GameClient = (() => {
     }
     ctx.restore();
 
+    drawLowHpVignette();
     drawQuestArrow();
     renderMinimap();
+  }
+
+  // pulsing red border when HP is low, so you remember to pot
+  function drawLowHpVignette() {
+    if (!self || !self.maxHp) return;
+    const ratio = self.hp / self.maxHp;
+    if (ratio >= 0.3) return;
+    const W = canvas.width, H = canvas.height;
+    const intensity = (0.3 - ratio) / 0.3; // 0..1 as HP drops to 0
+    const pulse = 0.35 + 0.35 * Math.sin(performance.now() / 220);
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(200,0,0,0)');
+    g.addColorStop(1, `rgba(200,0,0,${(0.35 + 0.45 * intensity) * pulse})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = `rgba(255,80,80,${0.7 * pulse})`;
+    ctx.font = 'bold 16px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('VIDA BAIXA — use uma pocao (1)', W / 2, 40);
   }
 
   // compass arrow pointing to the nearest notable target (god/boss/mini-boss)
