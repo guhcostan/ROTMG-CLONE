@@ -145,6 +145,28 @@ function speedrunSanity() {
   check(top.length >= 1 && top[0].ms <= 7000, 'speedrun leaderboard sorts by fastest');
 }
 
+// loot QoL: pick an item straight from a bag into an equipment slot
+function pickupToSlotSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const player = {
+    id: -110, acc: null, ws: { readyState: 3, send() {} }, instance: g.realm, x: 5, y: 5,
+    char: { classId: 'wizard', stats: {}, equipment: ['staff0', 'spell0', 'robe0', null], inventory: new Array(8).fill(null), hp: 100, mp: 100 },
+  };
+  g.players.set(player.id, player);
+  const bag = { id: 999, x: 5, y: 5, items: ['ringhp0', null, null, null, null, null, null, null], expires: Date.now() + 9e9 };
+  g.realm.bags.set(bag.id, bag);
+  // ring slot is index 3 (empty); pick the ring directly into it
+  g.onPickup(player, { bag: 999, idx: 0, to: 3 });
+  check(player.char.equipment[3] === 'ringhp0' && bag.items[0] === null, 'loot can be picked straight into an equipment slot');
+  // wrong slot type is rejected
+  const bag2 = { id: 998, x: 5, y: 5, items: ['hppot', null, null, null, null, null, null, null], expires: Date.now() + 9e9 };
+  g.realm.bags.set(bag2.id, bag2);
+  g.onPickup(player, { bag: 998, idx: 0, to: 0 }); // potion into weapon slot -> rejected
+  check(player.char.equipment[0] === 'staff0' && bag2.items[0] === 'hppot', 'invalid equip target is rejected');
+  g.players.delete(player.id);
+}
+
 // elite mobs: forced elite has boosted HP + flag + a bonus loot bag on death
 function eliteSanity() {
   const { Game } = require('../server/game');
@@ -621,6 +643,7 @@ async function main() {
   webhookSanity();
   speedrunSanity();
   eliteSanity();
+  pickupToSlotSanity();
   raidSanity();
   multiRealmSanity();
   multiPhaseSanity();

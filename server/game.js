@@ -1255,11 +1255,20 @@ class Game {
     const idx = msg.idx | 0;
     const itemId = bag.items[idx];
     if (!itemId) return;
-    const slot = player.char.inventory.indexOf(null);
-    if (slot === -1) return send(player.ws, { t: 'notice', text: 'Inventario cheio!' });
-    player.char.inventory[slot] = itemId;
+    // optional target slot (0-3 equip, 4-11 inv): equip/place directly from a loot bag
+    if (Number.isInteger(msg.to) && msg.to >= 0 && msg.to <= 11) {
+      if (this.getSlot(player, msg.to)) return send(player.ws, { t: 'notice', text: 'Slot ocupado.' });
+      if (!this.canEquip(player, msg.to, itemId)) return send(player.ws, { t: 'notice', text: 'Nao pode equipar aqui.' });
+      this.setSlot(player, msg.to, itemId);
+      player.char.hp = Math.min(player.char.hp, effectiveMaxHp(player));
+    } else {
+      const slot = player.char.inventory.indexOf(null);
+      if (slot === -1) return send(player.ws, { t: 'notice', text: 'Inventario cheio!' });
+      player.char.inventory[slot] = itemId;
+    }
     bag.items[idx] = null;
     if (bag.items.every(i => !i)) inst.bags.delete(bag.id);
+    this.persist(player);
   }
 
   // slots: 0-3 equipment, 4-11 inventory

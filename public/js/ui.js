@@ -38,7 +38,8 @@ const UI = (() => {
         e.preventDefault(); el.classList.remove('drag-over');
         if (!dragFrom) return;
         if (dragFrom.type === 'slot' && dragFrom.i !== i) Net.send({ t: 'invswap', from: dragFrom.i, to: i });
-        if (dragFrom.type === 'bag') { Net.send({ t: 'pickup', bag: currentBagId, idx: dragFrom.i }); if (typeof Sfx !== 'undefined') Sfx.pickup(); }
+        else if (dragFrom.type === 'bag') { Net.send({ t: 'pickup', bag: currentBagId, idx: dragFrom.i, to: i }); if (typeof Sfx !== 'undefined') Sfx.pickup(); }
+        else if (dragFrom.type === 'vault') Net.send({ t: 'vault', cmd: 'withdraw', idx: dragFrom.i });
         dragFrom = null;
       });
       el.addEventListener('dblclick', () => {
@@ -83,6 +84,15 @@ const UI = (() => {
     for (let i = 0; i < 16; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
+      el.draggable = true;
+      el.addEventListener('dragstart', () => { dragFrom = { type: 'vault', i }; });
+      el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', e => {
+        e.preventDefault(); el.classList.remove('drag-over');
+        if (dragFrom && dragFrom.type === 'slot') Net.send({ t: 'vault', cmd: 'deposit', slot: dragFrom.i });
+        dragFrom = null;
+      });
       el.addEventListener('dblclick', () => Net.send({ t: 'vault', cmd: 'withdraw', idx: i }));
       el.addEventListener('mousemove', e => showTooltip(e, currentVault && currentVault[i]));
       el.addEventListener('mouseleave', hideTooltip);
