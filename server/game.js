@@ -1952,9 +1952,13 @@ class Game {
         if (dist2(o.x, o.y, p.x, p.y) > r2) continue;
         ents.push(['o', o.id, o.kind, round1(o.x), round1(o.y), o.name]);
       }
-      // nearest notable target -> quest compass
+      // quest compass: in a dungeon always point at its main boss; elsewhere
+      // point at the nearest notable (god / boss / mini-boss)
       let quest = null;
-      if (notable && notable.length) {
+      const dBoss = inst.kind === 'dungeon' && inst.bossId && inst.enemies.get(inst.bossId);
+      if (dBoss) {
+        quest = { x: round1(dBoss.x), y: round1(dBoss.y), name: dBoss.def.name, god: 1 };
+      } else if (notable && notable.length) {
         let best = null, bd = Infinity;
         for (const e of notable) { const dd = dist2(e.x, e.y, p.x, p.y); if (dd < bd) { bd = dd; best = e; } }
         if (best) quest = { x: round1(best.x), y: round1(best.y), name: best.def.name, god: best.def.god ? 1 : 0 };

@@ -460,7 +460,7 @@ const GameClient = (() => {
     if (!self || !self.quest) return;
     const q = self.quest;
     const dist = Math.hypot(q.x - me.x, q.y - me.y);
-    if (dist < 10) return; // already there
+    if (dist < 3) return; // basically on top of it
     const ang = Math.atan2(q.y - me.y, q.x - me.x);
     const cx = canvas.width / 2, cy = canvas.height / 2;
     const rx = canvas.width / 2 - 80, ry = canvas.height / 2 - 80;

@@ -200,6 +200,18 @@ function raidSanity() {
   g.damageEnemy(inst, archon, 1, { id: -1, char: { fame: 0 }, kills: 0, godsKilled: 0, dead: false });
   check(archon.maxHp > baseHp && archon.scaled, 'raid boss HP scales up with the group');
   for (let i = 0; i < 4; i++) inst.players.delete(-200 - i); // don't leave partial players in the ticking Game
+
+  // quest compass: a dungeon always targets its main boss
+  const dg = g.createDungeon('goblin_warren', require('../server/data').DUNGEONS.goblin_warren);
+  const fake = { id: -210, x: dg.map.spawn.x, y: dg.map.spawn.y, dead: false, invisUntil: 0, instance: dg,
+    char: { hp: 100, mp: 100, level: 1, xp: 0, fame: 0, classId: 'wizard', stats: { hp: 100, mp: 100, att: 1, def: 0, spd: 1, dex: 1, vit: 1, wis: 1 }, equipment: [], inventory: [] },
+    status: {}, ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  dg.players.set(fake.id, fake);
+  g.sendSnapshots(dg);
+  const tick = fake.ws.sent.find(m => m.t === 'tick');
+  const boss = dg.enemies.get(dg.bossId);
+  check(tick && tick.self.quest && Math.round(tick.self.quest.x) === Math.round(boss.x), 'dungeon compass points at the boss');
+  dg.players.delete(fake.id);
 }
 
 // multi-realm: a pool of capped realms, one Nexus portal each, refilled on close
