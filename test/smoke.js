@@ -6,7 +6,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const WebSocket = require('ws');
+const Colyseus = require('colyseus.js');
 
 const PORT = 18099;
 const BASE = `http://localhost:${PORT}`;
@@ -593,9 +593,14 @@ function startServer() {
 }
 
 function client(token, charId) {
-  const ws = new WebSocket(`ws://localhost:${PORT}/ws?token=${token}&char=${charId}`);
   const messages = [];
-  ws.on('message', d => messages.push(JSON.parse(d)));
+  let room = null;
+  const c = new Colyseus.Client(`ws://localhost:${PORT}`);
+  const opened = c.joinOrCreate('realm', { token, char: charId }).then(r => {
+    room = r;
+    r.onMessage('g', p => messages.push(typeof p === 'string' ? JSON.parse(p) : p));
+    r.onError(() => {});
+  });
   const waitFor = (type, timeout = 5000) => new Promise((res, rej) => {
     const t0 = Date.now();
     const iv = setInterval(() => {
@@ -604,8 +609,9 @@ function client(token, charId) {
       else if (Date.now() - t0 > timeout) { clearInterval(iv); rej(new Error('timeout waiting ' + type)); }
     }, 30);
   });
-  const sendMsg = (m) => ws.send(JSON.stringify(m));
-  const opened = new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
+  const sendMsg = (m) => { if (room) room.send('g', m); };
+  // .ws.close() call sites keep working: leaving the room closes the connection
+  const ws = { close: () => { if (room) { const r = room; room = null; r.removeAllListeners(); r.leave().catch(() => {}); } } };
   return { ws, messages, waitFor, sendMsg, opened };
 }
 

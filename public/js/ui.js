@@ -25,11 +25,13 @@ const UI = (() => {
     slotEls = []; bagEls = [];
     buildVaultSlots();
     buildTradePanel();
+    const EQUIP_GHOSTS = ['⚔', '✦', '⛨', '◉']; // weapon, ability, armor, ring
     for (let i = 0; i < 12; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
       el.dataset.slot = i;
       el.title = i < 4 ? EQUIP_LABELS[i] : '';
+      if (i < 4) el.dataset.ghost = EQUIP_GHOSTS[i];
       el.draggable = true;
       el.addEventListener('dragstart', () => { dragFrom = { type: 'slot', i }; });
       el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
@@ -243,9 +245,9 @@ const UI = (() => {
     }
     const s = self.stats;
     $('hud-stats').innerHTML =
-      `<span>ATT ${s.att}</span><span>DEF ${s.def}</span>` +
-      `<span>SPD ${s.spd}</span><span>DEX ${s.dex}</span>` +
-      `<span>VIT ${s.vit}</span><span>WIS ${s.wis}</span>`;
+      `<span><b>ATT</b> ${s.att}</span><span><b>DEF</b> ${s.def}</span>` +
+      `<span><b>SPD</b> ${s.spd}</span><span><b>DEX</b> ${s.dex}</span>` +
+      `<span><b>VIT</b> ${s.vit}</span><span><b>WIS</b> ${s.wis}</span>`;
     for (let i = 0; i < 12; i++) renderSlot(slotEls[i], getSlotItem(i));
   }
 
@@ -328,6 +330,36 @@ const UI = (() => {
   }
 
   function setName(text) { $('hud-name').textContent = text; }
+
+  function setPortrait(classId) {
+    const cv = $('hud-portrait');
+    if (!cv) return;
+    const spr = Sprites.get(classId);
+    const c = cv.getContext('2d');
+    c.clearRect(0, 0, cv.width, cv.height);
+    if (spr) {
+      const scale = Math.min(cv.width / spr.width, cv.height / spr.height);
+      const w = spr.width * scale, h = spr.height * scale;
+      c.imageSmoothingEnabled = false;
+      c.drawImage(spr, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+    }
+  }
+
+  function setOnline(n) {
+    const el = $('hud-online');
+    if (el) el.textContent = n > 0 ? `${n} online` : '';
+  }
+
+  function setZone(name) {
+    const banner = $('zone-banner');
+    if (!banner) return;
+    $('zone-name').textContent = name;
+    banner.classList.remove('hidden');
+    // retrigger the entry animation on zone change
+    banner.style.animation = 'none';
+    void banner.offsetWidth;
+    banner.style.animation = '';
+  }
 
   function setPet(p) {
     const label = $('pet-label'), el = $('hud-pet');
@@ -447,7 +479,7 @@ const UI = (() => {
 
   return {
     init, update, showBag, showVault, chat, notice, setName, setBounties, setPet, showShop, hideShop,
-    tradeRequest, tradeState, tradeEnd,
+    tradeRequest, tradeState, tradeEnd, setPortrait, setOnline, setZone,
     get items() { return ITEMS; },
   };
 })();

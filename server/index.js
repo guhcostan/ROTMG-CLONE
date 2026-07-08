@@ -1,12 +1,14 @@
 'use strict';
-// HTTP server (static client + account REST API) and the WebSocket
-// game endpoint.
+// HTTP server (static client + account REST API) and the Colyseus
+// game server (matchmaking + realm room) attached on top of it.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { WebSocketServer } = require('ws');
+const { Server } = require('colyseus');
+const { WebSocketTransport } = require('@colyseus/ws-transport');
 const auth = require('./auth');
 const { Game, ACHIEVEMENTS } = require('./game');
+const { RealmRoom } = require('./room');
 const { CLASSES, ITEMS } = require('./data');
 const storage = require('./db');
 
@@ -173,45 +175,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// ---------------- websocket game endpoint
-const wss = new WebSocketServer({ server, path: '/ws' });
-
-wss.on('connection', (ws, req) => {
-  const url = new URL(req.url, 'http://x');
-  const acc = auth.authed(url.searchParams.get('token'));
-  const charId = parseInt(url.searchParams.get('char'), 10);
-  if (!acc) { ws.close(4001, 'unauthorized'); return; }
-  const char = storage.getChar(charId, acc.id);
-  if (!char) { ws.close(4002, 'no character'); return; }
-  // one connection per character
-  for (const p of game.players.values()) {
-    if (p.char.id === charId) { ws.close(4003, 'already playing'); return; }
-  }
-
-  const player = game.joinPlayer(ws, acc, char);
-  console.log(`[+] ${acc.username} entrou (${CLASSES[char.classId].name} nv ${char.level})`);
-
-  ws.on('message', (raw) => {
-    if (raw.length > 2000) return;
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-    try { game.handle(player, msg); } catch (e) { console.error('handle error:', e); }
-  });
-  ws.on('close', () => {
-    game.leavePlayer(player);
-    console.log(`[-] ${acc.username} saiu`);
-  });
-  ws.on('error', () => {});
+// ---------------- colyseus game server
+// The transport reuses the HTTP server above; Colyseus wraps its request
+// listener so /matchmake/* is answered by the matchmaker and everything
+// else falls through to the static/API handler.
+const gameServer = new Server({
+  transport: new WebSocketTransport({ server }),
+  greet: false,
 });
-
-function shutdown() {
+gameServer.define('realm', RealmRoom, { game });
+gameServer.onShutdown(() => {
   try { game.autosave(); } catch {}
   storage.close();
-  process.exit(0);
-}
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+});
 
-server.listen(PORT, () => {
+gameServer.listen(PORT).then(() => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });

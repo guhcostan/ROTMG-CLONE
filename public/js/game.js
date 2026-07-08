@@ -36,6 +36,7 @@ const GameClient = (() => {
     entities.clear(); bullets = []; effects = [];
     prerenderMap();
     minimapDirty = true;
+    UI.setZone(msg.name);
   }
 
   function tileAt(x, y) {
@@ -567,6 +568,7 @@ const GameClient = (() => {
       tradestate: m => UI.tradeState(m),
       tradedone: () => UI.tradeEnd(true),
       tradecancel: () => UI.tradeEnd(false),
+      _state: (s) => UI.setOnline(s.online),
       death: (m) => {
         running = false;
         if (typeof Sfx !== 'undefined') Sfx.death();

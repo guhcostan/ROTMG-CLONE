@@ -8,55 +8,94 @@
 </head>
 <body>
 
+<canvas id="bg-canvas"></canvas>
+
 <!-- ===================== AUTH SCREEN ===================== -->
-<div id="screen-auth" class="screen">
-  <div class="panel auth-panel">
+<div id="screen-auth" class="screen menu-screen">
+  <div class="menu-wrap">
     <h1 class="logo">REALM<span>REBORN</span></h1>
     <p class="tagline">MMO bullet-hell cooperativo &middot; morte permanente &middot; dungeons &middot; loot</p>
-    <div class="form">
-      <input id="auth-user" type="text" placeholder="Usuario" maxlength="16" autocomplete="username">
-      <input id="auth-pass" type="password" placeholder="Senha" autocomplete="current-password">
-      <div class="row">
-        <button id="btn-login" class="btn primary">Entrar</button>
-        <button id="btn-register" class="btn">Criar conta</button>
+    <div class="panel ornate auth-panel">
+      <div class="panel-title">Entrar no Reino</div>
+      <div class="form">
+        <input id="auth-user" type="text" placeholder="Usuario" maxlength="16" autocomplete="username">
+        <input id="auth-pass" type="password" placeholder="Senha" autocomplete="current-password">
+        <div class="row">
+          <button id="btn-login" class="btn primary">Entrar</button>
+          <button id="btn-register" class="btn">Criar conta</button>
+        </div>
+        <div id="auth-error" class="error"></div>
       </div>
-      <div id="auth-error" class="error"></div>
     </div>
-    <div class="help">
-      <b>Como jogar:</b> WASD move &middot; mouse mira e atira &middot; ESPACO habilidade &middot;
-      1-8 usa itens &middot; F entra em portal &middot; ENTER chat &middot; ESC/R volta ao Nexus<br>
-      <b>Social:</b> /trade &lt;jogador&gt; troca itens &middot; /guilda criar &lt;nome&gt; &middot; /g &lt;msg&gt; chat da guilda
-      &middot; cofre da conta no Nexus
+    <div class="panel ornate help-panel">
+      <div class="panel-title small">Como jogar</div>
+      <div class="help-grid">
+        <span class="key">WASD</span><span>mover</span>
+        <span class="key">Mouse</span><span>mirar e atirar</span>
+        <span class="key">ESPACO</span><span>habilidade</span>
+        <span class="key">1-8</span><span>usar itens</span>
+        <span class="key">F</span><span>entrar em portal</span>
+        <span class="key">ENTER</span><span>chat e comandos</span>
+        <span class="key">ESC / R</span><span>fugir ao Nexus</span>
+        <span class="key">H</span><span>ajuda completa</span>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- ===================== CHARACTER SELECT ===================== -->
-<div id="screen-chars" class="screen hidden">
-  <div class="panel chars-panel">
+<div id="screen-chars" class="screen menu-screen hidden">
+  <div class="panel ornate chars-panel">
     <div class="chars-head">
       <h2 id="chars-title">Personagens</h2>
       <button id="btn-logout" class="btn small">Sair</button>
     </div>
-    <div id="char-list" class="char-list"></div>
-    <h3>Criar novo personagem</h3>
-    <div id="class-list" class="class-list"></div>
-    <h3>Visual (titulo e cor)</h3>
-    <div id="cosmetics" class="cosmetics"></div>
-    <h3 id="season-title">Temporada</h3>
-    <div id="season-info" class="graveyard"></div>
-    <h3>Passe de Temporada</h3>
-    <div id="pass-track"></div>
-    <h3>Recordes de masmorra</h3>
-    <div id="speedrun"><select id="speedrun-pick"></select><div id="speedrun-list" class="graveyard"></div></div>
-    <h3>Missoes diarias</h3>
-    <div id="bounties-list" class="graveyard"></div>
-    <h3>Conquistas</h3>
-    <div id="achievements" class="graveyard"></div>
-    <h3>Cemiterio</h3>
-    <div id="graveyard" class="graveyard"></div>
-    <h3>Ranking <span id="online-count" style="color:#888;font-size:11px"></span></h3>
-    <div id="leaderboard" class="graveyard"></div>
+    <div class="tab-bar" id="chars-tabs">
+      <button class="tab active" data-tab="tab-heroes">Herois</button>
+      <button class="tab" data-tab="tab-season">Temporada</button>
+      <button class="tab" data-tab="tab-quests">Missoes</button>
+      <button class="tab" data-tab="tab-rank">Ranking</button>
+      <button class="tab" data-tab="tab-grave">Cemiterio</button>
+      <button class="tab" data-tab="tab-style">Visual</button>
+    </div>
+
+    <div class="tab-pane active" id="tab-heroes">
+      <h3>Seus herois</h3>
+      <div id="char-list" class="char-list"></div>
+      <h3>Criar novo heroi</h3>
+      <div id="class-list" class="class-list"></div>
+    </div>
+
+    <div class="tab-pane" id="tab-season">
+      <h3 id="season-title">Temporada</h3>
+      <div id="season-info" class="listing"></div>
+      <h3>Passe de Temporada</h3>
+      <div id="pass-track"></div>
+    </div>
+
+    <div class="tab-pane" id="tab-quests">
+      <h3>Missoes diarias</h3>
+      <div id="bounties-list" class="listing"></div>
+      <h3>Conquistas</h3>
+      <div id="achievements" class="listing"></div>
+    </div>
+
+    <div class="tab-pane" id="tab-rank">
+      <h3>Ranking <span id="online-count" class="online-tag"></span></h3>
+      <div id="leaderboard" class="listing"></div>
+      <h3>Recordes de masmorra</h3>
+      <div id="speedrun"><select id="speedrun-pick"></select><div id="speedrun-list" class="listing"></div></div>
+    </div>
+
+    <div class="tab-pane" id="tab-grave">
+      <h3>Cemiterio</h3>
+      <div id="graveyard" class="listing"></div>
+    </div>
+
+    <div class="tab-pane" id="tab-style">
+      <h3>Visual (titulo, cor e skin)</h3>
+      <div id="cosmetics" class="cosmetics"></div>
+    </div>
   </div>
 </div>
 
@@ -64,12 +103,18 @@
 <div id="screen-game" class="screen hidden">
   <canvas id="canvas"></canvas>
   <div id="hud">
+    <div id="zone-banner" class="hidden"><span id="zone-name"></span></div>
     <div id="hud-right">
-      <div id="hud-name"></div>
-      <div id="hud-gold">Ouro: 0</div>
+      <div id="hud-head">
+        <canvas id="hud-portrait" width="24" height="24"></canvas>
+        <div id="hud-id">
+          <div id="hud-name"></div>
+          <div id="hud-sub"><span id="hud-gold">Ouro: 0</span><span id="hud-online"></span></div>
+        </div>
+      </div>
+      <div class="bar xp"><div id="bar-xp" class="fill xp"></div><span id="txt-xp"></span></div>
       <div class="bar"><div id="bar-hp" class="fill hp"></div><span id="txt-hp"></span></div>
       <div class="bar"><div id="bar-mp" class="fill mp"></div><span id="txt-mp"></span></div>
-      <div class="bar"><div id="bar-xp" class="fill xp"></div><span id="txt-xp"></span></div>
       <div id="hud-stats"></div>
       <div class="inv-label" id="pet-label" style="display:none">Pet</div>
       <div id="hud-pet" style="display:none"></div>
@@ -80,13 +125,13 @@
       <div class="inv-label">Missoes diarias</div>
       <div id="hud-bounties"></div>
       <div class="inv-label">Equipamento</div>
-      <div id="equip-slots" class="slots"></div>
+      <div id="equip-slots" class="slots equip"></div>
       <div class="inv-label">Inventario</div>
       <div id="inv-slots" class="slots"></div>
       <div class="inv-label" id="bag-label" style="display:none">Loot</div>
-      <div id="bag-slots" class="slots" style="display:none"></div>
+      <div id="bag-slots" class="slots loot" style="display:none"></div>
       <div class="inv-label" id="vault-label" style="display:none">Cofre da conta</div>
-      <div id="vault-slots" class="slots" style="display:none"></div>
+      <div id="vault-slots" class="slots vault" style="display:none"></div>
       <canvas id="minimap" width="160" height="160"></canvas>
     </div>
     <div id="chat">
@@ -94,7 +139,7 @@
       <input id="chat-input" type="text" maxlength="200" placeholder="ENTER para falar..." class="hidden">
     </div>
     <div id="shop-overlay" class="hidden">
-      <div class="panel shop-panel">
+      <div class="panel ornate shop-panel">
         <div class="shop-head">Mercador <span id="shop-gold"></span></div>
         <div class="shop-cols">
           <div>
@@ -110,7 +155,7 @@
       </div>
     </div>
     <div id="notice"></div>
-    <div id="help-overlay" class="hidden">
+    <div id="help-overlay" class="panel ornate hidden">
       <h3>Controles</h3>
       <table>
         <tr><td>WASD / setas</td><td>Mover</td></tr>
@@ -123,7 +168,7 @@
         <tr><td>/teleport nome</td><td>Teleporta ate outro jogador na area</td></tr>
         <tr><td>/party convidar nome</td><td>Cria grupo (aceitar/sair/info) — chat /p</td></tr>
         <tr><td>/trade nome</td><td>Propoe troca</td></tr>
-        <tr><td>/guilda criar nome</td><td>Cria grupo (convidar/aceitar/sair/info)</td></tr>
+        <tr><td>/guilda criar nome</td><td>Cria guilda (convidar/aceitar/sair/info)</td></tr>
         <tr><td>/who</td><td>Lista jogadores na area</td></tr>
         <tr><td>ESC ou R</td><td>Voltar ao Nexus</td></tr>
         <tr><td>M</td><td>Liga/desliga som</td></tr>
@@ -132,7 +177,7 @@
       <p class="help-hint">Duplo clique no item: equipar/usar. Botao direito: soltar. Arraste para o cofre.</p>
     </div>
     <div id="tooltip" class="hidden"></div>
-    <div id="trade-panel" class="hidden">
+    <div id="trade-panel" class="panel ornate hidden">
       <div class="trade-head">Troca com <span id="trade-partner"></span></div>
       <div class="trade-cols">
         <div>
@@ -157,7 +202,8 @@
     </div>
   </div>
   <div id="death-overlay" class="hidden">
-    <div class="panel death-panel">
+    <div class="panel ornate death-panel">
+      <div class="death-skull">&#9760;</div>
       <h2>VOCE MORREU</h2>
       <p id="death-info"></p>
       <div id="death-fame"></div>
@@ -167,9 +213,11 @@
   </div>
 </div>
 
+<script src="vendor/colyseus.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/sounds.js"></script>
 <script src="js/net.js"></script>
+<script src="js/menu-bg.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 <script src="js/main.js"></script>

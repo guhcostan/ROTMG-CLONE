@@ -1,11 +1,14 @@
 # Realm Reborn
 
 MMO bullet-hell cooperativo jogável no browser, inspirado nas mecânicas clássicas
-do Realm of the Mad God: morte permanente, 11 classes com desbloqueio por
+do Realm of the Mad God: morte permanente, classes com desbloqueio por
 progressão, reino procedural com ciclo de fechamento e chefe final, deuses,
 dungeons instanciadas, status effects, loot com raridades e lendários, bônus de
-fama na morte, cofre, trade entre jogadores, guildas e pets. Persistência em
-banco de dados SQLite. Todo o código e a pixel art são originais.
+fama na morte, cofre, trade entre jogadores, guildas e pets. O multiplayer roda
+sobre [Colyseus](https://colyseus.io/) (matchmaking, salas e sincronização de
+estado) e a persistência fica em SQLite. Todo o código e a pixel art são
+originais; a interface usa as fontes abertas Press Start 2P e VT323 (licença
+OFL), vendorizadas em `public/fonts`.
 
 ## Rodando localmente
 
@@ -151,7 +154,9 @@ estiver rodando, ou pare o servidor antes do backup.
 
 ```
 server/
-  index.js   HTTP (cliente estático + REST de contas/ranking) e WebSocket
+  index.js   HTTP (cliente estático + REST de contas/ranking) + servidor Colyseus
+  room.js    RealmRoom (Colyseus): auth de sessão, entrada/saída de jogadores e
+             ponte do protocolo de jogo; estado global sincronizado (online/temporada)
   game.js    Simulação autoritativa: instâncias, IA, combate, XP, loot,
              cofre, trade, guildas, pets
   world.js   Geração de mapas (Nexus, Reino, dungeons)
@@ -159,14 +164,21 @@ server/
   auth.js    Registro/login (scrypt), throttling e criação de personagens
   db.js      Camada SQLite (better-sqlite3, WAL) com migração do JSON legado
 public/      Cliente: canvas 2D, sprites procedurais, HUD, minimapa
+  vendor/    colyseus.js (cliente Colyseus, vendorizado)
+  fonts/     Press Start 2P + VT323 (OFL, vendorizadas)
 test/        Teste de fumaça ponta a ponta (npm test)
 Dockerfile, docker-compose.yml   Empacotamento para produção
 ```
 
-O servidor é autoritativo: valida velocidade, cadência de tiro, dano, drops e
-todas as operações de cofre/trade. O cliente faz predição local de movimento e
-anima projéteis localmente. Dados de contas, personagens, cemitério, cofre e
-guildas ficam em SQLite; sessões persistem por 30 dias e sobrevivem a reinícios.
+O transporte multiplayer é o [Colyseus](https://colyseus.io/): todos os
+clientes entram na sala `realm` (`client.joinOrCreate`), o `onAuth` valida o
+token de sessão e o personagem, e o protocolo de jogo viaja como mensagens da
+sala; a contagem de jogadores online e a temporada ativa são sincronizadas pelo
+estado da sala. O servidor continua autoritativo: valida velocidade, cadência
+de tiro, dano, drops e todas as operações de cofre/trade. O cliente faz
+predição local de movimento, anima projéteis localmente e reconecta sozinho em
+quedas momentâneas. Dados de contas, personagens, cemitério, cofre e guildas
+ficam em SQLite; sessões persistem por 30 dias e sobrevivem a reinícios.
 
 ### Banco de dados
 
