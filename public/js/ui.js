@@ -49,7 +49,12 @@ const UI = (() => {
         else useOrEquip(i);
       });
       el.addEventListener('click', () => {
-        if (trading && i >= 4) toggleOffer(i - 4);
+        if (trading && i >= 4) return toggleOffer(i - 4);
+        // on touch there is no double click: a single tap acts
+        if (document.body.classList.contains('touch-mode')) {
+          if (vaultOpen && i >= 4 && getSlotItem(i)) Net.send({ t: 'vault', cmd: 'deposit', slot: i });
+          else useOrEquip(i);
+        }
       });
       el.addEventListener('contextmenu', e => { e.preventDefault(); Net.send({ t: 'dropitem', slot: i }); });
       el.addEventListener('mousemove', e => showTooltip(e, currentSelf && getSlotItem(i)));
@@ -63,6 +68,12 @@ const UI = (() => {
       el.draggable = true;
       el.addEventListener('dragstart', () => { dragFrom = { type: 'bag', i }; });
       el.addEventListener('dblclick', () => { Net.send({ t: 'pickup', bag: currentBagId, idx: i }); if (typeof Sfx !== 'undefined') Sfx.pickup(); });
+      el.addEventListener('click', () => {
+        if (document.body.classList.contains('touch-mode')) {
+          Net.send({ t: 'pickup', bag: currentBagId, idx: i });
+          if (typeof Sfx !== 'undefined') Sfx.pickup();
+        }
+      });
       el.addEventListener('mousemove', e => showTooltip(e, currentBagItems && currentBagItems[i]));
       el.addEventListener('mouseleave', hideTooltip);
       bag.appendChild(el);
@@ -96,6 +107,9 @@ const UI = (() => {
         dragFrom = null;
       });
       el.addEventListener('dblclick', () => Net.send({ t: 'vault', cmd: 'withdraw', idx: i }));
+      el.addEventListener('click', () => {
+        if (document.body.classList.contains('touch-mode')) Net.send({ t: 'vault', cmd: 'withdraw', idx: i });
+      });
       el.addEventListener('mousemove', e => showTooltip(e, currentVault && currentVault[i]));
       el.addEventListener('mouseleave', hideTooltip);
       wrap.appendChild(el);
@@ -237,6 +251,10 @@ const UI = (() => {
     if (shopOpen) renderShopSell();
     setBar('bar-hp', 'txt-hp', self.hp, self.maxHp);
     setBar('bar-mp', 'txt-mp', self.mp, self.maxMp);
+    // compact bars shown on touch layouts while the sidebar drawer is closed
+    const mh = $('mbar-hp'), mm = $('mbar-mp');
+    if (mh) mh.style.width = Math.max(0, Math.min(100, (self.hp / self.maxHp) * 100)) + '%';
+    if (mm) mm.style.width = Math.max(0, Math.min(100, (self.mp / self.maxMp) * 100)) + '%';
     if (self.level >= 20) {
       $('bar-xp').style.width = '100%';
       $('txt-xp').textContent = `Nv 20 - Fama ${self.fame}`;

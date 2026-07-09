@@ -70,6 +70,11 @@ estiver rodando, ou pare o servidor antes do backup.
 
 ## Como jogar
 
+No celular/tablet os controles viram toque automaticamente: polegar esquerdo
+é o joystick de movimento, o direito mira e atira, e os botões na borda fazem
+habilidade, portal (`F`), fuga ao Nexus e chat. O botão `☰` abre o inventário.
+Personagens novos têm **proteção de novato** (menos dano recebido até o nível 6).
+
 | Controle | Ação |
 |---|---|
 | `WASD` / setas | Mover |

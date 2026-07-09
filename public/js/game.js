@@ -24,6 +24,9 @@ const GameClient = (() => {
   let lastTickEntities = [];
   let keys = {};
   let mouse = { x: 0, y: 0, down: false };
+  let joy = null;              // virtual joystick: { id, ox, oy, dx, dy }
+  let aimTouch = null;         // touch id currently aiming/shooting
+  let touchMode = false;
   let lastFrame = 0;
   let shooting = false;
   let mapCanvas = null;        // pre-rendered tile layer
@@ -220,6 +223,77 @@ const GameClient = (() => {
     window.onblur = () => { keys = {}; shooting = false; };
     onresize = resize;
     resize();
+    mouse.x = canvas.width / 2; mouse.y = canvas.height / 3; // sane default aim
+    setupTouch();
+  }
+
+  // ---------------- touch: left thumb = joystick, right thumb = aim & fire
+  function setupTouch() {
+    const ui = document.getElementById('touch-ui');
+    const enterTouchMode = () => {
+      if (touchMode) return;
+      touchMode = true;
+      document.body.classList.add('touch-mode');
+      if (ui) ui.classList.remove('hidden');
+    };
+    if (matchMedia('(pointer: coarse)').matches) enterTouchMode();
+
+    const JOY_MAX = 52; // px from anchor for a full-speed input
+    canvas.addEventListener('touchstart', (e) => {
+      enterTouchMode();
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.clientX < innerWidth * 0.45 && !joy) {
+          joy = { id: t.identifier, ox: t.clientX, oy: t.clientY, dx: 0, dy: 0 };
+        } else if (aimTouch === null) {
+          aimTouch = t.identifier;
+          mouse.x = t.clientX; mouse.y = t.clientY;
+          shooting = true;
+        }
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (joy && t.identifier === joy.id) {
+          const dx = t.clientX - joy.ox, dy = t.clientY - joy.oy;
+          const len = Math.hypot(dx, dy);
+          if (len < 10) { joy.dx = 0; joy.dy = 0; }           // dead zone
+          else { const k = Math.min(1, len / JOY_MAX) / len; joy.dx = dx * k; joy.dy = dy * k; }
+        } else if (t.identifier === aimTouch) {
+          mouse.x = t.clientX; mouse.y = t.clientY;
+        }
+      }
+    }, { passive: false });
+    const endTouch = (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (joy && t.identifier === joy.id) joy = null;
+        if (t.identifier === aimTouch) { aimTouch = null; shooting = false; }
+      }
+    };
+    canvas.addEventListener('touchend', endTouch, { passive: false });
+    canvas.addEventListener('touchcancel', endTouch, { passive: false });
+
+    // action buttons
+    const bind = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', (e) => { e.preventDefault(); fn(); });
+    };
+    bind('btn-t-ability', () => {
+      const w = screenToWorld(mouse.x, mouse.y);
+      Net.send({ t: 'ability', x: w.x, y: w.y });
+    });
+    bind('btn-t-portal', () => Net.send({ t: 'portal' }));
+    bind('btn-t-nexus', () => Net.send({ t: 'nexus' }));
+    bind('btn-t-chat', () => {
+      const input = document.getElementById('chat-input');
+      input.classList.remove('hidden');
+      input.focus();
+    });
+    bind('btn-hud-toggle', () => {
+      document.getElementById('hud-right').classList.toggle('open');
+    });
   }
 
   function resize() {
@@ -238,9 +312,10 @@ const GameClient = (() => {
   let shotAccum = 0;
   function update(dt) {
     if (!world || !self) return;
-    // movement
+    // movement (keyboard or virtual joystick)
     let dx = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0);
     let dy = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0);
+    if (joy && (joy.dx || joy.dy)) { dx = joy.dx; dy = joy.dy; }
     const st = self.st || {};
     if ((dx || dy) && !(st.paralyze > 0)) {
       const len = Math.hypot(dx, dy);
@@ -447,10 +522,44 @@ const GameClient = (() => {
       }
     }
 
+    drawTouchControls();
     drawDungeonDarkness();
     drawLowHpVignette();
     drawQuestArrow();
     renderMinimap();
+  }
+
+  // joystick base + knob, and a reticle where the right thumb is aiming
+  function drawTouchControls() {
+    if (joy) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = '#d8d2c8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(joy.ox, joy.oy, 52, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#e8b74a';
+      ctx.beginPath();
+      ctx.arc(joy.ox + joy.dx * 52, joy.oy + joy.dy * 52, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    if (aimTouch !== null) {
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = '#3fd0b6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 16, 0, Math.PI * 2);
+      ctx.moveTo(mouse.x - 24, mouse.y); ctx.lineTo(mouse.x - 8, mouse.y);
+      ctx.moveTo(mouse.x + 8, mouse.y); ctx.lineTo(mouse.x + 24, mouse.y);
+      ctx.moveTo(mouse.x, mouse.y - 24); ctx.lineTo(mouse.x, mouse.y - 8);
+      ctx.moveTo(mouse.x, mouse.y + 8); ctx.lineTo(mouse.x, mouse.y + 24);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // light-radius vignette: dungeons stay dark beyond the player's torch

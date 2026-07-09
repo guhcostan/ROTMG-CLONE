@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Realm Reborn - MMO Bullet Hell</title>
 <meta name="description" content="MMO bullet-hell cooperativo no navegador: morte permanente, dungeons, loot e guildas. Jogue gratis com amigos.">
 <meta name="theme-color" content="#171226">
@@ -113,6 +113,19 @@
   <canvas id="canvas"></canvas>
   <div id="hud">
     <div id="zone-banner" class="hidden"><span id="zone-name"></span></div>
+    <div id="touch-ui" class="hidden">
+      <button id="btn-hud-toggle" title="Inventario e status">&#9776;</button>
+      <div id="mobile-bars">
+        <div class="mbar"><div id="mbar-hp"></div></div>
+        <div class="mbar"><div id="mbar-mp"></div></div>
+      </div>
+      <div id="touch-buttons">
+        <button id="btn-t-ability" title="Habilidade">&#10022;</button>
+        <button id="btn-t-portal" title="Entrar no portal">F</button>
+        <button id="btn-t-nexus" title="Fugir ao Nexus">&#8962;</button>
+        <button id="btn-t-chat" title="Chat">&#128172;</button>
+      </div>
+    </div>
     <div id="hud-right">
       <div id="hud-head">
         <canvas id="hud-portrait" width="24" height="24"></canvas>

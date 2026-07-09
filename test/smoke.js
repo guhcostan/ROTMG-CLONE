@@ -343,6 +343,24 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// newbie protection: low-level characters take reduced damage, gone by level 6
+function newbieProtectionSanity() {
+  const { Game, newbieDamageMul } = require('../server/game');
+  check(newbieDamageMul(1) === 0.5 && newbieDamageMul(5) === 0.9 && newbieDamageMul(6) === 1 && newbieDamageMul(20) === 1,
+    'newbie damage multiplier fades from 50% at lvl1 to none at lvl6');
+  const g = new Game();
+  const mk = (level) => ({
+    id: -300 - level, x: 5, y: 5, dead: false, instance: g.realm, lastHit: 0, status: {},
+    char: { level, hp: 500, mp: 0, classId: 'wizard', stats: { hp: 500, mp: 0, att: 0, def: 0, spd: 0, dex: 0, vit: 0, wis: 0 }, equipment: [] },
+    ws: { readyState: 3, send() {} }, acc: null,
+  });
+  const rookie = mk(1), vet = mk(20);
+  g.damagePlayer(rookie, 100, 'teste');
+  g.damagePlayer(vet, 100, 'teste');
+  const rookieLost = 500 - rookie.char.hp, vetLost = 500 - vet.char.hp;
+  check(rookieLost === Math.round(vetLost / 2), `level 1 takes half damage (${rookieLost} vs ${vetLost})`);
+}
+
 // bleed scales with max HP (floored) so it isn't lethal to low-level characters
 function bleedSanity() {
   const { Game } = require('../server/game');
@@ -688,6 +706,7 @@ async function main() {
   abilityScalingSanity();
   coopXpSanity();
   balanceSanity();
+  newbieProtectionSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();

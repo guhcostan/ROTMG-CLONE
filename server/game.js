@@ -184,6 +184,9 @@ const MOB_SPEED_CAP = 3.9;        // strictly below a 0-SPD player so no mob out
 function moveSpeed(stats) { return PLAYER_MIN_SPEED + 5.6 * (stats.spd / 75); }     // tiles/s
 function fireRate(stats) { return 1.5 + 4.5 * (stats.dex / 75); }    // shots/s
 function applyDefense(dmg, def) { return Math.max(Math.ceil(dmg * 0.1), dmg - def); }
+// newbie protection: fresh characters take less damage while they learn the
+// ropes; fades out linearly and is gone at level 6 (lvl1 -50% ... lvl5 -10%)
+function newbieDamageMul(level) { return 1 - Math.max(0, 6 - (level || 6)) * 0.1; }
 // ability damage scales with both ATT and WIS, so caster builds invest in WIS
 function abilityMul(stats) { return 0.5 + stats.att / 50 + stats.wis / 60; }
 
@@ -417,6 +420,9 @@ class Game {
     this.grantDaily(player);
     send(player.ws, { t: 'bounties', list: player.bounties });
     send(player.ws, { t: 'chat', from: '', text: `Temporada ativa: ${this.seasonMod.name}.`, sys: 1 });
+    if (char.level < 6) {
+      send(player.ws, { t: 'chat', from: '', text: `Protecao de novato ativa: voce recebe ${Math.round((1 - newbieDamageMul(char.level)) * 100)}% menos dano ate o nivel 6.`, sys: 1 });
+    }
     if (player.pet) this.sendPet(player);
     return player;
   }
@@ -1590,6 +1596,7 @@ class Game {
   // applies already-resolved damage (defense ignored); used by bleed/lava too
   hurtPlayer(player, dmg, sourceName) {
     if (player.dead || dmg <= 0) return;
+    dmg = Math.max(1, Math.round(dmg * newbieDamageMul(player.char.level)));
     player.char.hp -= dmg;
     player.lastHit = Date.now();
     player.instance.broadcastNear({ t: 'dmg', id: player.id, n: dmg }, player.x, player.y);
@@ -2027,4 +2034,4 @@ function effectiveMaxMp(player) {
 function round1(n) { return Math.round(n * 10) / 10; }
 function send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 
-module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage };
+module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage, newbieDamageMul };
