@@ -202,11 +202,27 @@ const GameClient = (() => {
     if (typeof Sfx !== 'undefined') Sfx.warn(volAt(msg.x, msg.y));
   }
 
+  // each class ability has its own color signature (ring + particle burst)
+  const ABILITY_FX = {
+    spell: ['#9adcff', 18],     // Wizard: frost nova
+    helm: ['#ff9a4a', 14],      // Warrior: berserk
+    tome: ['#6dff8a', 20],      // Priest: heal
+    cloak: ['#b8a0e8', 12],     // Rogue: vanish
+    shield: ['#ffd873', 20],    // Knight: stun shockwave
+    skull: ['#a06dff', 18],     // Necromancer: drain
+    trap: ['#7ac74f', 14],      // Huntress: trap
+    seal: ['#ffe28a', 20],      // Paladin: holy aura
+    orb: ['#64e8ff', 16],       // Mystic: stasis
+    prism: ['#ff7ae8', 14],     // Trickster: blink
+    wakizashi: ['#ff5a5a', 14], // Samurai: expose slash
+  };
+
   function onFx(msg) {
     if (typeof Sfx !== 'undefined') {
       if (msg.k === 'die') Sfx.kill(0.3 + 0.7 * volAt(msg.x, msg.y));
       if (msg.k === 'levelup') Sfx.levelup();
     }
+    const abFx = msg.ab && ABILITY_FX[msg.ab];
     if (gl3dReady) {
       if (msg.k === 'die') {
         // pixel burst in the dying enemy's palette; big deaths shake nearby screens
@@ -214,11 +230,13 @@ const GameClient = (() => {
         if ((msg.r || 1) >= 1.5 && Math.hypot(msg.x - me.x, msg.y - me.y) < 12) shake = Math.max(shake, 0.35);
       } else if (msg.k === 'levelup') {
         Renderer3D.burst(msg.x, msg.y, '#ffd873', 22, 3);
+      } else if (abFx) {
+        Renderer3D.burst(msg.x, msg.y, abFx[0], abFx[1], 2.5);
       } else if (msg.k === 'nova') {
         Renderer3D.burst(msg.x, msg.y, '#7ec8ff', 10, 2.5);
       }
     }
-    effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, s: msg.s, t: 0, ttl: 0.6 });
+    effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, s: msg.s, color: abFx && abFx[0], t: 0, ttl: 0.6 });
   }
 
   // average opaque color of the sprite of the enemy nearest to (x, y)
@@ -497,6 +515,33 @@ const GameClient = (() => {
     };
   }
 
+  // classic speech bubble above a player's head
+  function drawBubble(cx, bottomY, text, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '15px VT323, monospace';
+    const w = Math.min(ctx.measureText(text).width + 14, 300);
+    const h = 22;
+    const x = cx - w / 2, y = bottomY - h;
+    ctx.fillStyle = 'rgba(20,16,32,0.92)';
+    ctx.strokeStyle = 'rgba(232,183,74,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, 5); else ctx.rect(x, y, w, h);
+    ctx.fill();
+    ctx.stroke();
+    // little tail pointing at the speaker
+    ctx.beginPath();
+    ctx.moveTo(cx - 4, y + h); ctx.lineTo(cx, y + h + 6); ctx.lineTo(cx + 4, y + h);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(20,16,32,0.92)';
+    ctx.fill();
+    ctx.fillStyle = '#f0ead8';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, cx, y + 16, w - 10);
+    ctx.restore();
+  }
+
   // ground-aligned ellipse on the overlay (rings, elite auras)
   function groundEllipse(px, py, r, ys, stroke, width, alpha, fill) {
     ctx.save();
@@ -606,6 +651,10 @@ const GameClient = (() => {
         ctx.font = '15px VT323, monospace';
         const tag = ent.guild ? `[${ent.guild}] ` : '';
         ctx.fillText(`${tag}${ent.name} ${ent.level}`, head.x, head.y);
+        if (ent.bubble && now < ent.bubble.until) {
+          drawBubble(head.x, head.y - (ent.title ? 30 : 18), ent.bubble.text,
+            Math.min(1, (ent.bubble.until - now) / 500)); // fade in the last 0.5s
+        }
         const feet = R.project(ent.x, ent.y);
         if (ent.id !== myId && ent.hp < ent.maxHp) {
           drawHpBar(feet.x, feet.y + 7, ent.hp, ent.maxHp, TILE * 0.9);
@@ -634,15 +683,15 @@ const GameClient = (() => {
         ctx.globalAlpha = 1;
       } else if (f.kind === 'nova' || f.kind === 'die') {
         groundEllipse(s.x, s.y, f.r * TILE * p, ys,
-          f.kind === 'die' ? '#ffa040' : '#80d0ff', 3, (1 - p) * 0.7);
+          f.color || (f.kind === 'die' ? '#ffa040' : '#80d0ff'), 3, (1 - p) * 0.7);
       } else if (f.kind === 'heal' || f.kind === 'buff' || f.kind === 'levelup') {
         groundEllipse(s.x, s.y, f.r * TILE * (0.4 + p), ys,
-          f.kind === 'heal' ? '#50ff50' : '#f0c040', 2, (1 - p) * 0.8);
+          f.color || (f.kind === 'heal' ? '#50ff50' : '#f0c040'), 2, (1 - p) * 0.8);
       } else if (f.kind === 'vanish') {
-        groundEllipse(s.x, s.y, TILE * 0.5 * (1 - p), ys, null, 0, (1 - p) * 0.5, '#a0a0ff');
+        groundEllipse(s.x, s.y, TILE * 0.5 * (1 - p), ys, null, 0, (1 - p) * 0.5, f.color || '#a0a0ff');
       } else if (f.kind === 'status') {
         const info = STATUS_INFO[f.s] || ['#fff', ''];
-        groundEllipse(s.x, s.y, TILE * (0.4 + p * 0.5), ys, info[0], 2, (1 - p) * 0.8);
+        groundEllipse(s.x, s.y, TILE * (0.4 + p * 0.5), ys, f.color || info[0], 2, (1 - p) * 0.8);
       } else if (f.kind === 'tele') {
         // danger zone fills up as the attack arms — get out!
         const pulse = 0.75 + Math.sin(now / 90) * 0.25;
@@ -817,7 +866,18 @@ const GameClient = (() => {
       dmg: onDmg,
       fx: onFx,
       notice: m => UI.notice(m.text),
-      chat: m => UI.chat(m.from, m.text, m.sys, m.evt),
+      chat: m => {
+        UI.chat(m.from, m.text, m.sys, m.evt);
+        // public messages float as a speech bubble over the speaker's head
+        if (!m.sys && !m.evt && m.from) {
+          for (const ent of entities.values()) {
+            if (ent.kind === 'p' && ent.name === m.from) {
+              ent.bubble = { text: m.text.slice(0, 64), until: performance.now() + 4200 };
+              break;
+            }
+          }
+        }
+      },
       bounties: m => UI.setBounties(m.list),
       pet: m => UI.setPet(m),
       shop: m => UI.showShop(m),

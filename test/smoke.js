@@ -343,6 +343,35 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// boss kills report a damage scoreboard; ability fx carry their identity tag
+function dpsAndAbilityFxSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const mkWs = () => ({ readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } });
+  const mk = (id, name) => ({ id, name, acc: null, instance: g.realm, x: 10, y: 10, dead: false, invisUntil: 0,
+    lastAbility: 0, status: {}, gold: 0, kills: 0, godsKilled: 0, dungeons: 0,
+    char: { hp: 500, mp: 500, level: 10, xp: 0, fame: 0, classId: 'wizard',
+      stats: { hp: 500, mp: 500, att: 30, def: 0, spd: 10, dex: 10, vit: 10, wis: 30 },
+      equipment: ['staff0', 'spell0', 'robe0', null], inventory: new Array(8).fill(null) },
+    ws: mkWs() });
+  const a = mk(-800, 'Carrega'), b = mk(-801, 'Ajuda');
+  for (const p of [a, b]) { g.players.set(p.id, p); g.realm.players.set(p.id, p); }
+  const boss = g.spawnEnemy(g.realm, 'goblin_king', 10, 10);
+  g.damageEnemy(g.realm, boss, Math.round(boss.maxHp * 0.7), a); // a carries the fight
+  boss.hp = 1;
+  g.damageEnemy(g.realm, boss, 12, b); // b lands a tiny killing blow
+  const board = a.ws.sent.find(m => m.t === 'chat' && (m.text || '').startsWith('Dano em'));
+  check(!!board, 'boss death posts a damage scoreboard');
+  check(board && board.text.indexOf('Carrega') < board.text.indexOf('Ajuda'), 'scoreboard sorts by damage dealt');
+
+  // ability fx carries the ability tag for client styling
+  a.ws.sent.length = 0;
+  g.onAbility(a, { x: 10, y: 10 });
+  const fx = a.ws.sent.find(m => m.t === 'fx');
+  check(fx && fx.ab === 'spell', 'ability fx is tagged with the ability type');
+  for (const p of [a, b]) { g.players.delete(p.id); g.realm.players.delete(p.id); }
+}
+
 // spectator mode: the dead linger invisibly, keep getting snapshots, then time out
 function spectatorSanity() {
   const { Game } = require('../server/game');
@@ -856,6 +885,7 @@ async function main() {
   telegraphSanity();
   spectatorSanity();
   conquestSanity();
+  dpsAndAbilityFxSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();

@@ -162,6 +162,10 @@ moderação — contas banidas não conseguem logar.
   variados por mob (rajadas, escopetas, snipers, metralhadoras, orbes lentos,
   anéis e espirais), defesa que reduz dano, regeneração por VIT/WIS e cadência
   por DEX.
+- **Comunicação e reconhecimento** — o chat público vira balões de fala sobre a
+  cabeça de quem falou (estilo clássico), cada habilidade de classe tem sua
+  assinatura visual de cor/partículas, e quando um chefe cai o grupo vê o
+  placar de dano ("Dano em Goblin King: A 55%, B 30%...").
 - **Modo espectador** — ao morrer, você pode ficar assistindo seus amigos
   (invisível, a câmera segue o aliado mais próximo, por até 90s) em vez de ser
   ejetado na hora. E quando um Reino cai, o servidor anuncia os **maiores

@@ -970,7 +970,7 @@ class Game {
         for (const e of inst.enemies.values()) {
           if (dist2(e.x, e.y, tx, ty) < r2) { this.damageEnemy(inst, e, dmg, player); e.slowedUntil = now + 2000; }
         }
-        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: Math.sqrt(r2) }, tx, ty);
+        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: Math.sqrt(r2), ab: 'spell' }, tx, ty);
         break;
       }
       case 'quiver': { // fan of heavy piercing arrows (more arrows at higher tier)
@@ -989,7 +989,7 @@ class Game {
       }
       case 'helm': // berserk: faster fire + move speed (via effectiveStats)
         player.berserkUntil = now + 4000 + pw * 1000;
-        inst.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 1 }, player.x, player.y);
+        inst.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 1, ab: 'helm' }, player.x, player.y);
         break;
       case 'tome': { // heal self + nearby allies, and cleanse their statuses
         const heal = Math.round(80 * pw + stats.wis * 1.5);
@@ -1003,12 +1003,12 @@ class Game {
             this.cleanseStatus(p);
           }
         }
-        inst.broadcastNear({ t: 'fx', k: 'heal', x: player.x, y: player.y, r: 6 }, player.x, player.y);
+        inst.broadcastNear({ t: 'fx', k: 'heal', x: player.x, y: player.y, r: 6, ab: 'tome' }, player.x, player.y);
         break;
       }
       case 'cloak': // invisibility
         player.invisUntil = now + 3000 + pw * 1500;
-        inst.broadcastNear({ t: 'fx', k: 'vanish', x: player.x, y: player.y, r: 1 }, player.x, player.y);
+        inst.broadcastNear({ t: 'fx', k: 'vanish', x: player.x, y: player.y, r: 1, ab: 'cloak' }, player.x, player.y);
         break;
       case 'shield': { // stun burst around player
         if (inst.kind === 'nexus') break;
@@ -1019,7 +1019,7 @@ class Game {
             if (e.def.behavior !== 'boss') e.stunnedUntil = now + 2000 + pw * 400;
           }
         }
-        inst.broadcastNear({ t: 'fx', k: 'nova', x: player.x, y: player.y, r: 3.5 }, player.x, player.y);
+        inst.broadcastNear({ t: 'fx', k: 'nova', x: player.x, y: player.y, r: 3.5, ab: 'shield' }, player.x, player.y);
         break;
       }
       // ---- advanced-class abilities ----
@@ -1035,7 +1035,7 @@ class Game {
           player.char.hp = Math.min(effectiveMaxHp(player), player.char.hp + leech);
           inst.broadcastNear({ t: 'dmg', id: player.id, n: -leech }, player.x, player.y);
         }
-        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3.5 }, tx, ty);
+        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3.5, ab: 'skull' }, tx, ty);
         break;
       }
       case 'trap': { // Huntress: AoE damage + slow at cursor
@@ -1047,7 +1047,7 @@ class Game {
             e.slowedUntil = now + 3000;
           }
         }
-        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3 }, tx, ty);
+        inst.broadcastNear({ t: 'fx', k: 'nova', x: tx, y: ty, r: 3, ab: 'trap' }, tx, ty);
         break;
       }
       case 'seal': { // Paladin: heal + attack buff aura for nearby allies
@@ -1061,7 +1061,7 @@ class Game {
             p.attBuffUntil = now + 4000 + pw * 800;
           }
         }
-        inst.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 6 }, player.x, player.y);
+        inst.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 6, ab: 'seal' }, player.x, player.y);
         break;
       }
       case 'orb': { // Mystic: stasis — stun a cluster of enemies at cursor
@@ -1071,7 +1071,7 @@ class Game {
             e.stunnedUntil = now + 3000 + pw * 800;
           }
         }
-        inst.broadcastNear({ t: 'fx', k: 'status', x: tx, y: ty, r: 3.5, s: 'paralyze' }, tx, ty);
+        inst.broadcastNear({ t: 'fx', k: 'status', x: tx, y: ty, r: 3.5, s: 'paralyze', ab: 'orb' }, tx, ty);
         break;
       }
       case 'prism': { // Trickster: blink toward cursor
@@ -1083,10 +1083,10 @@ class Game {
           if (inst.tileBlocked(cx, cy)) break;
           nx = cx; ny = cy;
         }
-        inst.broadcastNear({ t: 'fx', k: 'vanish', x: player.x, y: player.y, r: 1 }, player.x, player.y);
+        inst.broadcastNear({ t: 'fx', k: 'vanish', x: player.x, y: player.y, r: 1, ab: 'prism' }, player.x, player.y);
         player.x = nx; player.y = ny;
         send(player.ws, { t: 'blink', x: nx, y: ny });
-        inst.broadcastNear({ t: 'fx', k: 'vanish', x: nx, y: ny, r: 1 }, nx, ny);
+        inst.broadcastNear({ t: 'fx', k: 'vanish', x: nx, y: ny, r: 1, ab: 'prism' }, nx, ny);
         break;
       }
       case 'wakizashi': { // Samurai: strike + expose enemies (they take +25% dmg)
@@ -1098,7 +1098,7 @@ class Game {
             e.exposedUntil = now + 4000;
           }
         }
-        inst.broadcastNear({ t: 'fx', k: 'status', x: tx, y: ty, r: 3, s: 'weak' }, tx, ty);
+        inst.broadcastNear({ t: 'fx', k: 'status', x: tx, y: ty, r: 3, s: 'weak', ab: 'wakizashi' }, tx, ty);
         break;
       }
     }
@@ -1572,6 +1572,20 @@ class Game {
         if (d0.behavior === 'boss') this.progressBounty(p, 'kill_bosses');
         if (d0.god) this.progressBounty(p, 'kill_gods');
         if (d0.event) this.progressBounty(p, 'kill_event');
+      }
+    }
+    // damage scoreboard: bosses report who carried the fight
+    if (d0.behavior === 'boss' && enemy.damagers.size) {
+      let total = 0;
+      for (const v of enemy.damagers.values()) total += v;
+      const top = [...enemy.damagers.entries()]
+        .map(([pid, dmg]) => ({ p: this.players.get(pid), dmg }))
+        .filter(e => e.p)
+        .sort((a, b) => b.dmg - a.dmg)
+        .slice(0, 3);
+      if (total > 0 && top.length) {
+        const line = top.map(e => `${e.p.name} ${Math.round(e.dmg / total * 100)}%`).join(', ');
+        inst.broadcast({ t: 'chat', from: '', text: `Dano em ${d0.name}: ${line}`, sys: 1 });
       }
     }
     // community feed: notable boss kills go to everyone online (+ Discord)
