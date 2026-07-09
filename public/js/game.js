@@ -49,7 +49,7 @@ const GameClient = (() => {
       gl3dReady = true;
       resize();
     }
-    Renderer3D.setWorld(world, mapCanvas);
+    Renderer3D.setWorld(world, [mapCanvas, mapCanvasB]);
   }
 
   function tileAt(x, y) {
@@ -59,24 +59,38 @@ const GameClient = (() => {
   }
   function blocked(x, y) { return TILE_BLOCKING.has(tileAt(x, y)); }
 
-  function prerenderMap() {
+  let mapCanvasB = null; // second phase: liquid tiles shimmer
+  const LIQUID = new Set([3, 8, 13]); // water, lava, frost pool
+  function buildMapCanvas(phase) {
     const px = 8; // pixels per tile in the prerender (scaled when drawn)
-    mapCanvas = document.createElement('canvas');
-    mapCanvas.width = world.w * px; mapCanvas.height = world.h * px;
-    const c = mapCanvas.getContext('2d');
+    const cv = document.createElement('canvas');
+    cv.width = world.w * px; cv.height = world.h * px;
+    const c = cv.getContext('2d');
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
         const t = world.tiles[y * world.w + x];
         const col = TILE_COLORS[t] || TILE_COLORS[0];
-        c.fillStyle = ((x + y) % 2 === 0) ? col[0] : col[1];
+        // liquids swap their checker phase each frame -> ripple shimmer
+        const flip = phase === 1 && LIQUID.has(t);
+        c.fillStyle = (((x + y) % 2 === 0) !== flip) ? col[0] : col[1];
         c.fillRect(x * px, y * px, px, px);
-        // simple wall shading
         if (t === 10 || t === 4) {
           c.fillStyle = 'rgba(255,255,255,0.06)';
           c.fillRect(x * px, y * px, px, 2);
+        } else if (flip) {
+          // sparse highlight pixels sell the water/lava movement
+          if (((x * 31 + y * 17) % 7) === 0) {
+            c.fillStyle = 'rgba(255,255,255,0.18)';
+            c.fillRect(x * px + 2, y * px + 3, 2, 1);
+          }
         }
       }
     }
+    return cv;
+  }
+  function prerenderMap() {
+    mapCanvas = buildMapCanvas(0);
+    mapCanvasB = buildMapCanvas(1);
   }
 
   // ------------------------------------------------ network handlers
@@ -154,9 +168,14 @@ const GameClient = (() => {
     }
   }
 
+  let shake = 0; // seconds of camera shake left
   function onDmg(msg) {
     if (msg.id === myId && msg.n > 0 && typeof Sfx !== 'undefined') Sfx.hit();
     const ent = entities.get(msg.id);
+    if (ent && ent.kind === 'e' && msg.n > 0) ent.hitT = 0.12;          // enemy hit flash
+    if (msg.id === myId && self && msg.n >= Math.max(10, self.maxHp * 0.09)) {
+      shake = 0.3;                                                       // heavy hits rattle the camera
+    }
     const x = ent ? (ent.x ?? ent.tx) : null;
     if (x === null && msg.id !== myId) return;
     const px = ent ? ent.x : me.x, py = ent ? ent.y : me.y;
@@ -173,7 +192,44 @@ const GameClient = (() => {
       if (msg.k === 'die') Sfx.kill();
       if (msg.k === 'levelup') Sfx.levelup();
     }
+    if (gl3dReady) {
+      if (msg.k === 'die') {
+        // pixel burst in the dying enemy's palette; big deaths shake nearby screens
+        Renderer3D.burst(msg.x, msg.y, nearestEnemyColor(msg.x, msg.y), 8 + Math.round((msg.r || 1) * 8), 2 + (msg.r || 1));
+        if ((msg.r || 1) >= 1.5 && Math.hypot(msg.x - me.x, msg.y - me.y) < 12) shake = Math.max(shake, 0.35);
+      } else if (msg.k === 'levelup') {
+        Renderer3D.burst(msg.x, msg.y, '#ffd873', 22, 3);
+      } else if (msg.k === 'nova') {
+        Renderer3D.burst(msg.x, msg.y, '#7ec8ff', 10, 2.5);
+      }
+    }
     effects.push({ kind: msg.k, x: msg.x, y: msg.y, r: msg.r || 1, s: msg.s, t: 0, ttl: 0.6 });
+  }
+
+  // average opaque color of the sprite of the enemy nearest to (x, y)
+  const avgColorCache = new Map();
+  function nearestEnemyColor(x, y) {
+    let best = null, bestD = 2.5;
+    for (const ent of entities.values()) {
+      if (ent.kind !== 'e') continue;
+      const d = Math.hypot(ent.x - x, ent.y - y);
+      if (d < bestD) { bestD = d; best = ent; }
+    }
+    if (!best) return '#e0a060';
+    let col = avgColorCache.get(best.type);
+    if (!col) {
+      const spr = Sprites.get(best.type);
+      if (!spr) return '#e0a060';
+      const c = spr.getContext('2d');
+      const data = c.getImageData(0, 0, spr.width, spr.height).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 100) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
+      }
+      col = n ? `rgb(${(r / n) | 0},${(g / n) | 0},${(b / n) | 0})` : '#e0a060';
+      avgColorCache.set(best.type, col);
+    }
+    return col;
   }
 
   // status type -> display color / short label
@@ -356,9 +412,11 @@ const GameClient = (() => {
         Net.send({ t: 'shoot', a: Math.atan2(w.y - me.y, w.x - me.x) });
       }
     }
+    if (shake > 0) shake -= dt;
     // lerp entities toward server positions + walk/attack animation state
     for (const ent of entities.values()) {
       if (ent.lungeT > 0) ent.lungeT -= dt;
+      if (ent.hitT > 0) ent.hitT -= dt;
       if (ent.id === myId) { ent.x = me.x; ent.y = me.y; continue; }
       const ddx = ent.tx - ent.x, ddy = ent.ty - ent.y;
       ent.moving = Math.hypot(ddx, ddy) > 0.02;
@@ -398,12 +456,13 @@ const GameClient = (() => {
     return missingCanvas;
   }
 
-  // walk bob / facing flip / attack lunge parameters for a billboard
+  // walk bob / facing flip / attack lunge / hit flash for a billboard
   function animOpts(ent) {
     return {
       flip: ent.facing === -1,
       bob: ent.moving ? ent.animT : 0,
       lunge: ent.lungeT > 0 ? { a: ent.lungeA, k: ent.lungeT / 0.14 } : null,
+      flash: ent.hitT > 0,
     };
   }
 
@@ -423,7 +482,11 @@ const GameClient = (() => {
     const W = canvas.width, H = canvas.height;
     const R = Renderer3D;
     const now = performance.now();
-    R.beginFrame(me.x, me.y);
+    const sk = shake > 0 ? shake / 0.3 * 0.14 : 0;
+    R.beginFrame(
+      me.x + (sk ? (Math.random() * 2 - 1) * sk : 0),
+      me.y + (sk ? (Math.random() * 2 - 1) * sk : 0)
+    );
 
     // ---- 3D pass: billboards, shadows and bullets
     const labels = []; // gathered for the overlay pass
@@ -716,7 +779,7 @@ const GameClient = (() => {
       dmg: onDmg,
       fx: onFx,
       notice: m => UI.notice(m.text),
-      chat: m => UI.chat(m.from, m.text, m.sys),
+      chat: m => UI.chat(m.from, m.text, m.sys, m.evt),
       bounties: m => UI.setBounties(m.list),
       pet: m => UI.setPet(m),
       shop: m => UI.showShop(m),

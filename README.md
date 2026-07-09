@@ -162,6 +162,10 @@ moderação — contas banidas não conseguem logar.
   variados por mob (rajadas, escopetas, snipers, metralhadoras, orbes lentos,
   anéis e espirais), defesa que reduz dano, regeneração por VIT/WIS e cadência
   por DEX.
+- **Feed global de eventos** — mortes de chefes notáveis, drops lendários,
+  invasões, reinos conquistados, níveis máximos e mortes de heróis famosos
+  aparecem no chat de todos os jogadores online (em verde-arcano), onde quer
+  que estejam.
 - **Som e reconexão** — efeitos sonoros procedurais via WebAudio (tecla `M`
   silencia) e reconexão automática mantendo o personagem em quedas momentâneas.
 

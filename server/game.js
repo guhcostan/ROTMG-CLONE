@@ -111,6 +111,7 @@ const SKIN_TINTS = [
 
 let nextId = 1;
 const uid = () => nextId++;
+const LEGSET = new Set(LEGENDARIES);
 
 const dist2 = (ax, ay, bx, by) => (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
 
@@ -1175,6 +1176,11 @@ class Game {
 
   sysMsg(player, text) { send(player.ws, { t: 'chat', from: '', text, sys: 1 }); }
 
+  // world-event ticker: everyone online sees it, wherever they are
+  globalEvent(text) {
+    for (const p of this.players.values()) send(p.ws, { t: 'chat', from: '', text, sys: 1, evt: 1 });
+  }
+
   // post a line to the configured Discord webhook (no-op if unset)
   postWebhook(text) {
     if (!this.webhook || !text) return false;
@@ -1502,6 +1508,7 @@ class Game {
   // the realm is removed from the pool, and a fresh one opens in its place
   closeRealm(old = this.realm) {
     const castle = this.createDungeon('mad_castle', DUNGEONS.mad_castle);
+    this.globalEvent('🏰 Um Reino foi conquistado! Seus herois enfrentam o Rei Demente no castelo.');
     for (const p of [...old.players.values()]) {
       send(p.ws, { t: 'chat', from: '', text: 'O Reino caiu! O Rei Demente convoca os herois ao seu castelo!', sys: 1 });
       this.enterInstance(p, castle);
@@ -1560,11 +1567,13 @@ class Game {
         if (d0.event) this.progressBounty(p, 'kill_event');
       }
     }
-    // community feed: announce notable boss kills to Discord (if configured)
-    if (this.webhook) {
-      const killer = this.players.get([...recipients][0]);
-      const msg = notableKillMessage(d0, killer ? killer.name : 'Alguem');
-      if (msg) this.postWebhook(msg);
+    // community feed: notable boss kills go to everyone online (+ Discord)
+    const killer = this.players.get([...recipients][0]);
+    const killerName = killer ? killer.name : 'Alguem';
+    const feedMsg = notableKillMessage(d0, killerName);
+    if (feedMsg) {
+      this.globalEvent(feedMsg);
+      if (this.webhook) this.postWebhook(feedMsg);
     }
     // loot
     const drops = rollLoot(enemy.def.loot, null, this.seasonMod.lootMul);
@@ -1579,8 +1588,10 @@ class Game {
     if (enemy.elite) { // elites drop a bonus bag (extra potions / a tier roll)
       const bonus = rollLoot([['statpot', 0.5], ['weapon:2-4', 0.5], ['armor:2-4', 0.5], ['legendary', 0.01]], null, this.seasonMod.lootMul);
       if (bonus.length) this.spawnBag(inst, enemy.x, enemy.y, bonus);
+      for (const id of bonus) if (LEGSET.has(id)) this.globalEvent(`✦ ${killerName} encontrou ${ITEMS[id].name}!`);
     }
     if (bagItems.length) this.spawnBag(inst, enemy.x, enemy.y, bagItems);
+    for (const id of bagItems) if (LEGSET.has(id)) this.globalEvent(`✦ ${killerName} encontrou ${ITEMS[id].name}!`);
     // world-event boss defeated: announce + clear so the next can spawn
     if (enemy.def.event && enemy.id === inst.eventBossId) {
       inst.eventBossId = null;
@@ -1647,7 +1658,10 @@ class Game {
       ch.mp = effectiveMaxMp(player);
       player.instance.broadcastNear({ t: 'fx', k: 'levelup', x: player.x, y: player.y, r: 1 }, player.x, player.y);
       send(player.ws, { t: 'notice', text: `Voce alcancou o nivel ${ch.level}!` });
-      if (ch.level >= 20) this.awardAchievement(player, 'max_level');
+      if (ch.level >= 20) {
+        this.awardAchievement(player, 'max_level');
+        this.globalEvent(`★ ${player.name} levou ${CLASSES[ch.classId].name} ao nivel maximo!`);
+      }
       this.persist(player);
     }
   }
@@ -1698,7 +1712,9 @@ class Game {
     const bonusFame = bonuses.reduce((s, b) => s + b.value, 0);
     ch.fame = baseFame + bonusFame;
     if (player.acc) storage.recordSeasonFame(player.acc.id, this.season, ch.fame);
-    inst.broadcast({ t: 'chat', from: '', text: `${player.name} (${CLASSES[ch.classId].name} nv ${ch.level}) morreu para ${killedBy}`, sys: 1 });
+    // heroes with real fame die in front of the whole server; others locally
+    if (ch.fame >= 300) this.globalEvent(`☠ ${player.name} (${CLASSES[ch.classId].name} nv ${ch.level}, fama ${ch.fame}) morreu para ${killedBy}.`);
+    else inst.broadcast({ t: 'chat', from: '', text: `${player.name} (${CLASSES[ch.classId].name} nv ${ch.level}) morreu para ${killedBy}`, sys: 1 });
     buryCharacter(player.acc, ch, killedBy);
     send(player.ws, {
       t: 'death', killer: killedBy,
@@ -1770,6 +1786,8 @@ class Game {
     realm.eventBossId = e.id;
     realm.broadcast({ t: 'notice', text: `INVASAO: ${e.def.name}!` });
     realm.broadcast({ t: 'chat', from: '', text: `${e.def.name} invadiu o Reino! Derrote-o por um item lendario. (siga a bussola)`, sys: 1 });
+    const idx = this.realms.indexOf(realm);
+    this.globalEvent(`⚔ INVASAO no Reino ${idx >= 0 ? idx + 1 : ''}: ${e.def.name} apareceu! Recompensa lendaria.`);
     return e;
   }
 
