@@ -1,8 +1,11 @@
 # Deploy grátis no Fly.io
 
-O jogo é um processo Node persistente com WebSocket e banco **SQLite em disco**.
-O Fly.io roda isso de graça (free allowance) e oferece volume persistente — o
-encaixe certo. O `Dockerfile` e o `fly.toml` deste repo já estão prontos.
+O jogo é um processo Node persistente (Colyseus sobre WebSocket) com banco
+**SQLite em disco**. O Fly.io roda isso de graça (free allowance) e oferece
+volume persistente — o encaixe certo. O `Dockerfile` e o `fly.toml` deste repo
+já estão prontos, incluindo health check em `/health`. O servidor já entrega os
+assets com gzip e cache, e o preview de link (WhatsApp/Discord) funciona em
+qualquer domínio sem configurar nada.
 
 ## Pré-requisitos
 - Conta no Fly.io (https://fly.io) — pede cartão para anti-fraude, mas o uso
@@ -48,7 +51,10 @@ encaixe certo. O `Dockerfile` e o `fly.toml` deste repo já estão prontos.
 - **Scale-to-zero:** com `auto_stop_machines`, a VM dorme quando ninguém joga e
   acorda no próximo acesso (1ª request demora ~1-2s). Economiza o free tier.
 - **WebSocket/TLS:** automático. O Fly termina HTTPS e o cliente detecta
-  `https` → usa `wss` sozinho. Nada a configurar.
+  `https` → usa `wss` sozinho (o matchmaking do Colyseus usa o mesmo host e
+  porta). Nada a configurar.
+- **Monitoramento:** `GET /health` responde `{ok, online, uptimeSec}` — o
+  `fly.toml` já registra o check; serve também para UptimeRobot e afins.
 - **Backup:** `fly ssh console -C "cp /app/data/game.db /tmp"` e
   `fly ssh sftp get /tmp/game.db` — ou simplesmente confie no volume.
 

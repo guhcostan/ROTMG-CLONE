@@ -258,8 +258,9 @@ class Game {
     this.ensureRealms();              // open the initial pool of realms + their portals
     const ms = this.nexus.map.marketSpot;
     this.spawnPortal(this.nexus, ms.x, ms.y, 'shop', 'Mercador', null, 1e15); // Nexus merchant
-    setInterval(() => this.tick(), TICK);
-    setInterval(() => this.autosave(), 30000);
+    // a bug in one tick must not kill the process (and everyone's session)
+    setInterval(() => { try { this.tick(); } catch (e) { console.error('tick error:', e); } }, TICK);
+    setInterval(() => { try { this.autosave(); } catch (e) { console.error('autosave error:', e); } }, 30000);
   }
 
   addInstance(inst) { this.instances.set(inst.id, inst); return inst; }
