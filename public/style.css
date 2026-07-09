@@ -396,6 +396,7 @@ h3 {
   mask-image: linear-gradient(transparent, black 18%);
 }
 #chat-log .sys { color: var(--gold); }
+#chat-log .evt { color: var(--teal); text-shadow: 1px 1px 0 #000, 0 0 10px rgba(63, 208, 182, .35); }
 #chat-log .from { color: var(--blue); }
 #chat-input {
   width: 100%; padding: 8px 10px;

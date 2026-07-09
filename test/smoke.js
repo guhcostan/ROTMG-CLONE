@@ -343,6 +343,25 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// global event feed: reaches everyone online, wherever they are
+function eventFeedSanity() {
+  const { Game } = require('../server/game');
+  const { ENEMIES } = require('../server/data');
+  const g = new Game();
+  const p = { id: -500, name: 'Feed', acc: null, instance: g.nexus, x: 1, y: 1, dead: false,
+    char: { level: 5, hp: 100 }, ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  g.players.set(p.id, p); g.nexus.players.set(p.id, p);
+  g.globalEvent('teste de feed');
+  check(p.ws.sent.some(m => m.t === 'chat' && m.evt === 1 && m.text === 'teste de feed'), 'global events reach players everywhere');
+  // a god kill in a realm shows up for a player idling in the Nexus
+  const god = g.spawnEnemy(g.realm, 'void_keeper', g.realm.map.center.x, g.realm.map.center.y);
+  god.hp = 1;
+  g.damageEnemy(g.realm, god, 9999, { id: -501, char: { fame: 0 }, kills: 0, godsKilled: 0, dead: false, gold: 0 });
+  check(p.ws.sent.some(m => m.evt === 1 && (m.text || '').includes(ENEMIES.void_keeper.name)),
+    'god kills hit the global feed');
+  g.players.delete(p.id); g.nexus.players.delete(p.id);
+}
+
 // moderation: per-session mute, admin kick/ban/announce, banned login blocked
 function moderationSanity() {
   const { Game } = require('../server/game');
@@ -758,6 +777,7 @@ async function main() {
   balanceSanity();
   newbieProtectionSanity();
   moderationSanity();
+  eventFeedSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();

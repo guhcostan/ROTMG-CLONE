@@ -323,10 +323,11 @@ const UI = (() => {
   function hideTooltip() { $('tooltip').classList.add('hidden'); }
 
   // ---------------- chat & notices
-  function chat(from, text, sys) {
+  function chat(from, text, sys, evt) {
     const log = $('chat-log');
     const div = document.createElement('div');
-    if (sys) { div.className = 'sys'; div.textContent = text; }
+    if (evt) { div.className = 'evt'; div.textContent = text; }
+    else if (sys) { div.className = 'sys'; div.textContent = text; }
     else {
       const f = document.createElement('span');
       f.className = 'from'; f.textContent = from + ': ';

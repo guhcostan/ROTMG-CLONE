@@ -13,6 +13,7 @@ const Renderer3D = (() => {
   let renderer = null, scene = null, camera = null;
   let canvas = null;
   let worldGroup = null;      // ground + walls, rebuilt per world
+  let groundMesh = null, groundTexA = null, groundTexB = null;
   let ambient = null, sun = null, torch = null;
   let frame = 0;
 
@@ -38,6 +39,7 @@ const Renderer3D = (() => {
     torch = new THREE.PointLight(0xffa860, 0, 15, 1.6);
     scene.add(ambient, sun, torch);
     initBullets();
+    initParticles();
     resize();
   }
 
@@ -51,13 +53,24 @@ const Renderer3D = (() => {
   }
 
   // ---------------------------------------------------------- world statics
-  function setWorld(world, mapCanvas) {
+  function groundTexture(cv) {
+    const tex = new THREE.CanvasTexture(cv);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  // mapCanvases: [phaseA, phaseB] — B animates water/lava tiles
+  function setWorld(world, mapCanvases) {
     if (worldGroup) {
       scene.remove(worldGroup);
       worldGroup.traverse(o => {
         if (o.geometry) o.geometry.dispose();
         if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
       });
+      if (groundTexB) groundTexB.dispose();
     }
     // reset per-world sprite pools (entity ids restart between instances)
     for (const e of pool.values()) scene.remove(e.obj);
@@ -66,17 +79,16 @@ const Renderer3D = (() => {
     worldGroup = new THREE.Group();
 
     // ground: the prerendered tile canvas as one big texture
-    const tex = new THREE.CanvasTexture(mapCanvas);
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const canvases = Array.isArray(mapCanvases) ? mapCanvases : [mapCanvases];
+    groundTexA = groundTexture(canvases[0]);
+    groundTexB = canvases[1] ? groundTexture(canvases[1]) : null;
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(world.w, world.h),
-      new THREE.MeshLambertMaterial({ map: tex })
+      new THREE.MeshLambertMaterial({ map: groundTexA })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(world.w / 2, 0, world.h / 2);
+    groundMesh = ground;
     worldGroup.add(ground);
 
     // walls: one instanced box per blocking tile, tinted by tile color
@@ -175,6 +187,9 @@ const Renderer3D = (() => {
     e.obj.scale.set(size, size * ratio, 1);
     e.obj.position.set(px, lift, py);
     e.obj.material.opacity = opts.opacity !== undefined ? opts.opacity : 1;
+    // hit flash: tint the whole sprite red for a few frames
+    if (opts.flash) e.obj.material.color.setRGB(2.2, 0.55, 0.45);
+    else e.obj.material.color.setRGB(1, 1, 1);
     e.obj.visible = true;
     e.used = frame;
     return e.obj;
@@ -263,6 +278,65 @@ const Renderer3D = (() => {
     bulletGeo.attributes.color.needsUpdate = true;
   }
 
+  // ---------------------------------------------------------- particles
+  // short-lived pixel bursts (deaths, level-ups, ability novas)
+  const MAX_PARTS = 1500;
+  let partPoints = null, partGeo = null;
+  const parts = [];
+  function initParticles() {
+    partGeo = new THREE.BufferGeometry();
+    partGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_PARTS * 3), 3));
+    partGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAX_PARTS * 3), 3));
+    const mat = new THREE.PointsMaterial({
+      size: TILE * 0.2, sizeAttenuation: false,
+      vertexColors: true, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    partPoints = new THREE.Points(partGeo, mat);
+    partPoints.frustumCulled = false;
+    partPoints.renderOrder = 6;
+    scene.add(partPoints);
+  }
+
+  const _pc = new THREE.Color();
+  function burst(x, y, cssColor, n = 14, speed = 3) {
+    _pc.set(cssColor || '#e0a060');
+    for (let i = 0; i < n && parts.length < MAX_PARTS; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = speed * (0.4 + Math.random() * 0.8);
+      parts.push({
+        x, z: y, y: 0.3 + Math.random() * 0.5,
+        vx: Math.cos(a) * sp, vz: Math.sin(a) * sp,
+        vy: 1.5 + Math.random() * 2.5,
+        life: 0.45 + Math.random() * 0.35, max: 0.8,
+        r: _pc.r, g: _pc.g, b: _pc.b,
+      });
+    }
+  }
+
+  let lastPartTs = 0;
+  function tickParticles(now) {
+    const dt = Math.min(0.05, (now - lastPartTs) / 1000);
+    lastPartTs = now;
+    const pos = partGeo.attributes.position.array;
+    const col = partGeo.attributes.color.array;
+    let n = 0;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.life -= dt;
+      if (p.life <= 0 || p.y < 0.02) { parts.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.z += p.vz * dt;
+      p.y += p.vy * dt; p.vy -= 9 * dt;
+      const f = Math.min(1, p.life / 0.4); // additive: fading to black = fading out
+      pos[n * 3] = p.x; pos[n * 3 + 1] = p.y; pos[n * 3 + 2] = p.z;
+      col[n * 3] = p.r * f; col[n * 3 + 1] = p.g * f; col[n * 3 + 2] = p.b * f;
+      n++;
+    }
+    partGeo.setDrawRange(0, n);
+    partGeo.attributes.position.needsUpdate = true;
+    partGeo.attributes.color.needsUpdate = true;
+  }
+
   // ---------------------------------------------------------- frame
   function beginFrame(camX, camY) {
     frame++;
@@ -278,6 +352,17 @@ const Renderer3D = (() => {
         e.obj.visible = false;
         // drop stale entries entirely so long sessions don't accumulate
         if (frame - e.used > 600) { scene.remove(e.obj); pool.delete(key); }
+      }
+    }
+    const now = performance.now();
+    tickParticles(now);
+    // two-phase ground texture: animated water/lava shimmer
+    if (groundMesh && groundTexB) {
+      const phase = ((now / 550) | 0) % 2;
+      const want = phase ? groundTexB : groundTexA;
+      if (groundMesh.material.map !== want) {
+        groundMesh.material.map = want;
+        groundMesh.material.needsUpdate = true;
       }
     }
     renderer.render(scene, camera);
@@ -302,5 +387,5 @@ const Renderer3D = (() => {
   // vertical foreshortening of the ground plane on screen (for ellipses)
   function groundYScale() { return Math.cos(TILT); }
 
-  return { init, resize, setWorld, beginFrame, endFrame, sprite, shadow, setBullets, project, screenToWorld, groundYScale, TILE };
+  return { init, resize, setWorld, beginFrame, endFrame, sprite, shadow, setBullets, burst, project, screenToWorld, groundYScale, TILE };
 })();
