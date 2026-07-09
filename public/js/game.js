@@ -138,6 +138,13 @@ const GameClient = (() => {
 
   function onShot(msg) {
     if (msg.f === 1 && msg.o === myId && typeof Sfx !== 'undefined') Sfx.shoot();
+    // shooter lunges briefly toward the volley's center angle
+    const owner = entities.get(msg.o);
+    if (owner && msg.as.length) {
+      owner.lungeT = 0.14;
+      owner.lungeA = msg.as[(msg.as.length / 2) | 0];
+      if (Math.abs(Math.cos(owner.lungeA)) > 0.3) owner.facing = Math.cos(owner.lungeA) < 0 ? -1 : 1;
+    }
     for (const a of msg.as) {
       bullets.push({
         x: msg.x, y: msg.y, a,
@@ -317,6 +324,7 @@ const GameClient = (() => {
     let dy = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0);
     if (joy && (joy.dx || joy.dy)) { dx = joy.dx; dy = joy.dy; }
     const st = self.st || {};
+    const meEnt = entities.get(myId);
     if ((dx || dy) && !(st.paralyze > 0)) {
       const len = Math.hypot(dx, dy);
       const tileSlow = tileAt(me.x, me.y) === 3 ? 0.5 : 1;
@@ -328,7 +336,12 @@ const GameClient = (() => {
       if (!blocked(me.x, ny)) me.y = ny;
       me.x = Math.max(0.5, Math.min(world.w - 0.5, me.x));
       me.y = Math.max(0.5, Math.min(world.h - 0.5, me.y));
-    }
+      if (meEnt) {
+        meEnt.moving = true;
+        meEnt.animT = (meEnt.animT || 0) + dt * 10;
+        if (Math.abs(dx) > 0.05) meEnt.facing = dx < 0 ? -1 : 1;
+      }
+    } else if (meEnt) meEnt.moving = false;
     moveAccum += dt;
     if (moveAccum > 0.05) { // 20 position updates/s
       moveAccum = 0;
@@ -343,12 +356,19 @@ const GameClient = (() => {
         Net.send({ t: 'shoot', a: Math.atan2(w.y - me.y, w.x - me.x) });
       }
     }
-    // lerp entities toward server positions
+    // lerp entities toward server positions + walk/attack animation state
     for (const ent of entities.values()) {
+      if (ent.lungeT > 0) ent.lungeT -= dt;
       if (ent.id === myId) { ent.x = me.x; ent.y = me.y; continue; }
+      const ddx = ent.tx - ent.x, ddy = ent.ty - ent.y;
+      ent.moving = Math.hypot(ddx, ddy) > 0.02;
+      if (ent.moving) {
+        ent.animT = (ent.animT || 0) + dt * 10;
+        if (Math.abs(ddx) > 0.02) ent.facing = ddx < 0 ? -1 : 1;
+      }
       const k = Math.min(1, dt * 12);
-      ent.x += (ent.tx - ent.x) * k;
-      ent.y += (ent.ty - ent.y) * k;
+      ent.x += ddx * k;
+      ent.y += ddy * k;
     }
     // bullets
     bullets = bullets.filter(b => {
@@ -376,6 +396,15 @@ const GameClient = (() => {
       c.fillRect(0, 0, 8, 8);
     }
     return missingCanvas;
+  }
+
+  // walk bob / facing flip / attack lunge parameters for a billboard
+  function animOpts(ent) {
+    return {
+      flip: ent.facing === -1,
+      bob: ent.moving ? ent.animT : 0,
+      lunge: ent.lungeT > 0 ? { a: ent.lungeA, k: ent.lungeT / 0.14 } : null,
+    };
   }
 
   // ground-aligned ellipse on the overlay (rings, elite auras)
@@ -421,14 +450,15 @@ const GameClient = (() => {
       } else if (ent.kind === 'e') {
         const sc = spriteScale(ent.type) * (ent.elite ? 1.2 : 1);
         R.shadow('sh:' + ent.id, ent.x, ent.y, sc * 0.85);
-        R.sprite('e' + ent.id, ent.type, sprCanvas(ent.type), ent.x, ent.y, { size: sc });
+        R.sprite('e' + ent.id, ent.type, sprCanvas(ent.type), ent.x, ent.y,
+          { size: sc, ...animOpts(ent) });
         labels.push(ent);
       } else if (ent.kind === 'p') {
         const skinned = ent.skin && Sprites.tinted(ent.classId, ent.skin);
         const texKey = skinned ? ent.classId + '|' + ent.skin : ent.classId;
         R.shadow('sh:' + ent.id, ent.x, ent.y, 0.8);
         R.sprite('e' + ent.id, texKey, skinned || sprCanvas(ent.classId), ent.x, ent.y,
-          { size: 0.95, opacity: ent.invis ? 0.35 : 1 });
+          { size: 0.95, opacity: ent.invis ? 0.35 : 1, ...animOpts(ent) });
         if (ent.pet) {
           const t = now / 600 + ent.id;
           const petX = ent.x + Math.cos(t) * 0.9, petY = ent.y + Math.sin(t) * 0.9;
@@ -694,6 +724,7 @@ const GameClient = (() => {
       tradestate: m => UI.tradeState(m),
       tradedone: () => UI.tradeEnd(true),
       tradecancel: () => UI.tradeEnd(false),
+      invite: m => UI.showInvite(m),
       _state: (s) => UI.setOnline(s.online),
       death: (m) => {
         running = false;
@@ -702,8 +733,8 @@ const GameClient = (() => {
       },
       _close: (ev) => {
         if (!running) return;
-        // intentional server rejections: don't retry
-        if (ev && ev.code >= 4001 && ev.code <= 4003) {
+        // intentional server rejections (or admin kick): don't retry
+        if (ev && ((ev.code >= 4001 && ev.code <= 4003) || ev.code === 4008)) {
           running = false;
           return callbacks.onDisconnect();
         }

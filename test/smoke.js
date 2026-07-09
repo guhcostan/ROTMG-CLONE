@@ -343,6 +343,56 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// moderation: per-session mute, admin kick/ban/announce, banned login blocked
+function moderationSanity() {
+  const { Game } = require('../server/game');
+  const auth = require('../server/auth');
+  const storage = require('../server/db');
+  const g = new Game();
+  const mkWs = () => ({ readyState: 1, sent: [], closed: false, send(s) { this.sent.push(JSON.parse(s)); }, close() { this.closed = true; } });
+  const mk = (id, name) => {
+    const p = { id, name, acc: null, instance: g.nexus, x: 1, y: 1, dead: false,
+      char: { level: 10, hp: 100 }, ws: mkWs(), muted: null, party: null, partyInviteFrom: null, guild: null, trade: null };
+    g.players.set(id, p); g.nexus.players.set(id, p); return p;
+  };
+  const a = mk(-400, 'Falante'), b = mk(-401, 'Ouvinte');
+  g.onChat(a, { text: 'oi' });
+  check(b.ws.sent.some(m => m.t === 'chat' && m.text === 'oi'), 'public chat reaches others');
+  g.mutePlayer(b, 'Falante', true);
+  g.onChat(a, { text: 'de novo' });
+  check(!b.ws.sent.some(m => m.text === 'de novo'), 'muted player is no longer heard');
+  check(a.ws.sent.some(m => m.text === 'de novo'), 'speaker still sees own message');
+  g.onChat(a, { text: '/trade Ouvinte' });
+  check(!b.ws.sent.some(m => m.t === 'tradereq'), 'muted player cannot send trade requests');
+  g.mutePlayer(b, 'Falante', false);
+  g.onChat(a, { text: 'voltei' });
+  check(b.ws.sent.some(m => m.text === 'voltei'), 'unmute restores chat');
+
+  g.onChat(a, { text: '/kick Ouvinte' });
+  check(!b.ws.closed, 'non-admin cannot kick');
+  g.onChat(a, { text: '/anuncio invasao' });
+  check(!b.ws.sent.some(m => (m.text || '').includes('[ANUNCIO]')), 'non-admin cannot announce');
+  g.admins.add('falante');
+  g.onChat(a, { text: '/anuncio invasao' });
+  check(b.ws.sent.some(m => (m.text || '').includes('[ANUNCIO] invasao')), 'admin announce reaches everyone');
+  g.onChat(a, { text: '/kick Ouvinte' });
+  check(b.ws.closed, 'admin kick closes the connection');
+
+  const banName = 'banido' + Math.floor(Math.random() * 1e9);
+  const banId = storage.createAccount(banName, 's', 'h');
+  storage.createSession('tok_ban_test', banId);
+  check(auth.authed('tok_ban_test') !== null, 'session valid before ban');
+  g.onChat(a, { text: '/ban ' + banName });
+  check(storage.getAccountById(banId).banned === 1, 'ban persists on the account');
+  check(auth.authed('tok_ban_test') === null, 'banned account session is rejected');
+
+  // party invites now carry a clickable payload
+  const c = mk(-402, 'Convidado');
+  g.partyCommand(a, ['convidar', 'Convidado']);
+  check(c.ws.sent.some(m => m.t === 'invite' && m.kind === 'party' && m.from === 'Falante'), 'party invite sends invite payload');
+  for (const id of [-400, -401, -402]) { g.players.delete(id); g.nexus.players.delete(id); }
+}
+
 // newbie protection: low-level characters take reduced damage, gone by level 6
 function newbieProtectionSanity() {
   const { Game, newbieDamageMul } = require('../server/game');
@@ -707,6 +757,7 @@ async function main() {
   coopXpSanity();
   balanceSanity();
   newbieProtectionSanity();
+  moderationSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();

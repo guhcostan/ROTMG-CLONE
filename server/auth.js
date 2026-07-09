@@ -53,6 +53,7 @@ function login(username, password) {
   if (!crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(acc.hash))) {
     return { error: 'Usuario ou senha invalidos' };
   }
+  if (acc.banned) return { error: 'Conta banida' };
   const token = crypto.randomBytes(24).toString('hex');
   storage.createSession(token, acc.id);
   return { token, username: acc.username };
@@ -60,7 +61,8 @@ function login(username, password) {
 
 function authed(token) {
   const session = storage.getSession(token);
-  return session ? storage.getAccountById(session.account_id) : null;
+  const acc = session ? storage.getAccountById(session.account_id) : null;
+  return acc && !acc.banned ? acc : null;
 }
 
 const MAX_CHARS = 3;

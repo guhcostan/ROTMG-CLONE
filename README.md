@@ -103,6 +103,13 @@ Personagens novos têm **proteção de novato** (menos dano recebido até o nív
 | `/guilda info` | Lista membros |
 | `/guilda sair` | Sai da guilda |
 | `/g <mensagem>` | Chat exclusivo da guilda |
+| `/mute <jogador>` / `/desmute` | Silencia alguém (só para você, nesta sessão) |
+| `/kick`, `/ban`, `/anuncio` | Moderação (contas listadas em `ADMIN_USERS`) |
+
+Clicar num jogador na lista lateral abre o menu de ações (teleportar, trocar,
+convidar para grupo/guilda, silenciar); convites chegam com botões
+Aceitar/Recusar. Defina `ADMIN_USERS=seunome` no ambiente para ter poderes de
+moderação — contas banidas não conseguem logar.
 
 ## Mecânicas
 

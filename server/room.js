@@ -54,6 +54,7 @@ class RealmRoom extends Room {
     const sock = {
       readyState: 1,
       send: (str) => { try { client.send('g', str); } catch { /* gone */ } },
+      close: () => { try { client.leave(4008); } catch { /* gone */ } }, // admin kick
     };
     const player = this.game.joinPlayer(sock, authData.acc, authData.char);
     client.userData = { player, sock };
