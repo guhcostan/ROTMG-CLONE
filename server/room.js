@@ -15,9 +15,10 @@ class GlobalState extends Schema {
     this.online = 0;
     this.season = '';
     this.seasonModifier = '';
+    this.zones = '[]'; // JSON [{n: zoneName, c: playerCount}], busiest first
   }
 }
-defineTypes(GlobalState, { online: 'number', season: 'string', seasonModifier: 'string' });
+defineTypes(GlobalState, { online: 'number', season: 'string', seasonModifier: 'string', zones: 'string' });
 
 class RealmRoom extends Room {
   onCreate(options) {
@@ -27,7 +28,19 @@ class RealmRoom extends Room {
     this.setState(new GlobalState());
     this.state.season = String(this.game.season);
     this.state.seasonModifier = this.game.seasonMod.name;
-    this.clock.setInterval(() => { this.state.online = this.game.players.size; }, 2000);
+    this.clock.setInterval(() => {
+      this.state.online = this.game.players.size;
+      // live population board: which zones have people right now
+      const zones = [];
+      for (const inst of this.game.instances.values()) {
+        if (!inst.players.size) continue;
+        const ri = this.game.realms.indexOf(inst);
+        const name = ri >= 0 ? `Reino ${ri + 1}` : inst.name;
+        zones.push({ n: name, c: inst.players.size });
+      }
+      zones.sort((a, b) => b.c - a.c);
+      this.state.zones = JSON.stringify(zones.slice(0, 8));
+    }, 2000);
 
     // the whole legacy protocol travels as 'g' messages (client -> server
     // objects, server -> client JSON strings via the socket adapter below)

@@ -28,10 +28,12 @@ const Sfx = (() => {
     } catch { /* audio unavailable: stay silent */ }
   }
 
+  // v (0..1) scales volume for positional audio: far events sound distant
   return {
-    shoot: () => tone(700, 0.07, { slide: -350, vol: 0.025 }),
-    hit: () => tone(160, 0.12, { type: 'sawtooth', vol: 0.06, slide: -60 }),
-    kill: () => tone(300, 0.15, { type: 'triangle', vol: 0.05, slide: -200 }),
+    shoot: (v = 1) => { if (v > 0.05) tone(700, 0.07, { slide: -350, vol: 0.025 * v }); },
+    hit: (v = 1) => { if (v > 0.05) tone(160, 0.12, { type: 'sawtooth', vol: 0.06 * v, slide: -60 }); },
+    kill: (v = 1) => { if (v > 0.05) tone(300, 0.15, { type: 'triangle', vol: 0.05 * v, slide: -200 }); },
+    warn: (v = 1) => { if (v > 0.05) tone(180, 0.3, { type: 'sawtooth', vol: 0.05 * v, slide: 80 }); },
     levelup: () => { tone(440, 0.09); setTimeout(() => tone(660, 0.09), 90); setTimeout(() => tone(880, 0.16), 180); },
     death: () => tone(400, 0.7, { type: 'sawtooth', vol: 0.08, slide: -340 }),
     pickup: () => tone(900, 0.06, { type: 'triangle' }),

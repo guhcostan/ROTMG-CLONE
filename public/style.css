@@ -273,6 +273,32 @@ h3 {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* boss encounter bar, top center below the zone banner */
+#boss-bar {
+  position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+  width: min(420px, 60vw); text-align: center; pointer-events: none;
+}
+#boss-name {
+  color: #ff8878; font-size: 20px; letter-spacing: 1px;
+  text-shadow: 1px 1px 0 #000, 0 0 12px rgba(224, 82, 60, .5);
+}
+#boss-bar .bbar {
+  height: 12px; margin-top: 3px;
+  background: rgba(10, 8, 18, .85);
+  border: 2px solid #5a2a22;
+  box-shadow: 0 0 0 2px rgba(5, 4, 9, .7), inset 0 2px 5px rgba(0, 0, 0, .7);
+  overflow: hidden;
+}
+#boss-fill {
+  height: 100%; width: 100%;
+  background: linear-gradient(180deg, #e05545, #8a1f12);
+  transition: width .2s;
+}
+body.touch-mode #boss-bar { top: 96px; }
+
+#hud-zones { font-size: 15px; line-height: 1.5; margin-bottom: 6px; color: #b8b0c4; }
+#hud-zones .zc { color: var(--teal); }
+
 #hud-right {
   position: absolute; top: 0; right: 0; bottom: 0; width: 234px;
   background: linear-gradient(180deg, rgba(18, 14, 30, .96), rgba(10, 8, 18, .96));

@@ -343,6 +343,34 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// boss telegraphs: a big ring attack warns the ground before firing
+function telegraphSanity() {
+  const { Game } = require('../server/game');
+  const { ENEMIES } = require('../server/data');
+  const g = new Game();
+  const bossType = Object.values(ENEMIES).find(e => e.behavior === 'boss' && e.shots && e.shots.ring >= 10);
+  check(!!bossType, 'a big-ring boss exists to telegraph');
+  const boss = g.spawnEnemy(g.realm, bossType.id, 30, 30);
+  const fake = { id: -600, x: 31, y: 31, dead: false, invisUntil: 0, instance: g.realm, status: {}, party: null,
+    char: { hp: 999, mp: 100, level: 10, xp: 0, fame: 0, classId: 'wizard',
+      stats: { hp: 999, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 },
+      equipment: [null, null, null, null], inventory: new Array(8).fill(null) },
+    ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  g.realm.players.set(fake.id, fake);
+  boss.nextRing = 0;
+  g.tickEnemy(g.realm, boss, Date.now(), 1 / 20);
+  check(fake.ws.sent.some(m => m.t === 'tele' && m.ms > 0), 'ring attack telegraphs first');
+  check(!fake.ws.sent.some(m => m.t === 'shot' && m.as && m.as.length >= 10), 'ring does not fire during the windup');
+  boss.nextRing = Date.now() - 1; // windup elapsed
+  g.tickEnemy(g.realm, boss, Date.now(), 1 / 20);
+  check(fake.ws.sent.some(m => m.t === 'shot' && m.as && m.as.length >= 10), 'ring fires after the telegraph');
+  // the compass carries boss HP for the encounter bar
+  g.sendSnapshots(g.realm);
+  const tick = fake.ws.sent.find(m => m.t === 'tick');
+  check(tick && tick.self.quest && tick.self.quest.maxHp > 0, 'quest compass includes boss HP');
+  g.realm.players.delete(fake.id);
+}
+
 // global event feed: reaches everyone online, wherever they are
 function eventFeedSanity() {
   const { Game } = require('../server/game');
@@ -778,6 +806,7 @@ async function main() {
   newbieProtectionSanity();
   moderationSanity();
   eventFeedSanity();
+  telegraphSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();
