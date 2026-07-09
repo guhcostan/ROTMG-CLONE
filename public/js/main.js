@@ -305,6 +305,7 @@
     await UI.init();
     show('screen-game');
     $('death-overlay').classList.add('hidden');
+    $('spectate-bar').classList.add('hidden');
     UI.setName(Net.username);
     if (classId) UI.setPortrait(classId);
     GameClient.start(charId, {
@@ -336,10 +337,17 @@
     });
   }
 
-  $('btn-death-ok').onclick = () => {
+  const leaveGame = () => {
     GameClient.stop();
     $('death-overlay').classList.add('hidden');
+    $('spectate-bar').classList.add('hidden');
     openChars();
+  };
+  $('btn-death-ok').onclick = leaveGame;
+  $('btn-spectate-leave').onclick = leaveGame;
+  $('btn-death-spectate').onclick = () => {
+    $('death-overlay').classList.add('hidden');
+    $('spectate-bar').classList.remove('hidden');
   };
 
   // ---------------- boot

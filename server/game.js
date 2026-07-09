@@ -1508,8 +1508,15 @@ class Game {
   // the realm is removed from the pool, and a fresh one opens in its place
   closeRealm(old = this.realm) {
     const castle = this.createDungeon('mad_castle', DUNGEONS.mad_castle);
-    this.globalEvent('🏰 Um Reino foi conquistado! Seus herois enfrentam o Rei Demente no castelo.');
+    // conquest scoreboard: celebrate the top god-slayers of this realm
+    let feed = '🏰 Um Reino foi conquistado! Seus herois enfrentam o Rei Demente no castelo.';
+    if (old.godKillsBy && old.godKillsBy.size) {
+      const top = [...old.godKillsBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      feed += ' Maiores cacadores: ' + top.map(([n, c], i) => `${['🥇', '🥈', '🥉'][i]} ${n} (${c})`).join(', ');
+    }
+    this.globalEvent(feed);
     for (const p of [...old.players.values()]) {
+      if (p.dead) continue; // spectators stay behind
       send(p.ws, { t: 'chat', from: '', text: 'O Reino caiu! O Rei Demente convoca os herois ao seu castelo!', sys: 1 });
       this.enterInstance(p, castle);
     }
@@ -1601,6 +1608,11 @@ class Game {
     // realm cycle: enough gods slain -> this realm closes into the final castle
     if (inst.kind === 'realm' && enemy.def.god) {
       inst.godKills = (inst.godKills || 0) + 1;
+      // conquest scoreboard: credit the top damager for this god
+      if (killer) {
+        if (!inst.godKillsBy) inst.godKillsBy = new Map();
+        inst.godKillsBy.set(killer.name, (inst.godKillsBy.get(killer.name) || 0) + 1);
+      }
       const left = inst.godKillTarget - inst.godKills;
       if (left > 0 && left % 5 === 0) {
         inst.broadcast({ t: 'chat', from: '', text: `Os deuses enfraquecem: restam ${left} para o Reino cair!`, sys: 1 });
@@ -1704,7 +1716,9 @@ class Game {
 
   killPlayer(player, killedBy) {
     player.dead = true;
+    player.diedAt = Date.now();
     this.leaveParty(player);
+    this.cancelTrade(player, true);
     const ch = player.char;
     const inst = player.instance;
     const baseFame = ch.fame;
@@ -1721,8 +1735,8 @@ class Game {
       classId: ch.classId, level: ch.level,
       fame: ch.fame, baseFame, bonusFame, bonuses,
     });
-    inst.players.delete(player.id);
-    this.players.delete(player.id);
+    // the fallen hero lingers as a spectator: keeps receiving snapshots,
+    // is invisible/untargetable, and is disconnected after a while
   }
 
   spawnBag(inst, x, y, items) {
@@ -1796,6 +1810,11 @@ class Game {
 
     // --- players: regen, tile damage, trade proximity
     for (const p of inst.players.values()) {
+      if (p.dead) {
+        // spectators watch for up to 90s, then get sent back to the menu
+        if (now - (p.diedAt || 0) > 90000 && p.ws.close) p.ws.close();
+        continue;
+      }
       const stats = effectiveStats(p);
       const inCombat = now - p.lastHit < 4000;
       const regenMul = inst.kind === 'nexus' ? 10 : (inCombat ? 0.4 : 1);
@@ -2048,6 +2067,7 @@ class Game {
       const ents = [];
       const r2 = VIEW * VIEW;
       for (const o of inst.players.values()) {
+        if (o.dead) continue; // spectators are invisible
         if (dist2(o.x, o.y, p.x, p.y) > r2) continue;
         ents.push(['p', o.id, o.name, o.char.classId, round1(o.x), round1(o.y),
           Math.round(o.char.hp), effectiveMaxHp(o), o.char.level,
@@ -2088,12 +2108,12 @@ class Game {
         t: 'tick',
         e: ents,
         self: {
-          hp: Math.round(ch.hp), maxHp: effectiveMaxHp(p),
+          hp: Math.max(0, Math.round(ch.hp)), maxHp: effectiveMaxHp(p),
           mp: Math.round(ch.mp), maxMp: effectiveMaxMp(p),
           xp: ch.xp, next: xpToNext(ch.level), level: ch.level, fame: ch.fame, gold: p.gold,
           stats: effectiveStats(p), eq: ch.equipment, inv: ch.inventory,
           st: this.activeStatus(p), quest,
-          mates: [...inst.players.values()].filter(o => o !== p && o.invisUntil <= now).slice(0, 30).map(o => o.name),
+          mates: [...inst.players.values()].filter(o => o !== p && !o.dead && o.invisUntil <= now).slice(0, 30).map(o => o.name),
           party: p.party ? [...p.party.members].map(id => this.players.get(id)).filter(Boolean)
             .map(o => ({ name: o.name, level: o.char.level, hp: Math.round(o.char.hp), maxHp: effectiveMaxHp(o), here: o.instance === inst })) : null,
         },

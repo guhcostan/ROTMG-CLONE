@@ -343,6 +343,53 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// spectator mode: the dead linger invisibly, keep getting snapshots, then time out
+function spectatorSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const mkWs = () => ({ readyState: 1, sent: [], closed: false, send(s) { this.sent.push(JSON.parse(s)); }, close() { this.closed = true; } });
+  const mk = (id, name, x) => {
+    const accId = storage.createAccount(name.toLowerCase() + Math.floor(Math.random() * 1e9), 's', 'h');
+    return { id, name, acc: storage.getAccountById(accId), instance: g.realm, x, y: 10, dead: false,
+      invisUntil: 0, status: {}, party: null, trade: null, lastHit: 0, kills: 0, godsKilled: 0, dungeons: 0, gold: 0,
+      char: { id: -id, hp: 50, mp: 10, level: 8, xp: 0, fame: 10, classId: 'wizard',
+        stats: { hp: 50, mp: 10, att: 1, def: 0, spd: 1, dex: 1, vit: 1, wis: 1 },
+        equipment: [null, null, null, null], inventory: new Array(8).fill(null) },
+      ws: mkWs() };
+  };
+  const victim = mk(-700, 'Vitima', 10), watcher = mk(-701, 'Vivo', 11);
+  for (const p of [victim, watcher]) { g.players.set(p.id, p); g.realm.players.set(p.id, p); }
+  g.damagePlayer(victim, 99999, 'teste');
+  check(victim.dead === true, 'lethal damage kills');
+  check(g.realm.players.has(victim.id) && g.players.has(victim.id), 'dead player lingers as a spectator');
+  victim.ws.sent.length = 0; watcher.ws.sent.length = 0;
+  g.sendSnapshots(g.realm);
+  check(victim.ws.sent.some(m => m.t === 'tick'), 'spectator keeps receiving snapshots');
+  const watcherTick = watcher.ws.sent.find(m => m.t === 'tick');
+  check(watcherTick && !watcherTick.e.some(e => e[0] === 'p' && e[1] === victim.id), 'spectator is invisible to the living');
+  check(!watcherTick.self.mates.includes('Vitima'), 'spectator is absent from the players list');
+  victim.diedAt = Date.now() - 91000;
+  g.tickInstance(g.realm, Date.now());
+  check(victim.ws.closed === true, 'spectator is disconnected after the timeout');
+  for (const p of [victim, watcher]) { g.players.delete(p.id); g.realm.players.delete(p.id); }
+}
+
+// realm conquest announces its top god hunters
+function conquestSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const obs = { id: -710, name: 'Obs', acc: null, instance: g.nexus, x: 1, y: 1, dead: false,
+    char: { level: 5, hp: 100 }, ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  g.players.set(obs.id, obs); g.nexus.players.set(obs.id, obs);
+  const realm = g.realms[0];
+  realm.godKillsBy = new Map([['Alfa', 7], ['Beta', 3]]);
+  g.closeRealm(realm);
+  const msg = obs.ws.sent.find(m => m.evt === 1 && (m.text || '').includes('conquistado'));
+  check(!!msg && msg.text.includes('Alfa (7)') && msg.text.includes('Beta (3)'), 'conquest announces the top god hunters');
+  g.players.delete(obs.id); g.nexus.players.delete(obs.id);
+}
+
 // boss telegraphs: a big ring attack warns the ground before firing
 function telegraphSanity() {
   const { Game } = require('../server/game');
@@ -807,6 +854,8 @@ async function main() {
   moderationSanity();
   eventFeedSanity();
   telegraphSanity();
+  spectatorSanity();
+  conquestSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();
