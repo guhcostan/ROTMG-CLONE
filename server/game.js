@@ -257,6 +257,8 @@ class Game {
     this.season = currentSeason();
     this.seasonMod = seasonModifier(this.season);
     this.webhook = process.env.DISCORD_WEBHOOK || null; // optional community feed
+    // usernames with moderation powers (/kick /ban /anuncio), comma-separated
+    this.admins = new Set((process.env.ADMIN_USERS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
     this.realms = [];
     this.ensureRealms();              // open the initial pool of realms + their portals
     const ms = this.nexus.map.marketSpot;
@@ -802,6 +804,9 @@ class Game {
           .find(p => p !== player && p.name.toLowerCase() === name);
         if (!target) return send(player.ws, { t: 'notice', text: 'Jogador nao encontrado aqui' });
         if (target.trade) return send(player.ws, { t: 'notice', text: 'Jogador ja esta negociando' });
+        if (target.muted && target.muted.has(player.name.toLowerCase())) {
+          return send(player.ws, { t: 'notice', text: 'Jogador nao encontrado aqui' }); // muted: fail silently
+        }
         target.tradeReqFrom = player.id;
         send(target.ws, { t: 'tradereq', from: player.name });
         send(player.ws, { t: 'notice', text: `Proposta de troca enviada para ${target.name}` });
@@ -1115,7 +1120,57 @@ class Game {
     if (text.startsWith('/guilda')) return this.guildCommand(player, text.split(/\s+/).slice(1));
     if (text.startsWith('/p ')) return this.partyChat(player, text.slice(3));
     if (text.startsWith('/party')) return this.partyCommand(player, text.split(/\s+/).slice(1));
-    player.instance.broadcast({ t: 'chat', from: player.name, text });
+    if (text.startsWith('/mute ')) return this.mutePlayer(player, text.slice(6).trim(), true);
+    if (text.startsWith('/desmute ')) return this.mutePlayer(player, text.slice(9).trim(), false);
+    if (text.startsWith('/kick ') || text.startsWith('/ban ') || text.startsWith('/anuncio ')) {
+      return this.adminCommand(player, text);
+    }
+    // public chat, honoring each listener's mute list
+    const packet = { t: 'chat', from: player.name, text };
+    const fromLc = player.name.toLowerCase();
+    for (const p of player.instance.players.values()) {
+      if (p.muted && p.muted.has(fromLc)) continue;
+      send(p.ws, packet);
+    }
+  }
+
+  // ------------------------------------------------ mute & admin tools
+  // per-session mute: everything said by that player stops reaching you
+  mutePlayer(player, name, on) {
+    const lc = name.toLowerCase();
+    if (!lc) return;
+    if (lc === player.name.toLowerCase()) return this.sysMsg(player, 'Voce nao pode se mutar.');
+    if (!player.muted) player.muted = new Set();
+    if (on) { player.muted.add(lc); this.sysMsg(player, `${name} mutado (esta sessao). /desmute ${name} desfaz.`); }
+    else { player.muted.delete(lc); this.sysMsg(player, `${name} desmutado.`); }
+  }
+
+  isAdmin(player) { return this.admins.has(player.name.toLowerCase()); }
+
+  adminCommand(player, text) {
+    if (!this.isAdmin(player)) return this.sysMsg(player, 'Sem permissao.');
+    if (text.startsWith('/anuncio ')) {
+      const msgText = text.slice(9).trim();
+      for (const p of this.players.values()) send(p.ws, { t: 'chat', from: '', text: `[ANUNCIO] ${msgText}`, sys: 1 });
+      return;
+    }
+    const [cmd, ...rest] = text.split(/\s+/);
+    const name = (rest[0] || '').toLowerCase();
+    const target = [...this.players.values()].find(p => p.name.toLowerCase() === name);
+    if (cmd === '/kick') {
+      if (!target) return this.sysMsg(player, 'Jogador nao esta online.');
+      this.sysMsg(target, 'Voce foi desconectado por um administrador.');
+      if (target.ws.close) target.ws.close();
+      return this.sysMsg(player, `${target.name} desconectado.`);
+    }
+    if (cmd === '/ban') {
+      const acc = storage.getAccountByName(rest[0] || '');
+      if (!acc) return this.sysMsg(player, 'Conta nao encontrada.');
+      if (this.admins.has(acc.username.toLowerCase())) return this.sysMsg(player, 'Nao da para banir um admin.');
+      storage.setBanned(acc.id, 1);
+      if (target) { this.sysMsg(target, 'Sua conta foi banida.'); if (target.ws.close) target.ws.close(); }
+      return this.sysMsg(player, `${acc.username} banido.`);
+    }
   }
 
   sysMsg(player, text) { send(player.ws, { t: 'chat', from: '', text, sys: 1 }); }
@@ -1132,9 +1187,10 @@ class Game {
     if (!player.party) return this.sysMsg(player, 'Voce nao esta em um grupo. /party convidar <nome>');
     text = text.slice(0, 200).trim();
     if (!text) return;
+    const fromLc = player.name.toLowerCase();
     for (const pid of player.party.members) {
       const m = this.players.get(pid);
-      if (m) send(m.ws, { t: 'chat', from: `(grupo) ${player.name}`, text });
+      if (m && !(m.muted && m.muted.has(fromLc))) send(m.ws, { t: 'chat', from: `(grupo) ${player.name}`, text });
     }
   }
 
@@ -1144,9 +1200,13 @@ class Game {
       const target = [...this.players.values()].find(p => p !== player && p.name.toLowerCase() === (args[1] || '').toLowerCase());
       if (!target) return this.sysMsg(player, 'Jogador nao encontrado.');
       if (target.party) return this.sysMsg(player, 'Jogador ja esta em um grupo.');
+      if (target.muted && target.muted.has(player.name.toLowerCase())) {
+        return this.sysMsg(player, 'Jogador nao encontrado.'); // muted: fail silently
+      }
       target.partyInviteFrom = player.id;
       this.sysMsg(player, `Convite enviado para ${target.name}.`);
       this.sysMsg(target, `${player.name} convidou voce para o grupo. Digite /party aceitar`);
+      send(target.ws, { t: 'invite', kind: 'party', from: player.name });
       return;
     }
     if (sub === 'aceitar') {
@@ -1233,8 +1293,12 @@ class Game {
       const target = [...this.players.values()].find(p => p.name.toLowerCase() === name);
       if (!target) return this.sysMsg(player, 'Jogador nao esta online');
       if (target.guild) return this.sysMsg(player, 'Jogador ja tem guilda');
+      if (target.muted && target.muted.has(player.name.toLowerCase())) {
+        return this.sysMsg(player, 'Jogador nao esta online'); // muted: fail silently
+      }
       target.guildInviteId = player.guild.id;
       this.sysMsg(target, `${player.name} convidou voce para a guilda "${player.guild.name}". Digite /guilda aceitar`);
+      send(target.ws, { t: 'invite', kind: 'guild', from: player.name, guild: player.guild.name });
       return this.sysMsg(player, 'Convite enviado');
     }
     if (sub === 'aceitar') {

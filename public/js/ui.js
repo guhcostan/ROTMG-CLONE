@@ -403,28 +403,54 @@ const UI = (() => {
     el.appendChild(row);
   }
 
+  // party/mates lists arrive every tick: rebuild the DOM only when the
+  // roster changes (otherwise clicks land on detached elements), and keep
+  // the HP bars updated in place
+  let partyKey = '';
+  let partyHpEls = new Map();
   function renderParty(party) {
     const label = $('party-label'), el = $('hud-party');
     if (!el) return;
-    if (!party || !party.length) { label.style.display = 'none'; el.innerHTML = ''; return; }
-    label.style.display = '';
-    el.innerHTML = '';
+    if (!party || !party.length) {
+      if (partyKey !== '') { partyKey = ''; partyHpEls.clear(); label.style.display = 'none'; el.innerHTML = ''; }
+      return;
+    }
+    const key = party.map(m => `${m.name}:${m.level}:${m.here ? 1 : 0}`).join('|');
+    if (key !== partyKey) {
+      partyKey = key;
+      partyHpEls.clear();
+      label.style.display = '';
+      el.innerHTML = '';
+      for (const m of party) {
+        const row = document.createElement('div');
+        row.className = 'party-mate';
+        row.innerHTML = `<span class="pm-name" style="color:${m.here ? '#8fe08f' : '#999'}">${m.name} ${m.level}</span>` +
+          `<span class="pm-hp"><span></span></span>`;
+        row.title = m.here ? 'Clique para teleportar' : 'Em outra area';
+        if (m.here) row.onclick = () => Net.send({ t: 'teleport', name: m.name });
+        el.appendChild(row);
+        partyHpEls.set(m.name, row.querySelector('.pm-hp span'));
+      }
+      const leave = document.createElement('div');
+      leave.className = 'party-leave';
+      leave.textContent = '✕ Sair do grupo';
+      leave.onclick = () => Net.send({ t: 'chat', text: '/party sair' });
+      el.appendChild(leave);
+    }
     for (const m of party) {
-      const row = document.createElement('div');
-      row.className = 'party-mate';
-      const pct = Math.max(0, Math.min(100, (m.hp / m.maxHp) * 100));
-      row.innerHTML = `<span class="pm-name" style="color:${m.here ? '#8fe08f' : '#999'}">${m.name} ${m.level}</span>` +
-        `<span class="pm-hp"><span style="width:${pct}%"></span></span>`;
-      row.title = m.here ? 'Clique para teleportar' : 'Em outra area';
-      if (m.here) row.onclick = () => Net.send({ t: 'teleport', name: m.name });
-      el.appendChild(row);
+      const bar = partyHpEls.get(m.name);
+      if (bar) bar.style.width = Math.max(0, Math.min(100, (m.hp / m.maxHp) * 100)) + '%';
     }
   }
 
+  let matesKey = null;
   function renderMates(mates) {
     const label = $('mates-label'), el = $('hud-mates');
     if (!el) return;
     mates = mates || [];
+    const key = mates.join('|');
+    if (key === matesKey) return;
+    matesKey = key;
     if (!mates.length) { label.style.display = 'none'; el.innerHTML = ''; return; }
     label.style.display = '';
     el.innerHTML = '';
@@ -432,10 +458,62 @@ const UI = (() => {
       const b = document.createElement('div');
       b.className = 'mate';
       b.textContent = name;
-      b.title = 'Clique para teleportar ate ' + name;
-      b.onclick = () => Net.send({ t: 'teleport', name });
+      b.title = 'Clique para acoes com ' + name;
+      b.onclick = (e) => { e.stopPropagation(); showPlayerMenu(name, e.clientX, e.clientY); };
       el.appendChild(b);
     }
+  }
+
+  // ---------------- player action menu + invites
+  function showPlayerMenu(name, x, y) {
+    const menu = $('player-menu');
+    if (!menu) return;
+    menu.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'pm-title';
+    title.textContent = name;
+    menu.appendChild(title);
+    const actions = [
+      ['Teleportar ate', () => Net.send({ t: 'teleport', name })],
+      ['Propor troca', () => Net.send({ t: 'trade', cmd: 'request', name })],
+      ['Convidar p/ grupo', () => Net.send({ t: 'chat', text: '/party convidar ' + name })],
+      ['Convidar p/ guilda', () => Net.send({ t: 'chat', text: '/guilda convidar ' + name })],
+      ['Silenciar', () => Net.send({ t: 'chat', text: '/mute ' + name }), 'danger'],
+    ];
+    for (const [label2, fn, cls] of actions) {
+      const btn = document.createElement('button');
+      btn.textContent = label2;
+      if (cls) btn.className = cls;
+      btn.onclick = () => { fn(); hidePlayerMenu(); };
+      menu.appendChild(btn);
+    }
+    menu.classList.remove('hidden');
+    // keep it on-screen, anchored near the click
+    const w = 190, h = 190;
+    menu.style.left = Math.max(6, Math.min(x - w, innerWidth - w - 6)) + 'px';
+    menu.style.top = Math.max(6, Math.min(y - 10, innerHeight - h - 6)) + 'px';
+    setTimeout(() => document.addEventListener('click', hidePlayerMenu, { once: true }), 0);
+  }
+  function hidePlayerMenu() {
+    const menu = $('player-menu');
+    if (menu) menu.classList.add('hidden');
+  }
+
+  let inviteTimer = null;
+  function showInvite(m) {
+    const bar = $('invite-bar');
+    if (!bar) return;
+    $('invite-text').textContent = m.kind === 'guild'
+      ? `${m.from} convidou voce para a guilda "${m.guild}".`
+      : `${m.from} convidou voce para o grupo.`;
+    $('btn-invite-accept').onclick = () => {
+      Net.send({ t: 'chat', text: m.kind === 'guild' ? '/guilda aceitar' : '/party aceitar' });
+      bar.classList.add('hidden');
+    };
+    $('btn-invite-decline').onclick = () => bar.classList.add('hidden');
+    bar.classList.remove('hidden');
+    clearTimeout(inviteTimer);
+    inviteTimer = setTimeout(() => bar.classList.add('hidden'), 20000);
   }
 
   let shopOpen = false;
@@ -497,7 +575,7 @@ const UI = (() => {
 
   return {
     init, update, showBag, showVault, chat, notice, setName, setBounties, setPet, showShop, hideShop,
-    tradeRequest, tradeState, tradeEnd, setPortrait, setOnline, setZone,
+    tradeRequest, tradeState, tradeEnd, setPortrait, setOnline, setZone, showInvite,
     get items() { return ITEMS; },
   };
 })();

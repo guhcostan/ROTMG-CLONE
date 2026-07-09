@@ -125,7 +125,7 @@ const Renderer3D = (() => {
   const pool = new Map(); // key -> { obj, kind, used, texKey }
   const texCache = new Map();
 
-  function texFor(key, source) {
+  function texFor(key, source, flip) {
     let t = texCache.get(key);
     if (!t) {
       t = new THREE.CanvasTexture(source);
@@ -133,12 +133,14 @@ const Renderer3D = (() => {
       t.minFilter = THREE.NearestFilter;
       t.generateMipmaps = false;
       t.colorSpace = THREE.SRGBColorSpace;
+      if (flip) { t.repeat.x = -1; t.offset.x = 1; } // horizontal mirror
       texCache.set(key, t);
     }
     return t;
   }
 
-  // billboard sprite standing on the ground at (x, y)
+  // billboard sprite standing on the ground at (x, y); opts drive the
+  // walk bob, facing flip and attack lunge micro-animations
   function sprite(key, texKey, source, x, y, opts = {}) {
     let e = pool.get(key);
     if (e && e.kind !== 's') { scene.remove(e.obj); pool.delete(key); e = null; }
@@ -146,19 +148,32 @@ const Renderer3D = (() => {
       const mat = new THREE.SpriteMaterial({ transparent: true, alphaTest: 0.05 });
       const s = new THREE.Sprite(mat);
       s.center.set(0.5, 0.06); // feet on the ground
-      e = { obj: s, kind: 's', texKey: null };
+      e = { obj: s, kind: 's', texKey: null, flip: false };
       scene.add(s);
       pool.set(key, e);
     }
-    if (e.texKey !== texKey) {
-      e.obj.material.map = texFor(texKey, source);
+    const flip = !!opts.flip;
+    if (e.texKey !== texKey || e.flip !== flip) {
+      e.obj.material.map = texFor(texKey + (flip ? '|flip' : ''), source, flip);
       e.obj.material.needsUpdate = true;
       e.texKey = texKey;
+      e.flip = flip;
     }
     const size = opts.size || 0.95;
     const ratio = source.height / source.width;
+    let lift = opts.lift || 0, rot = 0;
+    if (opts.bob) {
+      lift += Math.abs(Math.sin(opts.bob)) * 0.07;   // little hops while walking
+      rot = Math.sin(opts.bob) * 0.06;               // side-to-side wobble
+    }
+    let px = x, py = y;
+    if (opts.lunge) {                                 // recoil toward the shot
+      px += Math.cos(opts.lunge.a) * 0.16 * opts.lunge.k;
+      py += Math.sin(opts.lunge.a) * 0.16 * opts.lunge.k;
+    }
+    e.obj.material.rotation = rot;
     e.obj.scale.set(size, size * ratio, 1);
-    e.obj.position.set(x, opts.lift || 0, y);
+    e.obj.position.set(px, lift, py);
     e.obj.material.opacity = opts.opacity !== undefined ? opts.opacity : 1;
     e.obj.visible = true;
     e.used = frame;
