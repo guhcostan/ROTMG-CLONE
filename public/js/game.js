@@ -98,6 +98,8 @@ const GameClient = (() => {
   function onTick(msg) {
     self = msg.self;
     UI.update(self);
+    const q = self.quest;
+    UI.setBoss(q, q && Math.hypot(q.x - me.x, q.y - me.y) < 18);
     // alert sound the moment HP crosses below 30% (rearmed once you recover)
     if (self.maxHp) {
       const low = self.hp / self.maxHp < 0.3;
@@ -150,8 +152,14 @@ const GameClient = (() => {
     UI.showBag(bag);
   }
 
+  // positional volume: full up close, fading out by ~22 tiles
+  function volAt(x, y) { return Math.max(0, 1 - Math.hypot(x - me.x, y - me.y) / 22); }
+
   function onShot(msg) {
-    if (msg.f === 1 && msg.o === myId && typeof Sfx !== 'undefined') Sfx.shoot();
+    if (typeof Sfx !== 'undefined' && msg.f === 1) {
+      if (msg.o === myId) Sfx.shoot();
+      else Sfx.shoot(volAt(msg.x, msg.y) * 0.5); // allies' shots, softer with distance
+    }
     // shooter lunges briefly toward the volley's center angle
     const owner = entities.get(msg.o);
     if (owner && msg.as.length) {
@@ -187,9 +195,15 @@ const GameClient = (() => {
     });
   }
 
+  // ground telegraph: a boss is winding up a big attack there
+  function onTele(msg) {
+    effects.push({ kind: 'tele', x: msg.x, y: msg.y, r: msg.r, t: 0, ttl: msg.ms / 1000 });
+    if (typeof Sfx !== 'undefined') Sfx.warn(volAt(msg.x, msg.y));
+  }
+
   function onFx(msg) {
     if (typeof Sfx !== 'undefined') {
-      if (msg.k === 'die') Sfx.kill();
+      if (msg.k === 'die') Sfx.kill(0.3 + 0.7 * volAt(msg.x, msg.y));
       if (msg.k === 'levelup') Sfx.levelup();
     }
     if (gl3dReady) {
@@ -612,6 +626,11 @@ const GameClient = (() => {
       } else if (f.kind === 'status') {
         const info = STATUS_INFO[f.s] || ['#fff', ''];
         groundEllipse(s.x, s.y, TILE * (0.4 + p * 0.5), ys, info[0], 2, (1 - p) * 0.8);
+      } else if (f.kind === 'tele') {
+        // danger zone fills up as the attack arms — get out!
+        const pulse = 0.75 + Math.sin(now / 90) * 0.25;
+        groundEllipse(s.x, s.y, f.r * TILE, ys, '#ff4838', 2.5, 0.55 * pulse);
+        groundEllipse(s.x, s.y, f.r * TILE * p, ys, null, 0, 0.22 * pulse, '#ff4838');
       }
     }
 
@@ -774,6 +793,7 @@ const GameClient = (() => {
     const handlers = {
       world: (m) => { reconnectTries = 0; loadWorld(m); },
       tick: onTick,
+      tele: onTele,
       blink: (m) => { me.x = m.x; me.y = m.y; },
       shot: onShot,
       dmg: onDmg,
@@ -788,7 +808,10 @@ const GameClient = (() => {
       tradedone: () => UI.tradeEnd(true),
       tradecancel: () => UI.tradeEnd(false),
       invite: m => UI.showInvite(m),
-      _state: (s) => UI.setOnline(s.online),
+      _state: (s) => {
+        UI.setOnline(s.online);
+        try { UI.setZones(JSON.parse(s.zones || '[]')); } catch { /* older server */ }
+      },
       death: (m) => {
         running = false;
         if (typeof Sfx !== 'undefined') Sfx.death();

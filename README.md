@@ -162,6 +162,10 @@ moderação — contas banidas não conseguem logar.
   variados por mob (rajadas, escopetas, snipers, metralhadoras, orbes lentos,
   anéis e espirais), defesa que reduz dano, regeneração por VIT/WIS e cadência
   por DEX.
+- **Encontros de chefe legíveis** — chefes telegrafam os anéis grandes com uma
+  zona de perigo vermelha no chão (~0,8s para sair), a barra de vida do chefe
+  aparece no topo da tela durante o encontro, e o painel "Zonas ativas" mostra
+  onde os jogadores estão (Reinos e dungeons) em tempo real.
 - **Feed global de eventos** — mortes de chefes notáveis, drops lendários,
   invasões, reinos conquistados, níveis máximos e mortes de heróis famosos
   aparecem no chat de todos os jogadores online (em verde-arcano), onde quer

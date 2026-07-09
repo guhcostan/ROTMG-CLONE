@@ -1985,8 +1985,18 @@ class Game {
       }
       inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed, rg: s.range, k: 'enemy', f: 0, o: e.id, st: s.status && s.status.type }, e.x, e.y);
     }
-    // ring attacks (spiral rings rotate a bit each volley)
+    // ring attacks (spiral rings rotate a bit each volley); big boss rings
+    // telegraph the danger zone on the ground before firing
     if (e.shots && e.shots.ring && now > e.nextRing) {
+      const bigRing = d.behavior === 'boss' && e.shots.ring >= 10;
+      if (bigRing && !e.ringArmed) {
+        e.ringArmed = true;
+        const windup = 800;
+        e.nextRing = now + windup;
+        inst.broadcastNear({ t: 'tele', x: round1(e.x), y: round1(e.y), r: Math.min(e.shots.range, 6.5), ms: windup }, e.x, e.y);
+        return;
+      }
+      e.ringArmed = false;
       e.nextRing = now + 1000 / (e.shots.ringRate * rateMul);
       const s = e.shots;
       const base = s.spiral ? (e.spiralA = (e.spiralA || 0) + 0.37) : 0;
@@ -2067,11 +2077,11 @@ class Game {
       let quest = null;
       const dBoss = inst.kind === 'dungeon' && inst.bossId && inst.enemies.get(inst.bossId);
       if (dBoss) {
-        quest = { x: round1(dBoss.x), y: round1(dBoss.y), name: dBoss.def.name, god: 1 };
+        quest = { x: round1(dBoss.x), y: round1(dBoss.y), name: dBoss.def.name, god: 1, hp: Math.round(dBoss.hp), maxHp: dBoss.maxHp };
       } else if (notable && notable.length) {
         let best = null, bd = Infinity;
         for (const e of notable) { const dd = dist2(e.x, e.y, p.x, p.y); if (dd < bd) { bd = dd; best = e; } }
-        if (best) quest = { x: round1(best.x), y: round1(best.y), name: best.def.name, god: best.def.god ? 1 : 0 };
+        if (best) quest = { x: round1(best.x), y: round1(best.y), name: best.def.name, god: best.def.god ? 1 : 0, hp: Math.round(best.hp), maxHp: best.maxHp };
       }
       const ch = p.char;
       send(p.ws, {

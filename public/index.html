@@ -113,6 +113,10 @@
   <canvas id="canvas"></canvas>
   <div id="hud">
     <div id="zone-banner" class="hidden"><span id="zone-name"></span></div>
+    <div id="boss-bar" class="hidden">
+      <span id="boss-name"></span>
+      <div class="bbar"><div id="boss-fill"></div></div>
+    </div>
     <div id="touch-ui" class="hidden">
       <button id="btn-hud-toggle" title="Inventario e status">&#9776;</button>
       <div id="mobile-bars">
@@ -146,6 +150,8 @@
       <div id="hud-mates"></div>
       <div class="inv-label">Missoes diarias</div>
       <div id="hud-bounties"></div>
+      <div class="inv-label" id="zones-label" style="display:none">Zonas ativas</div>
+      <div id="hud-zones"></div>
       <div class="inv-label">Equipamento</div>
       <div id="equip-slots" class="slots equip"></div>
       <div class="inv-label">Inventario</div>

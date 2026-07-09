@@ -369,6 +369,36 @@ const UI = (() => {
     if (el) el.textContent = n > 0 ? `${n} online` : '';
   }
 
+  // boss encounter bar: shown while the compass target is a nearby boss
+  function setBoss(quest, near) {
+    const bar = $('boss-bar');
+    if (!bar) return;
+    if (!quest || !quest.maxHp || !near) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    $('boss-name').textContent = quest.name;
+    $('boss-fill').style.width = Math.max(0, Math.min(100, (quest.hp / quest.maxHp) * 100)) + '%';
+  }
+
+  let zonesKey = '';
+  function setZones(list) {
+    const el = $('hud-zones'), label = $('zones-label');
+    if (!el) return;
+    list = list || [];
+    const key = list.map(z => `${z.n}:${z.c}`).join('|');
+    if (key === zonesKey) return;
+    zonesKey = key;
+    label.style.display = list.length ? '' : 'none';
+    el.innerHTML = '';
+    for (const z of list) {
+      const div = document.createElement('div');
+      const c = document.createElement('span');
+      c.className = 'zc';
+      c.textContent = z.c;
+      div.append(`${z.n} · `, c);
+      el.appendChild(div);
+    }
+  }
+
   function setZone(name) {
     const banner = $('zone-banner');
     if (!banner) return;
@@ -576,7 +606,7 @@ const UI = (() => {
 
   return {
     init, update, showBag, showVault, chat, notice, setName, setBounties, setPet, showShop, hideShop,
-    tradeRequest, tradeState, tradeEnd, setPortrait, setOnline, setZone, showInvite,
+    tradeRequest, tradeState, tradeEnd, setPortrait, setOnline, setZone, showInvite, setBoss, setZones,
     get items() { return ITEMS; },
   };
 })();
