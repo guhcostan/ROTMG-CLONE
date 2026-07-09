@@ -101,6 +101,7 @@
 
 <!-- ===================== GAME ===================== -->
 <div id="screen-game" class="screen hidden">
+  <canvas id="canvas3d"></canvas>
   <canvas id="canvas"></canvas>
   <div id="hud">
     <div id="zone-banner" class="hidden"><span id="zone-name"></span></div>
@@ -214,10 +215,12 @@
 </div>
 
 <script src="vendor/colyseus.js"></script>
+<script src="vendor/three.min.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/sounds.js"></script>
 <script src="js/net.js"></script>
 <script src="js/menu-bg.js"></script>
+<script src="js/renderer3d.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 <script src="js/main.js"></script>

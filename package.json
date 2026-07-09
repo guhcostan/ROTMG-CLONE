@@ -13,6 +13,7 @@
     "colyseus": "^0.16.5"
   },
   "devDependencies": {
-    "colyseus.js": "^0.16.22"
+    "colyseus.js": "^0.16.22",
+    "three": "^0.160.1"
   }
 }

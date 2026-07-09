@@ -1356,8 +1356,14 @@ class Game {
 
   onPortal(player) {
     const inst = player.instance;
-    for (const portal of inst.portals.values()) {
-      if (dist2(portal.x, portal.y, player.x, player.y) > 4) continue;
+    // pick the closest portal in range (a fresh key portal under your feet
+    // must win over the merchant standing two tiles away)
+    let portal = null, best = 4;
+    for (const p of inst.portals.values()) {
+      const d = dist2(p.x, p.y, player.x, player.y);
+      if (d <= best) { best = d; portal = p; }
+    }
+    if (portal) {
       if (portal.kind === 'realm') {
         const realm = (portal.instanceId && this.instances.get(portal.instanceId)) || this.realm;
         if (!realm) return;

@@ -6,9 +6,12 @@ progressão, reino procedural com ciclo de fechamento e chefe final, deuses,
 dungeons instanciadas, status effects, loot com raridades e lendários, bônus de
 fama na morte, cofre, trade entre jogadores, guildas e pets. O multiplayer roda
 sobre [Colyseus](https://colyseus.io/) (matchmaking, salas e sincronização de
-estado) e a persistência fica em SQLite. Todo o código e a pixel art são
-originais; a interface usa as fontes abertas Press Start 2P e VT323 (licença
-OFL), vendorizadas em `public/fonts`.
+estado), o mundo é renderizado em WebGL com
+[three.js](https://threejs.org/) — câmera ortográfica inclinada estilo ROTMG,
+paredes extrudadas em 3D, sprites billboard com sombra e projéteis com glow —
+e a persistência fica em SQLite. Todo o código e a pixel art são originais; a
+interface usa as fontes abertas Press Start 2P e VT323 (licença OFL),
+vendorizadas em `public/fonts`.
 
 ## Rodando localmente
 
@@ -163,8 +166,11 @@ server/
   data.js    Definições de classes, itens, inimigos e dungeons
   auth.js    Registro/login (scrypt), throttling e criação de personagens
   db.js      Camada SQLite (better-sqlite3, WAL) com migração do JSON legado
-public/      Cliente: canvas 2D, sprites procedurais, HUD, minimapa
-  vendor/    colyseus.js (cliente Colyseus, vendorizado)
+public/      Cliente: renderer WebGL 2.5D (three.js) + overlay 2D (HUD,
+             nomes, dano, efeitos, minimapa), sprites procedurais
+  js/renderer3d.js  Cena three.js: chão texturizado, paredes instanciadas,
+             billboards, sombras, bullets aditivos, luz/névoa por ambiente
+  vendor/    colyseus.js e three.min.js (vendorizados)
   fonts/     Press Start 2P + VT323 (OFL, vendorizadas)
 test/        Teste de fumaça ponta a ponta (npm test)
 Dockerfile, docker-compose.yml   Empacotamento para produção
