@@ -27,6 +27,7 @@ const GameClient = (() => {
   let joy = null;              // virtual joystick: { id, ox, oy, dx, dy }
   let aimTouch = null;         // touch id currently aiming/shooting
   let touchMode = false;
+  let spectating = false;      // dead but watching the fight
   let lastFrame = 0;
   let shooting = false;
   let mapCanvas = null;        // pre-rendered tile layer
@@ -394,8 +395,24 @@ const GameClient = (() => {
     let dy = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0);
     if (joy && (joy.dx || joy.dy)) { dx = joy.dx; dy = joy.dy; }
     const st = self.st || {};
+    // spectator: ignore inputs, glide the camera to the nearest living ally
+    if (spectating) {
+      let target = null, bd = Infinity;
+      for (const ent of entities.values()) {
+        if (ent.kind !== 'p' || ent.id === myId) continue;
+        const d = Math.hypot(ent.x - me.x, ent.y - me.y);
+        if (d < bd) { bd = d; target = ent; }
+      }
+      if (target) {
+        const k = Math.min(1, dt * 1.8);
+        me.x += (target.x - me.x) * k;
+        me.y += (target.y - me.y) * k;
+      }
+      dx = 0; dy = 0;
+    }
+
     const meEnt = entities.get(myId);
-    if ((dx || dy) && !(st.paralyze > 0)) {
+    if (!spectating && (dx || dy) && !(st.paralyze > 0)) {
       const len = Math.hypot(dx, dy);
       const tileSlow = tileAt(me.x, me.y) === 3 ? 0.5 : 1;
       const statusSlow = st.slow > 0 ? 0.5 : 1;
@@ -413,12 +430,12 @@ const GameClient = (() => {
       }
     } else if (meEnt) meEnt.moving = false;
     moveAccum += dt;
-    if (moveAccum > 0.05) { // 20 position updates/s
+    if (!spectating && moveAccum > 0.05) { // 20 position updates/s
       moveAccum = 0;
       Net.send({ t: 'move', x: Math.round(me.x * 100) / 100, y: Math.round(me.y * 100) / 100 });
     }
     // shooting (client asks; server enforces fire rate)
-    if (shooting) {
+    if (shooting && !spectating) {
       shotAccum += dt;
       if (shotAccum > 0.07) {
         shotAccum = 0;
@@ -789,6 +806,7 @@ const GameClient = (() => {
   function start(charId, callbacks) {
     onDeath = callbacks.onDeath;
     running = true;
+    spectating = false;
     keys = {}; shooting = false;
     const handlers = {
       world: (m) => { reconnectTries = 0; loadWorld(m); },
@@ -813,7 +831,9 @@ const GameClient = (() => {
         try { UI.setZones(JSON.parse(s.zones || '[]')); } catch { /* older server */ }
       },
       death: (m) => {
-        running = false;
+        // stay connected as a spectator; the death overlay offers "watch"
+        spectating = true;
+        keys = {}; shooting = false;
         if (typeof Sfx !== 'undefined') Sfx.death();
         callbacks.onDeath(m);
       },
@@ -842,6 +862,7 @@ const GameClient = (() => {
 
   function stop() {
     running = false;
+    spectating = false;
     Net.disconnect();
   }
 

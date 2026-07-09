@@ -616,6 +616,19 @@ body.touch-mode #boss-bar { top: 96px; }
   body.touch-mode #trade-panel, body.touch-mode .shop-panel { width: min(94vw, 440px); }
 }
 
+/* spectator bar (after death, while watching allies) */
+#spectate-bar {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  z-index: 99;
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(180deg, rgba(23, 18, 38, .95), rgba(13, 10, 23, .95));
+  border: 2px solid var(--ember-dark);
+  box-shadow: 0 0 0 3px rgba(5, 4, 9, .8), 0 8px 24px rgba(0, 0, 0, .6);
+  color: #ff8878; font-size: 19px;
+  pointer-events: auto;
+}
+
 /* ============================================================= scrollbars */
 ::-webkit-scrollbar { width: 9px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid var(--panel-3); }

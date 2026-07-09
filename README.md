@@ -162,6 +162,10 @@ moderação — contas banidas não conseguem logar.
   variados por mob (rajadas, escopetas, snipers, metralhadoras, orbes lentos,
   anéis e espirais), defesa que reduz dano, regeneração por VIT/WIS e cadência
   por DEX.
+- **Modo espectador** — ao morrer, você pode ficar assistindo seus amigos
+  (invisível, a câmera segue o aliado mais próximo, por até 90s) em vez de ser
+  ejetado na hora. E quando um Reino cai, o servidor anuncia os **maiores
+  caçadores de deuses** daquela conquista.
 - **Encontros de chefe legíveis** — chefes telegrafam os anéis grandes com uma
   zona de perigo vermelha no chão (~0,8s para sair), a barra de vida do chefe
   aparece no topo da tela durante o encontro, e o painel "Zonas ativas" mostra
