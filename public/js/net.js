@@ -1,8 +1,9 @@
 'use strict';
-// REST helpers + WebSocket game connection.
+// REST helpers + Colyseus game connection.
 
 const Net = (() => {
-  let ws = null;
+  let client = null;
+  let room = null;
   let token = localStorage.getItem('token') || null;
   let username = localStorage.getItem('username') || null;
 
@@ -32,28 +33,45 @@ const Net = (() => {
     token = null; username = null;
     localStorage.removeItem('token');
     localStorage.removeItem('username');
-    if (ws) ws.close();
+    disconnect();
   }
 
+  // joins the single Colyseus "realm" room; the legacy game protocol
+  // travels as 'g' messages (server sends JSON strings, client sends objects)
   function connect(charId, handlers) {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}/ws?token=${token}&char=${charId}`);
-    ws.onmessage = (ev) => {
-      let msg;
-      try { msg = JSON.parse(ev.data); } catch { return; }
-      const h = handlers[msg.t];
-      if (h) h(msg);
-    };
-    ws.onclose = (ev) => handlers._close && handlers._close(ev);
-    ws.onerror = () => {};
-    return ws;
+    if (!client) client = new Colyseus.Client(`${proto}://${location.host}`);
+    client.joinOrCreate('realm', { token, char: charId }).then(r => {
+      room = r;
+      r.onMessage('g', (payload) => {
+        let msg = payload;
+        if (typeof payload === 'string') {
+          try { msg = JSON.parse(payload); } catch { return; }
+        }
+        const h = handlers[msg.t];
+        if (h) h(msg);
+      });
+      r.onStateChange(state => { if (handlers._state) handlers._state(state); });
+      r.onError(() => {});
+      r.onLeave(code => { room = null; if (handlers._close) handlers._close({ code }); });
+    }).catch(e => {
+      room = null;
+      if (handlers._close) handlers._close({ code: e.code || 0, reason: e.message });
+    });
   }
 
   function send(msg) {
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+    if (room && room.connection && room.connection.isOpen) room.send('g', msg);
   }
 
-  function disconnect() { if (ws) { ws.onclose = null; ws.close(); ws = null; } }
+  function disconnect() {
+    if (room) {
+      const r = room;
+      room = null;
+      r.removeAllListeners();
+      try { r.leave(); } catch { /* already closed */ }
+    }
+  }
 
   return {
     api, login, logout, connect, send, disconnect,

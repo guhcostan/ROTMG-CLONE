@@ -184,6 +184,9 @@ const MOB_SPEED_CAP = 3.9;        // strictly below a 0-SPD player so no mob out
 function moveSpeed(stats) { return PLAYER_MIN_SPEED + 5.6 * (stats.spd / 75); }     // tiles/s
 function fireRate(stats) { return 1.5 + 4.5 * (stats.dex / 75); }    // shots/s
 function applyDefense(dmg, def) { return Math.max(Math.ceil(dmg * 0.1), dmg - def); }
+// newbie protection: fresh characters take less damage while they learn the
+// ropes; fades out linearly and is gone at level 6 (lvl1 -50% ... lvl5 -10%)
+function newbieDamageMul(level) { return 1 - Math.max(0, 6 - (level || 6)) * 0.1; }
 // ability damage scales with both ATT and WIS, so caster builds invest in WIS
 function abilityMul(stats) { return 0.5 + stats.att / 50 + stats.wis / 60; }
 
@@ -258,8 +261,9 @@ class Game {
     this.ensureRealms();              // open the initial pool of realms + their portals
     const ms = this.nexus.map.marketSpot;
     this.spawnPortal(this.nexus, ms.x, ms.y, 'shop', 'Mercador', null, 1e15); // Nexus merchant
-    setInterval(() => this.tick(), TICK);
-    setInterval(() => this.autosave(), 30000);
+    // a bug in one tick must not kill the process (and everyone's session)
+    setInterval(() => { try { this.tick(); } catch (e) { console.error('tick error:', e); } }, TICK);
+    setInterval(() => { try { this.autosave(); } catch (e) { console.error('autosave error:', e); } }, 30000);
   }
 
   addInstance(inst) { this.instances.set(inst.id, inst); return inst; }
@@ -416,6 +420,9 @@ class Game {
     this.grantDaily(player);
     send(player.ws, { t: 'bounties', list: player.bounties });
     send(player.ws, { t: 'chat', from: '', text: `Temporada ativa: ${this.seasonMod.name}.`, sys: 1 });
+    if (char.level < 6) {
+      send(player.ws, { t: 'chat', from: '', text: `Protecao de novato ativa: voce recebe ${Math.round((1 - newbieDamageMul(char.level)) * 100)}% menos dano ate o nivel 6.`, sys: 1 });
+    }
     if (player.pet) this.sendPet(player);
     return player;
   }
@@ -1356,8 +1363,14 @@ class Game {
 
   onPortal(player) {
     const inst = player.instance;
-    for (const portal of inst.portals.values()) {
-      if (dist2(portal.x, portal.y, player.x, player.y) > 4) continue;
+    // pick the closest portal in range (a fresh key portal under your feet
+    // must win over the merchant standing two tiles away)
+    let portal = null, best = 4;
+    for (const p of inst.portals.values()) {
+      const d = dist2(p.x, p.y, player.x, player.y);
+      if (d <= best) { best = d; portal = p; }
+    }
+    if (portal) {
       if (portal.kind === 'realm') {
         const realm = (portal.instanceId && this.instances.get(portal.instanceId)) || this.realm;
         if (!realm) return;
@@ -1583,6 +1596,7 @@ class Game {
   // applies already-resolved damage (defense ignored); used by bleed/lava too
   hurtPlayer(player, dmg, sourceName) {
     if (player.dead || dmg <= 0) return;
+    dmg = Math.max(1, Math.round(dmg * newbieDamageMul(player.char.level)));
     player.char.hp -= dmg;
     player.lastHit = Date.now();
     player.instance.broadcastNear({ t: 'dmg', id: player.id, n: dmg }, player.x, player.y);
@@ -2020,4 +2034,4 @@ function effectiveMaxMp(player) {
 function round1(n) { return Math.round(n * 10) / 10; }
 function send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 
-module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage };
+module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage, newbieDamageMul };

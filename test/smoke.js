@@ -6,7 +6,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const WebSocket = require('ws');
+const Colyseus = require('colyseus.js');
 
 const PORT = 18099;
 const BASE = `http://localhost:${PORT}`;
@@ -343,6 +343,24 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// newbie protection: low-level characters take reduced damage, gone by level 6
+function newbieProtectionSanity() {
+  const { Game, newbieDamageMul } = require('../server/game');
+  check(newbieDamageMul(1) === 0.5 && newbieDamageMul(5) === 0.9 && newbieDamageMul(6) === 1 && newbieDamageMul(20) === 1,
+    'newbie damage multiplier fades from 50% at lvl1 to none at lvl6');
+  const g = new Game();
+  const mk = (level) => ({
+    id: -300 - level, x: 5, y: 5, dead: false, instance: g.realm, lastHit: 0, status: {},
+    char: { level, hp: 500, mp: 0, classId: 'wizard', stats: { hp: 500, mp: 0, att: 0, def: 0, spd: 0, dex: 0, vit: 0, wis: 0 }, equipment: [] },
+    ws: { readyState: 3, send() {} }, acc: null,
+  });
+  const rookie = mk(1), vet = mk(20);
+  g.damagePlayer(rookie, 100, 'teste');
+  g.damagePlayer(vet, 100, 'teste');
+  const rookieLost = 500 - rookie.char.hp, vetLost = 500 - vet.char.hp;
+  check(rookieLost === Math.round(vetLost / 2), `level 1 takes half damage (${rookieLost} vs ${vetLost})`);
+}
+
 // bleed scales with max HP (floored) so it isn't lethal to low-level characters
 function bleedSanity() {
   const { Game } = require('../server/game');
@@ -593,9 +611,14 @@ function startServer() {
 }
 
 function client(token, charId) {
-  const ws = new WebSocket(`ws://localhost:${PORT}/ws?token=${token}&char=${charId}`);
   const messages = [];
-  ws.on('message', d => messages.push(JSON.parse(d)));
+  let room = null;
+  const c = new Colyseus.Client(`ws://localhost:${PORT}`);
+  const opened = c.joinOrCreate('realm', { token, char: charId }).then(r => {
+    room = r;
+    r.onMessage('g', p => messages.push(typeof p === 'string' ? JSON.parse(p) : p));
+    r.onError(() => {});
+  });
   const waitFor = (type, timeout = 5000) => new Promise((res, rej) => {
     const t0 = Date.now();
     const iv = setInterval(() => {
@@ -604,8 +627,9 @@ function client(token, charId) {
       else if (Date.now() - t0 > timeout) { clearInterval(iv); rej(new Error('timeout waiting ' + type)); }
     }, 30);
   });
-  const sendMsg = (m) => ws.send(JSON.stringify(m));
-  const opened = new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
+  const sendMsg = (m) => { if (room) room.send('g', m); };
+  // .ws.close() call sites keep working: leaving the room closes the connection
+  const ws = { close: () => { if (room) { const r = room; room = null; r.removeAllListeners(); r.leave().catch(() => {}); } } };
   return { ws, messages, waitFor, sendMsg, opened };
 }
 
@@ -682,6 +706,7 @@ async function main() {
   abilityScalingSanity();
   coopXpSanity();
   balanceSanity();
+  newbieProtectionSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();

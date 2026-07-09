@@ -1,12 +1,15 @@
 'use strict';
-// HTTP server (static client + account REST API) and the WebSocket
-// game endpoint.
+// HTTP server (static client + account REST API) and the Colyseus
+// game server (matchmaking + realm room) attached on top of it.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { WebSocketServer } = require('ws');
+const zlib = require('zlib');
+const { Server } = require('colyseus');
+const { WebSocketTransport } = require('@colyseus/ws-transport');
 const auth = require('./auth');
 const { Game, ACHIEVEMENTS } = require('./game');
+const { RealmRoom } = require('./room');
 const { CLASSES, ITEMS } = require('./data');
 const storage = require('./db');
 
@@ -15,9 +18,51 @@ const PUBLIC = path.join(__dirname, '..', 'public');
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg',
 };
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.svg']);
+
+// a lost heartbeat mustn't take the whole shard down with it
+process.on('uncaughtException', (e) => console.error('uncaught:', e));
+process.on('unhandledRejection', (e) => console.error('unhandled rejection:', e));
 
 const game = new Game();
+const startedAt = Date.now();
+
+// ---------------- static file cache (content + gzip, keyed by mtime)
+const fileCache = new Map(); // full path -> { mtimeMs, data, gz, type }
+function loadStatic(full) {
+  let stat;
+  try { stat = fs.statSync(full); } catch { return null; }
+  if (!stat.isFile()) return null;
+  let entry = fileCache.get(full);
+  if (!entry || entry.mtimeMs !== stat.mtimeMs) {
+    const data = fs.readFileSync(full);
+    const ext = path.extname(full);
+    entry = {
+      mtimeMs: stat.mtimeMs, data,
+      type: MIME[ext] || 'application/octet-stream',
+      gz: COMPRESSIBLE.has(ext) ? zlib.gzipSync(data, { level: 9 }) : null,
+    };
+    fileCache.set(full, entry);
+  }
+  return entry;
+}
+
+function serveStatic(req, res, full, cacheControl) {
+  const entry = loadStatic(full);
+  if (!entry) { res.writeHead(404); return res.end('not found'); }
+  const headers = { 'Content-Type': entry.type, 'Cache-Control': cacheControl };
+  const acceptsGz = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  if (entry.gz && acceptsGz) {
+    headers['Content-Encoding'] = 'gzip';
+    headers['Vary'] = 'Accept-Encoding';
+    res.writeHead(200, headers);
+    return res.end(entry.gz);
+  }
+  res.writeHead(200, headers);
+  res.end(entry.data);
+}
 
 function json(res, code, obj) {
   const body = JSON.stringify(obj);
@@ -47,6 +92,14 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
 
   try {
+    // ---------------- health (load balancers / uptime monitors)
+    if (p === '/health') {
+      return json(res, 200, {
+        ok: true,
+        online: game.players.size,
+        uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
+      });
+    }
     // ---------------- API
     if ((p === '/api/register' || p === '/api/login') && req.method === 'POST') {
       const ip = req.socket.remoteAddress || '?';
@@ -152,66 +205,56 @@ const server = http.createServer(async (req, res) => {
     // ---------------- static files
     // public shareable profile pages: /u/<name> -> profile.html (client fetches /api/profile)
     if (p.startsWith('/u/')) {
-      return fs.readFile(path.join(PUBLIC, 'profile.html'), (err, data) => {
-        if (err) { res.writeHead(404); return res.end('not found'); }
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(data);
-      });
+      return serveStatic(req, res, path.join(PUBLIC, 'profile.html'), 'no-cache');
     }
-    let file = p === '/' ? '/index.html' : p;
+    // index.html: absolutize the og:image URL from the request host so link
+    // previews (WhatsApp/Discord scrapers need absolute URLs) work on any domain
+    if (p === '/' || p === '/index.html') {
+      const entry = loadStatic(path.join(PUBLIC, 'index.html'));
+      if (!entry) { res.writeHead(404); return res.end('not found'); }
+      const proto = (req.headers['x-forwarded-proto'] || '').includes('https') ? 'https' : 'http';
+      const host = String(req.headers.host || `localhost:${PORT}`).replace(/[^a-zA-Z0-9.:\-\[\]]/g, '');
+      const html = entry.data.toString().replace('content="/og.jpg"', `content="${proto}://${host}/og.jpg"`);
+      const headers = { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' };
+      if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+        headers['Content-Encoding'] = 'gzip';
+        headers['Vary'] = 'Accept-Encoding';
+        res.writeHead(200, headers);
+        return res.end(zlib.gzipSync(html));
+      }
+      res.writeHead(200, headers);
+      return res.end(html);
+    }
+    let file = p;
     file = path.normalize(file).replace(/^(\.\.[/\\])+/, '');
     const full = path.join(PUBLIC, file);
     if (!full.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
-    fs.readFile(full, (err, data) => {
-      if (err) { res.writeHead(404); return res.end('not found'); }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(full)] || 'application/octet-stream' });
-      res.end(data);
-    });
+    // vendored libs and fonts never change without a redeploy; html must revalidate
+    const cacheControl =
+      file.startsWith(path.sep + 'vendor') || file.startsWith(path.sep + 'fonts')
+        ? 'public, max-age=604800, immutable'
+        : path.extname(full) === '.html' ? 'no-cache' : 'public, max-age=300';
+    return serveStatic(req, res, full, cacheControl);
   } catch (e) {
     console.error(e);
     json(res, 500, { error: 'Erro interno' });
   }
 });
 
-// ---------------- websocket game endpoint
-const wss = new WebSocketServer({ server, path: '/ws' });
-
-wss.on('connection', (ws, req) => {
-  const url = new URL(req.url, 'http://x');
-  const acc = auth.authed(url.searchParams.get('token'));
-  const charId = parseInt(url.searchParams.get('char'), 10);
-  if (!acc) { ws.close(4001, 'unauthorized'); return; }
-  const char = storage.getChar(charId, acc.id);
-  if (!char) { ws.close(4002, 'no character'); return; }
-  // one connection per character
-  for (const p of game.players.values()) {
-    if (p.char.id === charId) { ws.close(4003, 'already playing'); return; }
-  }
-
-  const player = game.joinPlayer(ws, acc, char);
-  console.log(`[+] ${acc.username} entrou (${CLASSES[char.classId].name} nv ${char.level})`);
-
-  ws.on('message', (raw) => {
-    if (raw.length > 2000) return;
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-    try { game.handle(player, msg); } catch (e) { console.error('handle error:', e); }
-  });
-  ws.on('close', () => {
-    game.leavePlayer(player);
-    console.log(`[-] ${acc.username} saiu`);
-  });
-  ws.on('error', () => {});
+// ---------------- colyseus game server
+// The transport reuses the HTTP server above; Colyseus wraps its request
+// listener so /matchmake/* is answered by the matchmaker and everything
+// else falls through to the static/API handler.
+const gameServer = new Server({
+  transport: new WebSocketTransport({ server }),
+  greet: false,
 });
-
-function shutdown() {
+gameServer.define('realm', RealmRoom, { game });
+gameServer.onShutdown(() => {
   try { game.autosave(); } catch {}
   storage.close();
-  process.exit(0);
-}
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+});
 
-server.listen(PORT, () => {
+gameServer.listen(PORT).then(() => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });

@@ -25,11 +25,13 @@ const UI = (() => {
     slotEls = []; bagEls = [];
     buildVaultSlots();
     buildTradePanel();
+    const EQUIP_GHOSTS = ['⚔', '✦', '⛨', '◉']; // weapon, ability, armor, ring
     for (let i = 0; i < 12; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
       el.dataset.slot = i;
       el.title = i < 4 ? EQUIP_LABELS[i] : '';
+      if (i < 4) el.dataset.ghost = EQUIP_GHOSTS[i];
       el.draggable = true;
       el.addEventListener('dragstart', () => { dragFrom = { type: 'slot', i }; });
       el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
@@ -47,7 +49,12 @@ const UI = (() => {
         else useOrEquip(i);
       });
       el.addEventListener('click', () => {
-        if (trading && i >= 4) toggleOffer(i - 4);
+        if (trading && i >= 4) return toggleOffer(i - 4);
+        // on touch there is no double click: a single tap acts
+        if (document.body.classList.contains('touch-mode')) {
+          if (vaultOpen && i >= 4 && getSlotItem(i)) Net.send({ t: 'vault', cmd: 'deposit', slot: i });
+          else useOrEquip(i);
+        }
       });
       el.addEventListener('contextmenu', e => { e.preventDefault(); Net.send({ t: 'dropitem', slot: i }); });
       el.addEventListener('mousemove', e => showTooltip(e, currentSelf && getSlotItem(i)));
@@ -61,6 +68,12 @@ const UI = (() => {
       el.draggable = true;
       el.addEventListener('dragstart', () => { dragFrom = { type: 'bag', i }; });
       el.addEventListener('dblclick', () => { Net.send({ t: 'pickup', bag: currentBagId, idx: i }); if (typeof Sfx !== 'undefined') Sfx.pickup(); });
+      el.addEventListener('click', () => {
+        if (document.body.classList.contains('touch-mode')) {
+          Net.send({ t: 'pickup', bag: currentBagId, idx: i });
+          if (typeof Sfx !== 'undefined') Sfx.pickup();
+        }
+      });
       el.addEventListener('mousemove', e => showTooltip(e, currentBagItems && currentBagItems[i]));
       el.addEventListener('mouseleave', hideTooltip);
       bag.appendChild(el);
@@ -94,6 +107,9 @@ const UI = (() => {
         dragFrom = null;
       });
       el.addEventListener('dblclick', () => Net.send({ t: 'vault', cmd: 'withdraw', idx: i }));
+      el.addEventListener('click', () => {
+        if (document.body.classList.contains('touch-mode')) Net.send({ t: 'vault', cmd: 'withdraw', idx: i });
+      });
       el.addEventListener('mousemove', e => showTooltip(e, currentVault && currentVault[i]));
       el.addEventListener('mouseleave', hideTooltip);
       wrap.appendChild(el);
@@ -235,6 +251,10 @@ const UI = (() => {
     if (shopOpen) renderShopSell();
     setBar('bar-hp', 'txt-hp', self.hp, self.maxHp);
     setBar('bar-mp', 'txt-mp', self.mp, self.maxMp);
+    // compact bars shown on touch layouts while the sidebar drawer is closed
+    const mh = $('mbar-hp'), mm = $('mbar-mp');
+    if (mh) mh.style.width = Math.max(0, Math.min(100, (self.hp / self.maxHp) * 100)) + '%';
+    if (mm) mm.style.width = Math.max(0, Math.min(100, (self.mp / self.maxMp) * 100)) + '%';
     if (self.level >= 20) {
       $('bar-xp').style.width = '100%';
       $('txt-xp').textContent = `Nv 20 - Fama ${self.fame}`;
@@ -243,9 +263,9 @@ const UI = (() => {
     }
     const s = self.stats;
     $('hud-stats').innerHTML =
-      `<span>ATT ${s.att}</span><span>DEF ${s.def}</span>` +
-      `<span>SPD ${s.spd}</span><span>DEX ${s.dex}</span>` +
-      `<span>VIT ${s.vit}</span><span>WIS ${s.wis}</span>`;
+      `<span><b>ATT</b> ${s.att}</span><span><b>DEF</b> ${s.def}</span>` +
+      `<span><b>SPD</b> ${s.spd}</span><span><b>DEX</b> ${s.dex}</span>` +
+      `<span><b>VIT</b> ${s.vit}</span><span><b>WIS</b> ${s.wis}</span>`;
     for (let i = 0; i < 12; i++) renderSlot(slotEls[i], getSlotItem(i));
   }
 
@@ -328,6 +348,36 @@ const UI = (() => {
   }
 
   function setName(text) { $('hud-name').textContent = text; }
+
+  function setPortrait(classId) {
+    const cv = $('hud-portrait');
+    if (!cv) return;
+    const spr = Sprites.get(classId);
+    const c = cv.getContext('2d');
+    c.clearRect(0, 0, cv.width, cv.height);
+    if (spr) {
+      const scale = Math.min(cv.width / spr.width, cv.height / spr.height);
+      const w = spr.width * scale, h = spr.height * scale;
+      c.imageSmoothingEnabled = false;
+      c.drawImage(spr, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+    }
+  }
+
+  function setOnline(n) {
+    const el = $('hud-online');
+    if (el) el.textContent = n > 0 ? `${n} online` : '';
+  }
+
+  function setZone(name) {
+    const banner = $('zone-banner');
+    if (!banner) return;
+    $('zone-name').textContent = name;
+    banner.classList.remove('hidden');
+    // retrigger the entry animation on zone change
+    banner.style.animation = 'none';
+    void banner.offsetWidth;
+    banner.style.animation = '';
+  }
 
   function setPet(p) {
     const label = $('pet-label'), el = $('hud-pet');
@@ -447,7 +497,7 @@ const UI = (() => {
 
   return {
     init, update, showBag, showVault, chat, notice, setName, setBounties, setPet, showShop, hideShop,
-    tradeRequest, tradeState, tradeEnd,
+    tradeRequest, tradeState, tradeEnd, setPortrait, setOnline, setZone,
     get items() { return ITEMS; },
   };
 })();

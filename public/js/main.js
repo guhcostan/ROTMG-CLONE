@@ -6,6 +6,23 @@
   const screens = ['screen-auth', 'screen-chars', 'screen-game'];
   function show(id) {
     for (const s of screens) $(s).classList.toggle('hidden', s !== id);
+    // animated backdrop only behind the menu screens
+    if (typeof MenuBg !== 'undefined') {
+      if (id === 'screen-game') MenuBg.stop(); else MenuBg.start();
+    }
+  }
+
+  // ---------------- character-select tabs
+  const tabBar = $('chars-tabs');
+  if (tabBar) {
+    tabBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tab');
+      if (!btn) return;
+      for (const t of tabBar.querySelectorAll('.tab')) t.classList.toggle('active', t === btn);
+      for (const pane of document.querySelectorAll('#screen-chars .tab-pane')) {
+        pane.classList.toggle('active', pane.id === btn.dataset.tab);
+      }
+    });
   }
 
   // ---------------- auth screen
@@ -66,7 +83,7 @@
         openChars();
       };
       card.append(name, info, del);
-      card.onclick = () => startGame(ch.id);
+      card.onclick = () => startGame(ch.id, ch.classId);
       list.appendChild(card);
     }
 
@@ -99,7 +116,7 @@
           card.onclick = async () => {
             try {
               const r = await Net.api('POST', '/api/chars', { classId: id });
-              startGame(r.character.id);
+              startGame(r.character.id, r.character.classId);
             } catch (e) { alert(e.message); }
           };
         }
@@ -284,11 +301,12 @@
   }
 
   // ---------------- game
-  async function startGame(charId) {
+  async function startGame(charId, classId) {
     await UI.init();
     show('screen-game');
     $('death-overlay').classList.add('hidden');
     UI.setName(Net.username);
+    if (classId) UI.setPortrait(classId);
     GameClient.start(charId, {
       onDeath(m) {
         $('death-info').textContent = `Seu personagem nivel ${m.level} foi morto por ${m.killer}.`;

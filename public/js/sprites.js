@@ -1148,21 +1148,22 @@ ffr.........`,
 };
 
 // tile colors (id -> [base, alt]) - keep in sync with server world.js T
+// base/alt pairs are kept close so the ground reads as texture, not chessboard
 const TILE_COLORS = {
   0: ['#000000', '#000000'],
-  1: ['#3e7c33', '#46883a'],   // grass
-  2: ['#cdb878', '#d6c485'],   // sand
-  3: ['#2b5a9c', '#2f63ab'],   // water
-  4: ['#5c5c64', '#52525a'],   // rock
-  5: ['#8a7a5a', '#948466'],   // road
-  6: ['#2c5e28', '#33682e'],   // forest
-  7: ['#7c6e5e', '#857667'],   // mountain
-  8: ['#c84818', '#d85820'],   // lava
-  9: ['#4a4252', '#544a5c'],   // dungeon floor
+  1: ['#3e7c33', '#428136'],   // grass
+  2: ['#cdb878', '#d2be7e'],   // sand
+  3: ['#2b5a9c', '#2d5ea3'],   // water
+  4: ['#5c5c64', '#585860'],   // rock
+  5: ['#8a7a5a', '#8f7f5e'],   // road
+  6: ['#2c5e28', '#2f632b'],   // forest
+  7: ['#7c6e5e', '#807262'],   // mountain
+  8: ['#c84818', '#cc4d1c'],   // lava
+  9: ['#4a4252', '#4d4556'],   // dungeon floor
   10: ['#231f29', '#231f29'],  // dungeon wall
-  11: ['#7c93a8', '#8aa0b4'],  // nexus floor
-  12: ['#bcd8ee', '#cfe6f6'],  // ice floor
-  13: ['#7fc6e8', '#93d2f0'],  // frost hazard pool
+  11: ['#7c93a8', '#8098ad'],  // nexus floor
+  12: ['#bcd8ee', '#c1dcf0'],  // ice floor
+  13: ['#7fc6e8', '#84cae9'],  // frost hazard pool
 };
 const TILE_BLOCKING = new Set([0, 4, 10]);
 
