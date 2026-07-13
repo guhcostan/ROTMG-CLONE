@@ -231,9 +231,10 @@ node tools/cli.js --bot --quiet                             # bot autônomo (log
 
 Renderiza o mapa em ASCII colorido com HUD, chat e feed de eventos — WASD move,
 `x` liga autofire no inimigo mais próximo, espaço usa a habilidade, `f` portal,
-`t` chat, `q` sai. O modo `--bot` atravessa o tutorial, entra no Reino e luta
-sozinho; ótimo para testes de carga e para popular o servidor. `GET /health`
-expõe `tick.avgMs/maxMs/gapMaxMs` para diagnosticar lag em produção.
+`t` chat, `q` sai. O modo `--bot` luta no tutorial, segue até o portal do Nexus
+(mesmo fora do raio de visão), entra num reino e luta/kita sozinho — útil para
+testes de carga e para popular o servidor. `GET /health` expõe
+`tick.avgMs/maxMs/gapMaxMs` para diagnosticar lag em produção.
 
 ## Testes
 
