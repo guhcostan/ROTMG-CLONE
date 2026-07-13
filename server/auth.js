@@ -17,8 +17,12 @@ function unlockedClasses(accountId) {
   return unlocked;
 }
 
+// async on purpose: scryptSync blocks the event loop for tens of ms, which
+// froze the whole game (rubber-banding for everyone) whenever someone logged in
 function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 32).toString('hex');
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 32, (err, buf) => err ? reject(err) : resolve(buf.toString('hex')));
+  });
 }
 
 // crude per-IP throttle for the auth endpoints
@@ -32,7 +36,7 @@ function throttled(ip) {
   return a.n > 30;
 }
 
-function register(username, password) {
+async function register(username, password) {
   username = String(username || '').trim();
   if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) {
     return { error: 'Nome deve ter 3-16 caracteres (letras, numeros, _)' };
@@ -42,14 +46,16 @@ function register(username, password) {
   }
   if (storage.getAccountByName(username)) return { error: 'Nome de usuario ja existe' };
   const salt = crypto.randomBytes(16).toString('hex');
-  storage.createAccount(username, salt, hashPassword(password, salt));
-  return login(username, password);
+  const id = storage.createAccount(username, salt, await hashPassword(password, salt));
+  const token = crypto.randomBytes(24).toString('hex');
+  storage.createSession(token, id);
+  return { token, username };
 }
 
-function login(username, password) {
+async function login(username, password) {
   const acc = storage.getAccountByName(String(username || '').trim());
   if (!acc) return { error: 'Usuario ou senha invalidos' };
-  const hash = hashPassword(String(password || ''), acc.salt);
+  const hash = await hashPassword(String(password || ''), acc.salt);
   if (!crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(acc.hash))) {
     return { error: 'Usuario ou senha invalidos' };
   }

@@ -258,6 +258,8 @@ const storage = {
   setPetState: (accountId, pet, level, xp, aura) => q.setPetState.run(pet, level, xp, aura, accountId),
   setGold: (accountId, gold) => q.setGold.run(gold, accountId),
   setBanned: (accountId, banned) => q.setBanned.run(banned ? 1 : 0, accountId),
+  // batch several writes into one transaction (single fsync)
+  inTransaction: (fn) => db.transaction(fn)(),
 
   // sessions (30 days)
   createSession: (token, accountId) => {

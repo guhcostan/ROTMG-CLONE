@@ -117,8 +117,11 @@ const GameClient = (() => {
         if (!ent) { ent = { kind, x, y }; entities.set(id, ent); }
         Object.assign(ent, { kind, id, name, classId, tx: x, ty: y, hp, maxHp, level, invis, guild, pet, title, nameColor, skin });
         if (id === myId) {
-          // server correction only when badly out of sync
-          if (Math.hypot(me.x - x, me.y - y) > 3) { me.x = x; me.y = y; }
+          // server correction: hard snap only when truly desynced; smaller
+          // drifts get pulled back gently so it never *feels* like a rollback
+          const drift = Math.hypot(me.x - x, me.y - y);
+          if (drift > 4) { me.x = x; me.y = y; }
+          else if (drift > 1.2) { me.x += (x - me.x) * 0.12; me.y += (y - me.y) * 0.12; }
           ent.tx = me.x; ent.ty = me.y;
         }
       } else if (kind === 'e') {
