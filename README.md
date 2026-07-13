@@ -221,6 +221,20 @@ Tabelas: `accounts`, `sessions`, `characters`, `graveyard`, `vault`, `guilds`,
 anterior baseada em arquivo) é migrado automaticamente e renomeado para
 `db.json.migrated`.
 
+## Cliente de terminal (testes e depuração)
+
+```bash
+npm run play -- --user nome --pass senha                    # jogar no terminal
+node tools/cli.js --host https://seu-app.fly.dev --user x --pass y
+node tools/cli.js --bot --quiet                             # bot autônomo (log de eventos)
+```
+
+Renderiza o mapa em ASCII colorido com HUD, chat e feed de eventos — WASD move,
+`x` liga autofire no inimigo mais próximo, espaço usa a habilidade, `f` portal,
+`t` chat, `q` sai. O modo `--bot` atravessa o tutorial, entra no Reino e luta
+sozinho; ótimo para testes de carga e para popular o servidor. `GET /health`
+expõe `tick.avgMs/maxMs/gapMaxMs` para diagnosticar lag em produção.
+
 ## Testes
 
 ```bash

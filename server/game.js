@@ -264,8 +264,28 @@ class Game {
     this.ensureRealms();              // open the initial pool of realms + their portals
     const ms = this.nexus.map.marketSpot;
     this.spawnPortal(this.nexus, ms.x, ms.y, 'shop', 'Mercador', null, 1e15); // Nexus merchant
-    // a bug in one tick must not kill the process (and everyone's session)
-    setInterval(() => { try { this.tick(); } catch (e) { console.error('tick error:', e); } }, TICK);
+    // a bug in one tick must not kill the process (and everyone's session);
+    // tick timing is tracked and exposed on /health for live diagnosis
+    this.tickStats = { avgMs: 0, maxMs: 0, gapMaxMs: 0 };
+    this._tickWin = { n: 0, total: 0, max: 0, gapMax: 0, last: 0 };
+    setInterval(() => {
+      const t0 = performance.now();
+      const w = this._tickWin;
+      // gap = how late this tick fired; spikes reveal event-loop stalls
+      if (w.last) { const gap = t0 - w.last - TICK; if (gap > w.gapMax) w.gapMax = gap; }
+      w.last = t0;
+      try { this.tick(); } catch (e) { console.error('tick error:', e); }
+      const ms = performance.now() - t0;
+      w.n++; w.total += ms; if (ms > w.max) w.max = ms;
+      if (w.n >= 200) { // roll the window every ~10s
+        this.tickStats = {
+          avgMs: Math.round(w.total / w.n * 100) / 100,
+          maxMs: Math.round(w.max * 100) / 100,
+          gapMaxMs: Math.max(0, Math.round(w.gapMax * 100) / 100),
+        };
+        w.n = 0; w.total = 0; w.max = 0; w.gapMax = 0;
+      }
+    }, TICK);
     setInterval(() => { try { this.autosave(); } catch (e) { console.error('autosave error:', e); } }, 30000);
   }
 
@@ -901,6 +921,10 @@ class Game {
     }
   }
 
+  // anti-speed check as a leaky bucket: the allowance accrues with real time
+  // and burst-delivered packets (event-loop hiccups, network jitter) spend
+  // from it instead of being rejected for having dt~0 — rejecting them made
+  // the server fall behind the client's path and caused rubber-banding.
   onMove(player, msg) {
     const x = Number(msg.x), y = Number(msg.y);
     if (!isFinite(x) || !isFinite(y)) return;
@@ -910,9 +934,12 @@ class Game {
     player.lastMoveAt = now;
     const stats = effectiveStats(player);
     const mm = statusMoveMul(player);
-    const maxD = mm <= 0 ? 0.06 : moveSpeed(stats) * mm * dt * 1.6 + 0.3; // lenient anti-speed cap
+    const speed = mm <= 0 ? 0.06 : moveSpeed(stats) * mm * 1.6;
+    // budget caps at ~600ms of travel so a stall burst passes but teleports don't
+    player.moveBudget = Math.min(speed * 0.6, (player.moveBudget || 0) + speed * dt) + 0.3;
     const d = Math.hypot(x - player.x, y - player.y);
-    if (d > maxD) return; // reject teleport-like moves
+    if (d > player.moveBudget) return; // reject teleport-like moves
+    player.moveBudget = Math.max(0, player.moveBudget - d - 0.3);
     if (inst.tileBlocked(x, y)) return;
     player.x = x; player.y = y;
   }
@@ -1772,8 +1799,17 @@ class Game {
   // ------------------------------------------------ main loop
   tick() {
     const now = Date.now();
+    // snapshots go out at 10 Hz (half the sim rate): entities are lerped
+    // client-side anyway and this halves encode CPU + downstream bandwidth
+    const snapshotPhase = (this._tickN = (this._tickN || 0) + 1) % 2 === 0;
     for (const inst of this.instances.values()) {
-      if (inst.players.size > 0 || inst.kind !== 'dungeon') this.tickInstance(inst, now);
+      // empty instances don't simulate: nobody is there to see it
+      if (inst.players.size === 0) {
+        if (inst.projectiles.length) inst.projectiles.length = 0;
+        continue;
+      }
+      this.tickInstance(inst, now);
+      if (snapshotPhase) this.sendSnapshots(inst);
     }
     if ((this._respawnT = (this._respawnT || 0) + 1) % 40 === 0) {
       this.respawnRealm();
@@ -1917,8 +1953,7 @@ class Game {
       }
     }
 
-    // --- snapshots
-    this.sendSnapshots(inst);
+    // (snapshots are sent from tick() at half rate)
   }
 
   tickEnemy(inst, e, now, dt) {
@@ -2136,7 +2171,10 @@ class Game {
   }
 
   autosave() {
-    for (const p of this.players.values()) this.persist(p);
+    // one transaction = one fsync, instead of a disk hitch per player
+    storage.inTransaction(() => {
+      for (const p of this.players.values()) this.persist(p);
+    });
   }
 }
 

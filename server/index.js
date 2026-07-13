@@ -98,6 +98,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         online: game.players.size,
         uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
+        tick: game.tickStats, // avg/max simulation ms over the last ~10s window
       });
     }
     // ---------------- API
@@ -105,7 +106,7 @@ const server = http.createServer(async (req, res) => {
       const ip = req.socket.remoteAddress || '?';
       if (auth.throttled(ip)) return json(res, 429, { error: 'Muitas tentativas, aguarde alguns minutos' });
       const { username, password } = await readBody(req);
-      const r = p === '/api/register' ? auth.register(username, password) : auth.login(username, password);
+      const r = p === '/api/register' ? await auth.register(username, password) : await auth.login(username, password);
       return json(res, r.error ? 400 : 200, r);
     }
     if (p === '/api/leaderboard' && req.method === 'GET') {
