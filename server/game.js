@@ -408,7 +408,8 @@ class Game {
 
   populateRealm(realm = this.realm) {
     const m = realm.map;
-    const counts = [90, 140, 140, 110, 40]; // enemies per band
+    // band 4 grew when demigods joined the gods, so god density stays similar
+    const counts = [90, 140, 140, 110, 60]; // enemies per band
     const byBand = this.bandTypes();
     for (let band = 0; band < 5; band++) {
       let placed = 0, tries = 0;
