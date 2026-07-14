@@ -4,6 +4,7 @@
 
 const UI = (() => {
   let ITEMS = {}; // item metadata from /api/items
+  let SETS = {};  // equipment set bonuses from /api/sets
   const $ = id => document.getElementById(id);
 
   const EQUIP_LABELS = ['Arma', 'Habilid.', 'Armadura', 'Anel'];
@@ -14,6 +15,7 @@ const UI = (() => {
 
   async function init() {
     ITEMS = await Net.api('GET', '/api/items');
+    try { SETS = await Net.api('GET', '/api/sets'); } catch { SETS = {}; }
     buildSlots();
     const close = $('shop-close');
     if (close) close.onclick = () => hideShop();
@@ -313,6 +315,22 @@ const UI = (() => {
     if (it.stat) html += `+${it.amount} ${it.stat.toUpperCase()} permanente<br>`;
     if (it.dungeons) html += 'Abre uma masmorra no Nexus<br>';
     if (it.buff) html += `+${Math.round((it.buff.mul - 1) * 100)}% ${it.buff.stat.toUpperCase()} por ${it.buff.durMs / 1000}s<br>`;
+    if (it.set && SETS[it.set]) {
+      const set = SETS[it.set];
+      // how many pieces of this set are currently worn (colors the bonus lines)
+      let worn = 0;
+      if (currentSelf) for (let s = 0; s < 4; s++) {
+        const eq = ITEMS[currentSelf.eq[s]];
+        if (eq && eq.set === it.set) worn++;
+      }
+      html += `<div style="color:#3fd0b6;margin-top:3px">${set.name} (${worn}/3)</div>`;
+      for (const n of [2, 3]) {
+        const b = set.bonuses[n];
+        if (!b) continue;
+        const txt = Object.entries(b).map(([k, v]) => `${k.toUpperCase()} +${v}`).join(', ');
+        html += `<div style="color:${worn >= n ? '#3fd0b6' : '#777'};font-size:10px">(${n}) ${txt}</div>`;
+      }
+    }
     if (it.type === 'consumable') html += '<i>Duplo clique para usar</i>';
     else html += '<i>Duplo clique para equipar - botao direito solta</i>';
     tip.innerHTML = html;
@@ -420,6 +438,17 @@ const UI = (() => {
     info.style.fontSize = '11px';
     info.textContent = `Nivel ${p.level} (${p.xp}/${p.next} xp) - alimente com ALT+1-8`;
     el.appendChild(info);
+    const ACTIVES = {
+      pet_wolf: 'Ativa: morde inimigos proximos',
+      pet_imp: 'Ativa: dispara raios em inimigos',
+      pet_sprite: 'Ativa: cura voce em combate',
+    };
+    if (ACTIVES[p.pet]) {
+      const act = document.createElement('div');
+      act.style.cssText = 'font-size:10px;color:#3fd0b6;margin-top:2px';
+      act.textContent = ACTIVES[p.pet];
+      el.appendChild(act);
+    }
     const auraNames = { heal: 'Cura HP', magic: 'Cura MP', vigor: 'Vigor (ambos)' };
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:4px;margin-top:3px';

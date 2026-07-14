@@ -785,6 +785,107 @@ function petSanity() {
   check(g.petMult(player, 'mp') > 1 && g.petMult(player, 'hp') === 1, 'switching aura moves the bonus to MP');
 }
 
+// themed equipment sets: cumulative bonuses at 2 and 3 equipped pieces
+function equipmentSetSanity() {
+  const { effectiveStats, effectiveMaxHp } = require('../server/game');
+  const { SETS, ITEMS } = require('../server/data');
+  check(Object.keys(SETS).length >= 3, 'at least three equipment sets exist');
+  for (const key of Object.keys(SETS)) {
+    const pieces = Object.keys(ITEMS).filter(id => ITEMS[id].set === key);
+    check(pieces.length === 3, `set ${key} has exactly 3 pieces`);
+    check(SETS[key].bonuses[2] && SETS[key].bonuses[3], `set ${key} defines 2- and 3-piece bonuses`);
+  }
+  const mk = (equipment) => ({ status: {}, char: {
+    stats: { hp: 500, mp: 100, att: 10, def: 10, spd: 10, dex: 10, vit: 10, wis: 10 },
+    equipment,
+  } });
+  const none = effectiveStats(mk(['sword_colosso', null, null, null]));
+  const two = effectiveStats(mk(['sword_colosso', null, 'heavy_colosso', null]));
+  const three = effectiveStats(mk(['sword_colosso', null, 'heavy_colosso', 'ring_colosso']));
+  check(none.hp === 500, 'a single set piece grants no set bonus');
+  // colosso: 2pc {def+6, hp+50}, 3pc adds {def+8, hp+100, att+6} on top
+  check(two.hp === 550, 'two pieces grant the 2-piece HP bonus');
+  check(three.hp === 550 + 100 + 80, 'three pieces stack 2pc + 3pc + ring HP'); // ring_colosso bonus hp:80
+  check(three.att === 10 + 6, 'three pieces grant the 3-piece ATT bonus');
+  check(three.def > two.def && two.def > none.def, 'set DEF climbs with each threshold');
+  check(effectiveMaxHp(mk(['sword_colosso', null, 'heavy_colosso', 'ring_colosso'])) === three.hp,
+    'max HP respects set and ring bonuses');
+}
+
+// weekly daily-challenge ranking: clears aggregate across the week's day boards
+function weeklyBoardSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const mkAcc = (n) => storage.getAccountById(storage.createAccount(n + Math.floor(Math.random() * 1e9), 's', 'h'));
+  const a = mkAcc('semanal_a'), b = mkAcc('semanal_b');
+  const startDay = g.season * 7;
+  storage.recordDungeonTime(a.id, 'daily:' + startDay, 60000);
+  storage.recordDungeonTime(a.id, 'daily:' + (startDay + 1), 70000);
+  storage.recordDungeonTime(b.id, 'daily:' + (startDay + 2), 30000);
+  const board = g.weeklyBoard();
+  const ra = board.find(r => r.id === a.id), rb = board.find(r => r.id === b.id);
+  check(ra && ra.clears === 2, 'weekly board counts clears across the week');
+  check(rb && rb.clears === 1, 'weekly board tracks each account separately');
+  check(board.indexOf(ra) < board.indexOf(rb), 'more clears ranks higher regardless of time');
+  const info = g.dailyInfo();
+  check(Array.isArray(info.week) && info.weekPrize > 0, 'dailyInfo exposes the weekly board and prize');
+  // rollover: the champion gets gold (offline account -> straight to the DB)
+  const before = storage.getAccountById(a.id).gold;
+  g.awardWeeklyPrize(g.season);
+  check(storage.getAccountById(a.id).gold === before + info.weekPrize, 'weekly champion is paid the prize');
+}
+
+// active pet abilities: wolf bites, imp shoots, sprite mends
+function petActiveSanity() {
+  const { Game } = require('../server/game');
+  const g = new Game();
+  const mkWs = () => ({ readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } });
+  const mk = (id, pet) => ({ id, name: 'Domador', acc: null, instance: g.realm, x: 10, y: 10, dead: false,
+    invisUntil: 0, status: {}, lastHit: Date.now(), gold: 0, kills: 0, godsKilled: 0, dungeons: 0,
+    pet, petLevel: 5, petXp: 0, petAura: 'heal',
+    char: { hp: 500, mp: 100, level: 10, xp: 0, fame: 0, classId: 'wizard',
+      stats: { hp: 500, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 },
+      equipment: [null, null, null, null], inventory: new Array(8).fill(null) },
+    ws: mkWs() });
+  const now = Date.now();
+
+  const wolfOwner = mk(-950, 'pet_wolf');
+  g.players.set(wolfOwner.id, wolfOwner); g.realm.players.set(wolfOwner.id, wolfOwner);
+  const prey = g.spawnEnemy(g.realm, 'goblin', 11, 10);
+  const hpBefore = prey.hp;
+  g.petAct(g.realm, wolfOwner, now);
+  check(prey.hp < hpBefore, 'wolf pet bites a nearby enemy');
+  check(wolfOwner.petNextAct > now, 'pet ability goes on cooldown after acting');
+
+  const impOwner = mk(-951, 'pet_imp');
+  impOwner.x = 30; impOwner.y = 30;
+  g.players.set(impOwner.id, impOwner); g.realm.players.set(impOwner.id, impOwner);
+  g.spawnEnemy(g.realm, 'goblin', 34, 30);
+  const projBefore = g.realm.projectiles.length;
+  g.petAct(g.realm, impOwner, now);
+  check(g.realm.projectiles.length === projBefore + 1, 'imp pet fires a bolt at a ranged enemy');
+  const bolt = g.realm.projectiles[g.realm.projectiles.length - 1];
+  check(bolt.friendly === true && bolt.owner === impOwner.id, 'imp bolt is friendly and credited to the owner');
+  check(impOwner.ws.sent.some(m => m.t === 'shot' && m.k === 'petbolt'), 'imp bolt is broadcast as a petbolt shot');
+
+  const spriteOwner = mk(-952, 'pet_sprite');
+  spriteOwner.x = 50; spriteOwner.y = 50;
+  spriteOwner.char.hp = 100; // wounded and recently hit
+  g.players.set(spriteOwner.id, spriteOwner); g.realm.players.set(spriteOwner.id, spriteOwner);
+  g.petAct(g.realm, spriteOwner, now);
+  check(spriteOwner.char.hp > 100, 'sprite pet mends its wounded owner');
+  check(spriteOwner.ws.sent.some(m => m.t === 'dmg' && m.n < 0), 'sprite heal shows a green number');
+
+  // in the nexus pets stay passive
+  const idle = mk(-953, 'pet_wolf');
+  idle.instance = g.nexus;
+  g.petAct(g.nexus, idle, now);
+  check(!idle.petNextAct, 'pets do not act inside the nexus');
+
+  for (const p of [wolfOwner, impOwner, spriteOwner]) { g.players.delete(p.id); g.realm.players.delete(p.id); }
+}
+
 // merchant economy: kills give gold; buying costs gold, selling pays it
 function shopSanity() {
   const { Game } = require('../server/game');
@@ -982,6 +1083,9 @@ async function main() {
   passSanity();
   cosmeticSanity();
   petSanity();
+  equipmentSetSanity();
+  weeklyBoardSanity();
+  petActiveSanity();
   keySanity();
   shopSanity();
   let server = await startServer();
