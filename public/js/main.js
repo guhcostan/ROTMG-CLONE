@@ -125,6 +125,7 @@
     }
 
     loadSeason();
+    loadDaily();
     loadPass();
     loadSpeedrun();
     loadCosmetics();
@@ -263,6 +264,28 @@
       el.appendChild(row);
     }
     return info;
+  }
+
+  async function loadDaily() {
+    const el = $('daily-info');
+    if (!el) return;
+    try {
+      const d = await Net.api('GET', '/api/daily');
+      $('daily-title').textContent = `Desafio do Dia: ${d.name}`;
+      el.innerHTML = '';
+      const hint = document.createElement('div');
+      hint.style.color = '#3fd0b6';
+      hint.textContent = 'Portal no Nexus (leste, acima do mercador). Mesma masmorra para todos — corra contra o relogio!';
+      el.appendChild(hint);
+      if (!d.times.length) {
+        el.appendChild(Object.assign(document.createElement('div'), { textContent: 'Ninguem completou hoje ainda. Seja o primeiro!' }));
+      }
+      d.times.slice(0, 5).forEach((t, i) => {
+        const div = document.createElement('div');
+        div.textContent = `${i + 1}. ${t.username} — ${(t.ms / 1000).toFixed(1)}s`;
+        el.appendChild(div);
+      });
+    } catch { el.textContent = 'Desafio indisponivel.'; }
   }
 
   async function loadSeason() {

@@ -548,6 +548,7 @@ const UI = (() => {
   }
 
   let shopOpen = false;
+  let shopValues = [];
   function renderShopSell() {
     const el = $('shop-sell');
     if (!el || !currentSelf) return;
@@ -558,6 +559,12 @@ const UI = (() => {
       if (id) {
         const spr = Sprites.forItem(id, ITEMS);
         if (spr) { const cv = document.createElement('canvas'); cv.width = spr.width; cv.height = spr.height; cv.getContext('2d').drawImage(spr, 0, 0); cell.appendChild(cv); }
+        if (shopValues[i]) {
+          const v = document.createElement('span');
+          v.className = 'sell-val';
+          v.textContent = `+${shopValues[i]}`;
+          cell.appendChild(v);
+        }
         cell.onmousemove = e => showTooltip(e, id);
         cell.onmouseleave = hideTooltip;
         cell.onclick = () => Net.send({ t: 'shopsell', slot: 4 + i });
@@ -569,24 +576,42 @@ const UI = (() => {
   function showShop(m) {
     shopOpen = true;
     shopGold = m.gold;
+    shopValues = m.values || [];
     $('shop-overlay').classList.remove('hidden');
     $('shop-gold').textContent = `Ouro: ${m.gold}`;
     const buy = $('shop-buy');
     buy.innerHTML = '';
+    // group the catalog by category; the daily deal comes first
+    const cats = [];
+    const byCat = new Map();
     for (const b of m.buy) {
-      const row = document.createElement('div');
-      row.className = 'shop-buy-row' + (m.gold < b.price ? ' poor' : '');
-      const icon = document.createElement('div');
-      icon.className = 'shop-icon';
-      const spr = Sprites.forItem(b.id, ITEMS);
-      if (spr) { const cv = document.createElement('canvas'); cv.width = spr.width; cv.height = spr.height; cv.getContext('2d').drawImage(spr, 0, 0); icon.appendChild(cv); }
-      const name = document.createElement('span'); name.className = 'shop-name'; name.textContent = b.name;
-      const price = document.createElement('span'); price.className = 'shop-price'; price.textContent = `${b.price} ⦿`;
-      row.append(icon, name, price);
-      row.onmousemove = e => showTooltip(e, b.id);
-      row.onmouseleave = hideTooltip;
-      row.onclick = () => { if (shopGold >= b.price) Net.send({ t: 'shopbuy', item: b.id }); };
-      buy.appendChild(row);
+      const cat = b.cat || 'Itens';
+      if (!byCat.has(cat)) { byCat.set(cat, []); cats.push(cat); }
+      byCat.get(cat).push(b);
+    }
+    cats.sort((a, b) => (a === 'Oferta do Dia' ? -1 : b === 'Oferta do Dia' ? 1 : 0));
+    for (const cat of cats) {
+      const head = document.createElement('div');
+      head.className = 'inv-label' + (cat === 'Oferta do Dia' ? ' sale-head' : '');
+      head.textContent = cat;
+      buy.appendChild(head);
+      for (const b of byCat.get(cat)) {
+        const row = document.createElement('div');
+        row.className = 'shop-buy-row' + (m.gold < b.price ? ' poor' : '') + (b.sale ? ' sale' : '');
+        const icon = document.createElement('div');
+        icon.className = 'shop-icon';
+        const spr = Sprites.forItem(b.id, ITEMS);
+        if (spr) { const cv = document.createElement('canvas'); cv.width = spr.width; cv.height = spr.height; cv.getContext('2d').drawImage(spr, 0, 0); icon.appendChild(cv); }
+        const name = document.createElement('span'); name.className = 'shop-name'; name.textContent = b.name;
+        const price = document.createElement('span'); price.className = 'shop-price';
+        if (b.sale && b.was) price.innerHTML = `<s>${b.was}</s> ${b.price} ⦿`;
+        else price.textContent = `${b.price} ⦿`;
+        row.append(icon, name, price);
+        row.onmousemove = e => showTooltip(e, b.id);
+        row.onmouseleave = hideTooltip;
+        row.onclick = () => { if (shopGold >= b.price) Net.send({ t: 'shopbuy', item: b.id }); };
+        buy.appendChild(row);
+      }
     }
     renderShopSell();
   }

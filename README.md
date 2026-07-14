@@ -162,6 +162,16 @@ moderação — contas banidas não conseguem logar.
   variados por mob (rajadas, escopetas, snipers, metralhadoras, orbes lentos,
   anéis e espirais), defesa que reduz dano, regeneração por VIT/WIS e cadência
   por DEX.
+- **Desafio do Dia** — um portal fixo no Nexus (leste, acima do mercador) leva
+  à masmorra do dia: mesma para todos os jogadores, instância compartilhada
+  (co-op), recompensa no cofre na primeira limpeza e recorde do dia anunciado
+  no servidor inteiro. O placar aparece na tela de personagens.
+- **Trilha sonora procedural** — ambiente gerado por WebAudio que muda com a
+  zona (arpejos calmos no Nexus, pulso aventureiro no Reino, drone tenso nas
+  masmorras). Tecla `N` liga/desliga.
+- **Mercador de verdade** — catálogo em categorias (consumíveis, elixires,
+  chaves, anéis exclusivos, especiais), **Oferta do Dia** com 2 itens em
+  promoção rotativa, e o valor de venda visível em cada item do inventário.
 - **Comunicação e reconhecimento** — o chat público vira balões de fala sobre a
   cabeça de quem falou (estilo clássico), cada habilidade de classe tem sua
   assinatura visual de cor/partículas, e quando um chefe cai o grupo vê o

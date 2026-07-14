@@ -277,6 +277,15 @@ def('elixir_haste', { name: 'Tonico de Velocidade', type: 'consumable', tier: 3,
 def('elixir_stone', { name: 'Pele de Pedra', type: 'consumable', tier: 3, buff: { stat: 'def', mul: 2, durMs: 8000 } });
 def('elixir_focus', { name: 'Foco Arcano', type: 'consumable', tier: 3, buff: { stat: 'dex', mul: 1.4, durMs: 8000 } });
 
+// premium consumables + merchant-exclusive rings (gold sinks for the shop)
+def('hppot_big', { name: 'Pocao de Vida Maior', type: 'consumable', tier: 2, heal: 250 });
+def('mppot_big', { name: 'Pocao de Magia Maior', type: 'consumable', tier: 2, restore: 250 });
+def('elixir_vida', { name: 'Elixir da Vida', type: 'consumable', tier: 4, heal: 9999, cleanse: true });
+def('elixir_guerra', { name: 'Elixir de Guerra', type: 'consumable', tier: 5, buff: { stat: 'att', mul: 1.6, durMs: 15000 } });
+def('ring_granada', { name: 'Anel de Granada', type: 'ring', slot: 'ring', tier: 2, bonus: { att: 3 } });
+def('ring_topazio', { name: 'Anel de Topazio', type: 'ring', slot: 'ring', tier: 2, bonus: { spd: 4 } });
+def('ring_agata', { name: 'Anel de Agata', type: 'ring', slot: 'ring', tier: 2, bonus: { vit: 6, hp: 25 } });
+
 def('pot_life', { name: 'Potion of Life', type: 'consumable', tier: 6, stat: 'hp', amount: 20 });
 def('pot_mana', { name: 'Potion of Mana', type: 'consumable', tier: 6, stat: 'mp', amount: 20 });
 

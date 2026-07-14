@@ -119,6 +119,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/season' && req.method === 'GET') {
       return json(res, 200, game.seasonInfo());
     }
+    if (p === '/api/daily' && req.method === 'GET') {
+      return json(res, 200, game.dailyInfo());
+    }
     if (p === '/api/speedrun' && req.method === 'GET') {
       const dungeon = url.searchParams.get('dungeon') || '';
       return json(res, 200, { dungeon, times: storage.topDungeonTimes(dungeon) });

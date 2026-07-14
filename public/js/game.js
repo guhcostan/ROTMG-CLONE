@@ -45,6 +45,7 @@ const GameClient = (() => {
     prerenderMap();
     minimapDirty = true;
     UI.setZone(msg.name);
+    if (typeof Music !== 'undefined') Music.setMood(msg.kind);
     if (!gl3dReady) {
       Renderer3D.init(canvas3d);
       gl3dReady = true;
@@ -312,6 +313,7 @@ const GameClient = (() => {
       }
       if (e.key.toLowerCase() === 'f') Net.send({ t: 'portal' });
       if (e.key.toLowerCase() === 'm' && typeof Sfx !== 'undefined') UI.notice(Sfx.toggleMute() ? 'Som desligado' : 'Som ligado');
+      if (e.key.toLowerCase() === 'n' && typeof Music !== 'undefined') UI.notice(Music.toggle() ? 'Musica ligada' : 'Musica desligada');
       if (e.key.toLowerCase() === 'h') { const o = document.getElementById('help-overlay'); if (o) o.classList.toggle('hidden'); }
     };
     onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };

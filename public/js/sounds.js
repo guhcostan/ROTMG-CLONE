@@ -43,5 +43,6 @@ const Sfx = (() => {
       return muted;
     },
     get muted() { return muted; },
+    audioCtx: () => ctx(), // shared context for the procedural soundtrack
   };
 })();
