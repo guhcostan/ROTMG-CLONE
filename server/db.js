@@ -72,6 +72,12 @@ CREATE TABLE IF NOT EXISTS guild_members (
   joined_at INTEGER NOT NULL,
   PRIMARY KEY (guild_id, account_id)
 );
+CREATE TABLE IF NOT EXISTS guild_quests (
+  guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  week INTEGER NOT NULL,
+  quests TEXT NOT NULL,    -- JSON [{k, name, desc, goal, reward, n, done}]
+  PRIMARY KEY (guild_id, week)
+);
 CREATE TABLE IF NOT EXISTS achievements (
   account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   code TEXT NOT NULL,
@@ -197,6 +203,10 @@ const q = {
   insMember: db.prepare('INSERT INTO guild_members (guild_id, account_id, rank, joined_at) VALUES (?,?,?,?)'),
   delMember: db.prepare('DELETE FROM guild_members WHERE account_id = ?'),
   membersOf: db.prepare(`SELECT a.username, m.rank FROM guild_members m JOIN accounts a ON a.id = m.account_id WHERE m.guild_id = ?`),
+  memberIdsOf: db.prepare('SELECT account_id FROM guild_members WHERE guild_id = ?'),
+  getGQuests: db.prepare('SELECT quests FROM guild_quests WHERE guild_id = ? AND week = ?'),
+  setGQuests: db.prepare(`INSERT INTO guild_quests (guild_id, week, quests) VALUES (?,?,?)
+    ON CONFLICT(guild_id, week) DO UPDATE SET quests = excluded.quests`),
   countMembers: db.prepare('SELECT COUNT(*) AS n FROM guild_members WHERE guild_id = ?'),
   delGuild: db.prepare('DELETE FROM guilds WHERE id = ?'),
 
@@ -347,6 +357,9 @@ const storage = {
     return g;
   },
   guildMembers: (guildId) => q.membersOf.all(guildId),
+  guildMemberIds: (guildId) => q.memberIdsOf.all(guildId).map(r => r.account_id),
+  getGuildQuests: (guildId, week) => { const r = q.getGQuests.get(guildId, week); return r ? JSON.parse(r.quests) : null; },
+  setGuildQuests: (guildId, week, quests) => q.setGQuests.run(guildId, week, JSON.stringify(quests)),
 
   // rankings
   leaderboard: () => q.leaderboard.all(),

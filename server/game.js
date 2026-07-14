@@ -2,7 +2,7 @@
 // Authoritative game simulation: instances (nexus / realm / dungeons),
 // enemy AI and bullet patterns, combat, XP/levels, loot and permadeath.
 const { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES, SETS } = require('./data');
-const { T, generateNexus, generateTutorial, generateRealm, generateDungeon, bandAt } = require('./world');
+const { T, generateNexus, generateTutorial, generateRealm, generateDungeon, bandAt, mulberry32 } = require('./world');
 const { buryCharacter } = require('./auth');
 const storage = require('./db');
 
@@ -81,6 +81,29 @@ const COLOR_TIERS = [
 const PET_AURAS = ['heal', 'magic', 'vigor']; // HP regen | MP regen | both (weaker)
 const PET_MAX_LEVEL = 20;
 const WEEKLY_PRIZE_GOLD = 500; // weekly daily-challenge champion prize
+
+// World boss: every 2 hours (wall clock) the Titan's Lair opens in the Nexus;
+// the fight window closes 20 min after the scheduled start.
+const WB_PERIOD = 2 * 60 * 60 * 1000;
+const WB_WARN = 5 * 60 * 1000;
+const WB_FIGHT = 20 * 60 * 1000;
+const WORLD_ARENA = { name: 'Covil do Tita', theme: 'keep', size: 80, rooms: 5, minions: ['void_acolyte', 'valkyrie'], minionCount: 8, boss: 'world_titan' };
+
+// Forge: fuse two same-slot, same-tier items into a random item one tier up.
+// Cost is indexed by the RESULT tier.
+const FORGE_COST = [0, 40, 90, 180, 320, 550];
+const FORGE_SLOTS = new Set(['weapon', 'ability', 'armor', 'ring']);
+const SLOT_PT = { weapon: 'Arma', ability: 'Habilidade', armor: 'Armadura', ring: 'Anel' };
+
+// Guild quests: 3 per week (seeded by week+guild), shared progress across the
+// guild; completing one pays every member in gold.
+const GUILD_QUEST_POOL = [
+  { k: 'kills', name: 'Cacada Selvagem', desc: 'Matem 400 inimigos', goal: 400, reward: 150 },
+  { k: 'gods', name: 'Panteao em Chamas', desc: 'Matem 25 deuses', goal: 25, reward: 250 },
+  { k: 'dungeons', name: 'Espeleologos', desc: 'Concluam 12 masmorras', goal: 12, reward: 250 },
+  { k: 'bosses', name: 'Decapitadores', desc: 'Derrotem 8 chefes', goal: 8, reward: 200 },
+  { k: 'events', name: 'Defensores do Reino', desc: 'Derrotem 3 chefes de evento', goal: 3, reward: 300 },
+];
 const petXpToNext = (level) => level * 50;
 const petTypeFor = () => ['pet_wolf', 'pet_imp', 'pet_sprite'][Math.floor(Math.random() * 3)];
 
@@ -299,6 +322,11 @@ class Game {
     // (east side above the merchant; the west side already has vault + tutorial)
     const ds = { x: ms.x, y: ms.y - 5 };
     this.dailyPortal = this.spawnPortal(this.nexus, ds.x, ds.y, 'daily', this.dailyLabel(), null, 1e15);
+    // scheduled world boss: opens on fixed 2h wall-clock boundaries
+    this.worldBossNextAt = Math.ceil(Date.now() / WB_PERIOD) * WB_PERIOD;
+    this.worldBossReady = false;
+    this.worldBossInst = null;
+    this.guildQuestCache = new Map(); // guildId -> { week, quests, dirty }
     // a bug in one tick must not kill the process (and everyone's session);
     // tick timing is tracked and exposed on /health for live diagnosis
     this.tickStats = { avgMs: 0, maxMs: 0, gapMaxMs: 0 };
@@ -538,6 +566,7 @@ class Game {
       t: 'shop', gold: player.gold,
       buy: this.shopCatalog().map(c => ({ id: c.id, name: ITEMS[c.id].name, price: c.price, cat: c.cat, sale: c.sale, was: c.was })),
       values: player.char.inventory.map(id => (id ? itemValue(id) : 0)),
+      forge: this.forgeOptions(player),
     });
   }
 
@@ -552,6 +581,64 @@ class Game {
     player.gold -= entry.price;
     player.char.inventory[slot] = itemId;
     this.persistGold(player); this.persist(player);
+    this.openShop(player);
+  }
+
+  // ------------------------------------------------ forge (item fusion)
+  // result pool: items one tier above; weapons/abilities/armor follow the
+  // player's class kind so a wizard never forges a sword
+  forgePool(player, slot, tier) {
+    const cls = CLASSES[player.char.classId];
+    const want = slot === 'weapon' ? cls.weapon : slot === 'ability' ? cls.ability : slot === 'armor' ? cls.armor : null;
+    return Object.values(ITEMS).filter(it =>
+      it.slot === slot && it.tier === tier && (!want || it.type === want));
+  }
+
+  // pairs of fusable inventory items, precomputed for the shop UI
+  forgeOptions(player) {
+    const inv = player.char.inventory;
+    const groups = {};
+    for (let i = 0; i < 8; i++) {
+      const it = inv[i] && ITEMS[inv[i]];
+      if (!it || !FORGE_SLOTS.has(it.slot) || it.tier >= 5) continue;
+      const k = it.slot + '|' + it.tier;
+      (groups[k] = groups[k] || []).push(i);
+    }
+    const opts = [];
+    for (const [k, idxs] of Object.entries(groups)) {
+      if (idxs.length < 2) continue;
+      const [slot, tierS] = k.split('|');
+      const tier = +tierS;
+      if (!this.forgePool(player, slot, tier + 1).length) continue;
+      opts.push({
+        a: idxs[0] + 4, b: idxs[1] + 4,
+        label: `${SLOT_PT[slot]} T${tier} + ${SLOT_PT[slot]} T${tier}`,
+        result: `${SLOT_PT[slot].toLowerCase()} T${tier + 1}`,
+        cost: FORGE_COST[tier + 1],
+      });
+    }
+    return opts;
+  }
+
+  onForge(player, msg) {
+    if (player.instance !== this.nexus) return;
+    const a = msg.a | 0, b = msg.b | 0;
+    if (a === b || a < 4 || a > 11 || b < 4 || b > 11) return;
+    const itA = ITEMS[this.getSlot(player, a)], itB = ITEMS[this.getSlot(player, b)];
+    if (!itA || !itB || itA.slot !== itB.slot || itA.tier !== itB.tier) return;
+    if (!FORGE_SLOTS.has(itA.slot) || itA.tier >= 5) return;
+    const pool = this.forgePool(player, itA.slot, itA.tier + 1);
+    if (!pool.length) return send(player.ws, { t: 'notice', text: 'Nada para forjar nesse tier.' });
+    const cost = FORGE_COST[itA.tier + 1];
+    if (player.gold < cost) return send(player.ws, { t: 'notice', text: 'Ouro insuficiente.' });
+    player.gold -= cost;
+    const result = pool[Math.floor(Math.random() * pool.length)];
+    this.setSlot(player, a, result.id);
+    this.setSlot(player, b, null);
+    this.persistGold(player); this.persist(player);
+    send(player.ws, { t: 'notice', text: `Forjado: ${result.name}!` });
+    this.nexus.broadcastNear({ t: 'fx', k: 'buff', x: player.x, y: player.y, r: 1.5, ab: 'helm' }, player.x, player.y);
+    if (result.tier >= 5) this.globalEvent(`⚒ ${player.name} forjou ${result.name}!`);
     this.openShop(player);
   }
 
@@ -840,6 +927,8 @@ class Game {
     const now = Date.now();
     for (const inst of this.instances.values()) {
       if (inst.kind !== 'dungeon' && inst.kind !== 'tutorial') continue;
+      // the world-boss arena stays open (even empty) until its window closes
+      if (inst === this.worldBossInst && !inst.bossDead && now < this.worldBossNextAt + WB_FIGHT) continue;
       if (inst.players.size > 0) { inst.emptySince = 0; continue; }
       if (!inst.emptySince) inst.emptySince = now;
       const ttl = inst.kind === 'tutorial' ? 5000 : 60000;
@@ -862,6 +951,7 @@ class Game {
       case 'petaura': this.setPetAura(player, String(msg.aura || '')); break;
       case 'shopbuy': this.onShopBuy(player, String(msg.item || '')); break;
       case 'shopsell': this.onShopSell(player, msg.slot | 0); break;
+      case 'forge': this.onForge(player, msg); break;
       case 'teleport': this.teleportToPlayer(player, String(msg.name || '')); break;
       case 'dropitem': this.onDropItem(player, msg); break;
       case 'portal': this.onPortal(player); break;
@@ -1444,7 +1534,62 @@ class Game {
         .map(m => `${m.username}${m.rank === 'leader' ? ' (lider)' : ''}`).join(', ');
       return this.sysMsg(player, `Guilda "${player.guild.name}": ${members}`);
     }
-    this.sysMsg(player, 'Comandos: /guilda criar <nome> | convidar <usuario> | aceitar | sair | info — chat: /g <msg>');
+    if (sub === 'missoes') {
+      if (!player.guild) return this.sysMsg(player, 'Voce nao esta em uma guilda');
+      for (const q of this.guildQuests(player.guild.id)) {
+        this.sysMsg(player, `${q.done ? '✔' : '•'} ${q.name}: ${q.desc} — ${q.n}/${q.goal} (${q.reward} ouro/membro)`);
+      }
+      return;
+    }
+    this.sysMsg(player, 'Comandos: /guilda criar <nome> | convidar <usuario> | aceitar | sair | info | missoes — chat: /g <msg>');
+  }
+
+  // ------------------------------------------------ guild quests
+  // 3 weekly objectives per guild (deterministic draw by week+guild); the
+  // whole guild shares progress and everyone is paid when one completes.
+  guildQuests(guildId) {
+    let entry = this.guildQuestCache.get(guildId);
+    if (entry && entry.week === this.season) return entry.quests;
+    let quests = storage.getGuildQuests(guildId, this.season);
+    if (!quests) {
+      const rng = mulberry32(this.season * 7907 + guildId * 131);
+      const pool = GUILD_QUEST_POOL.map(q => ({ q, r: rng() })).sort((a, b) => a.r - b.r);
+      quests = pool.slice(0, 3).map(({ q }) => Object.assign({}, q, { n: 0, done: false }));
+      storage.setGuildQuests(guildId, this.season, quests);
+    }
+    entry = { week: this.season, quests, dirty: 0 };
+    this.guildQuestCache.set(guildId, entry);
+    return quests;
+  }
+
+  progressGuildQuest(player, kind, n = 1) {
+    if (!player.guild) return;
+    const quests = this.guildQuests(player.guild.id);
+    const q = quests.find(x => x.k === kind && !x.done);
+    if (!q) return;
+    q.n = Math.min(q.goal, q.n + n);
+    if (q.n >= q.goal) {
+      q.done = true;
+      this.payGuildQuest(player.guild, q);
+    }
+    const c = this.guildQuestCache.get(player.guild.id);
+    if (c) c.dirty = Date.now();
+  }
+
+  payGuildQuest(guild, q) {
+    const online = new Map();
+    for (const p of this.players.values()) if (p.acc) online.set(p.acc.id, p);
+    for (const id of storage.guildMemberIds(guild.id)) {
+      const p = online.get(id);
+      if (p) {
+        p.gold += q.reward;
+        this.persistGold(p);
+        this.sysMsg(p, `Missao de guilda "${q.name}" completa! +${q.reward} de ouro`);
+      } else {
+        storage.addGold(id, q.reward); // offline members are paid straight to the account
+      }
+    }
+    this.globalEvent(`🏰 A guilda ${guild.name} completou "${q.name}"! +${q.reward} de ouro por membro.`);
   }
 
   onPickup(player, msg) {
@@ -1568,6 +1713,12 @@ class Game {
       if (portal.kind === 'shop') return this.openShop(player);
       if (portal.kind === 'tutorial') return this.enterTutorial(player);
       if (portal.kind === 'daily') return this.enterInstance(player, this.getDailyInstance());
+      if (portal.kind === 'worldboss') {
+        if (this.worldBossInst && this.instances.has(this.worldBossInst.id)) {
+          return this.enterInstance(player, this.worldBossInst);
+        }
+        return this.sysMsg(player, 'O covil esta fechado no momento.');
+      }
       if (portal.kind === 'dungeon') {
         let dest = portal.instanceId && this.instances.get(portal.instanceId);
         if (!dest) {
@@ -1651,6 +1802,51 @@ class Game {
       storage.addGold(champ.id, WEEKLY_PRIZE_GOLD);
     }
     this.globalEvent(`🏆 Campeao semanal do Desafio: ${champ.username} (${champ.clears} conclusoes) — premio de ${WEEKLY_PRIZE_GOLD} de ouro!`);
+  }
+
+  // ------------------------------------------------ world boss (scheduled)
+  // Every 2 hours the Titan's Lair opens next to the daily portal: 5 minutes
+  // of warning to gather, then a fight window. HP scales with players online.
+  createWorldArena() {
+    const inst = this.createDungeon('titan_lair', WORLD_ARENA, (Math.random() * 1e9) | 0);
+    inst.isWorldBoss = true;
+    const boss = inst.enemies.get(inst.bossId);
+    const mul = Math.max(1, Math.sqrt(this.players.size || 1));
+    boss.maxHp = Math.round(boss.maxHp * mul);
+    boss.hp = boss.maxHp;
+    return inst;
+  }
+
+  tickWorldBoss(now) {
+    if (this.worldBossInst && !this.instances.has(this.worldBossInst.id)) this.worldBossInst = null;
+    if (!this.worldBossReady) {
+      if (now >= this.worldBossNextAt - WB_WARN) {
+        this.worldBossReady = true;
+        this.worldBossInst = this.createWorldArena();
+        const ms = this.nexus.map.marketSpot;
+        this.spawnPortal(this.nexus, ms.x + 3, ms.y - 5, 'worldboss', 'Covil do Tita', null, WB_WARN + WB_FIGHT);
+        const mins = Math.max(1, Math.round((this.worldBossNextAt - now) / 60000));
+        this.globalEvent(`⚔ O Tita Ancestral desperta em ${mins} min! Portal aberto no Nexus.`);
+        for (const realm of this.realms) realm.broadcast({ t: 'notice', text: 'O Tita Ancestral desperta! Portal no Nexus.' });
+      }
+      return;
+    }
+    const over = !this.worldBossInst || this.worldBossInst.bossDead || now >= this.worldBossNextAt + WB_FIGHT;
+    if (over) {
+      this.worldBossReady = false;
+      this.worldBossInst = null;
+      // next boundary far enough out that we don't re-announce the same slot
+      let next = Math.ceil(now / WB_PERIOD) * WB_PERIOD;
+      if (next - now < WB_WARN) next += WB_PERIOD;
+      this.worldBossNextAt = next;
+    }
+  }
+
+  worldBossInfo() {
+    return {
+      nextAt: this.worldBossNextAt,
+      open: this.worldBossReady && !!this.worldBossInst && !this.worldBossInst.bossDead,
+    };
   }
 
   // ------------------------------------------------ dungeons
@@ -1778,6 +1974,42 @@ class Game {
       this.globalEvent(feedMsg);
       if (this.webhook) this.postWebhook(feedMsg);
     }
+    // guild quests: the killer's guild gets credit for kills/gods/bosses;
+    // event bosses and the world titan credit every guild that fought them
+    if (killer) {
+      this.progressGuildQuest(killer, 'kills');
+      if (d0.god) this.progressGuildQuest(killer, 'gods');
+      if (d0.behavior === 'boss') this.progressGuildQuest(killer, 'bosses');
+    }
+    if (d0.event || enemy.type === 'world_titan') {
+      const seen = new Set();
+      for (const pid of enemy.damagers.keys()) {
+        const p = this.players.get(pid);
+        if (p && p.guild && !seen.has(p.guild.id)) { seen.add(p.guild.id); this.progressGuildQuest(p, 'events'); }
+      }
+    }
+    // world boss down: every damager takes home loot, the top one a legendary
+    if (enemy.type === 'world_titan') {
+      let top = null, topDmg = 0;
+      for (const [pid, dmg] of enemy.damagers) {
+        const p = this.players.get(pid);
+        if (!p || !p.acc) continue;
+        if (dmg > topDmg) { top = p; topDmg = dmg; }
+        const i = p.vault.indexOf(null);
+        if (i !== -1) { p.vault[i] = STAT_POTS[Math.floor(Math.random() * STAT_POTS.length)]; storage.setVault(p.acc.id, p.vault); }
+        p.gold += 200; this.persistGold(p);
+        this.sysMsg(p, 'O Tita caiu! Recompensa: pocao de stat no cofre + 200 de ouro.');
+      }
+      if (top) {
+        const leg = LEGENDARIES[Math.floor(Math.random() * LEGENDARIES.length)];
+        const i = top.vault.indexOf(null);
+        if (i !== -1) { top.vault[i] = leg; storage.setVault(top.acc.id, top.vault); }
+        this.sysMsg(top, `Maior dano no Tita! ${ITEMS[leg].name} esta no seu cofre.`);
+        this.globalEvent(`⚔ O Tita Ancestral caiu! ${top.name} liderou o dano e levou ${ITEMS[leg].name}.`);
+      } else {
+        this.globalEvent('⚔ O Tita Ancestral caiu!');
+      }
+    }
     // loot
     const drops = rollLoot(enemy.def.loot, null, this.seasonMod.lootMul);
     const bagItems = [];
@@ -1819,6 +2051,13 @@ class Game {
     if (inst.kind === 'dungeon' && enemy.id === inst.bossId) {
       inst.bossDead = true;
       for (const p of inst.players.values()) if (!p.dead) { p.dungeons++; this.awardAchievement(p, 'dungeoneer'); this.progressBounty(p, 'clear_dungeons'); }
+      // guild quest: one dungeon-clear credit per guild present
+      const clearedGuilds = new Set();
+      for (const p of inst.players.values()) {
+        if (p.dead || !p.guild || clearedGuilds.has(p.guild.id)) continue;
+        clearedGuilds.add(p.guild.id);
+        this.progressGuildQuest(p, 'dungeons');
+      }
       this.spawnPortal(inst, enemy.x, enemy.y, 'nexus', 'Portal para o Nexus', null, 10 * 60 * 1000);
       inst.broadcast({ t: 'notice', text: `${enemy.def.name} foi derrotado!` });
       inst.broadcast({ t: 'chat', from: '', text: `A masmorra ${inst.name} foi concluida!`, sys: 1 });
@@ -1986,6 +2225,11 @@ class Game {
       this.respawnRealm();
       this.refreshRealmLabels();
       if (this.dailyPortal) this.dailyPortal.name = this.dailyLabel(); // day rollover
+      this.tickWorldBoss(now);
+      // persist guild quest progress accumulated since the last flush
+      for (const [gid, c] of this.guildQuestCache) {
+        if (c.dirty) { storage.setGuildQuests(gid, c.week, c.quests); c.dirty = 0; }
+      }
       const s = currentSeason();
       if (s !== this.season) { // week rolled over: new season + modifier
         try { this.awardWeeklyPrize(this.season); } catch (e) { console.error('weekly prize:', e); }

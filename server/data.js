@@ -689,6 +689,15 @@ enemy('invader_archmage', {
     status: { type: 'slow', dur: 2000, chance: 0.4 } },
   loot: [['weapon:4-5', 1], ['armor:4-5', 1], ['legendary', 1], ['statpot', 1], ['pot_mana', 0.5], ['ringall0', 0.5]],
 });
+// scheduled world boss: fought in its own arena every 2 hours; HP scales with
+// how many players are online when the lair opens (see game.js)
+enemy('world_titan', {
+  name: 'Tita Ancestral', sprite: 'world_titan', hp: 30000, def: 30, xp: 3000, speed: 2.5, size: 3,
+  behavior: 'boss', band: -1, spawns: { type: 'void_acolyte', max: 4, rate: 0.12 },
+  enrage: { hpPct: 0.35, rateMul: 1.5, dmgMul: 1.2 },
+  shots: { dmg: 58, speed: 11, range: 9.5, count: 5, spread: 0.9, rate: 1.7, burst: 2, ring: 20, ringRate: 0.35, spiral: true },
+  loot: [['statpot', 1], ['statpot', 0.6], ['hppot_big', 1], ['key_greater', 0.4]],
+});
 
 // --- extra realm mobs (overworld variety) ---
 enemy('thornback', { name: 'Thornback', sprite: 'treant', hp: 260, def: 6, xp: 24, speed: 2.5, size: 1.1, behavior: 'wander', band: 2,

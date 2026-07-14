@@ -126,6 +126,7 @@
 
     loadSeason();
     loadDaily();
+    loadGuild();
     loadPass();
     loadSpeedrun();
     loadCosmetics();
@@ -299,6 +300,30 @@
     } catch { el.textContent = 'Desafio indisponivel.'; }
   }
 
+  async function loadGuild() {
+    const el = $('guild-quests');
+    if (!el) return;
+    try {
+      const g = await Net.api('GET', '/api/guild');
+      el.innerHTML = '';
+      if (!g.guild) {
+        el.textContent = 'Entre em uma guilda para missoes semanais em grupo (/guilda no chat).';
+        el.style.color = '#888';
+        return;
+      }
+      const head = document.createElement('div');
+      head.style.color = '#a0a0ff';
+      head.textContent = `${g.guild} — ${g.members.length} membro(s). Progresso compartilhado, ouro para todos:`;
+      el.appendChild(head);
+      for (const q of g.quests || []) {
+        const div = document.createElement('div');
+        div.style.color = q.done ? '#50c050' : '#ccc';
+        div.textContent = `${q.done ? '✓' : '•'} ${q.name}: ${q.desc} — ${q.n}/${q.goal} (+${q.reward} ⦿/membro)`;
+        el.appendChild(div);
+      }
+    } catch { el.textContent = 'Missoes de guilda indisponiveis.'; }
+  }
+
   async function loadSeason() {
     try {
       const s = await Net.api('GET', '/api/season');
@@ -306,6 +331,15 @@
       const el = $('season-info');
       el.innerHTML = '';
       const days = Math.max(0, Math.ceil((s.endsAt - Date.now()) / 86400000));
+      if (s.worldBoss) {
+        const wb = document.createElement('div');
+        wb.style.cssText = 'color:#ff8a5a;margin-bottom:4px';
+        const mins = Math.max(0, Math.round((s.worldBoss.nextAt - Date.now()) / 60000));
+        wb.textContent = s.worldBoss.open
+          ? '⚔ O Tita Ancestral esta ATIVO! Portal no Nexus.'
+          : `⚔ Tita Ancestral (chefe mundial): em ~${mins >= 60 ? Math.floor(mins / 60) + 'h' + String(mins % 60).padStart(2, '0') : mins + ' min'}`;
+        el.appendChild(wb);
+      }
       const head = document.createElement('div');
       head.style.color = '#f0c040';
       head.textContent = `Acaba em ~${days} dia(s). Ranking da temporada:`;

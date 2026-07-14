@@ -915,6 +915,124 @@ function petActiveSanity() {
   for (const p of [wolfOwner, impOwner, spriteOwner]) { g.players.delete(p.id); g.realm.players.delete(p.id); }
 }
 
+// forge: two same-slot same-tier items + gold -> a random item one tier up,
+// following the class's weapon/ability/armor kind
+function forgeSanity() {
+  const { Game } = require('../server/game');
+  const { ITEMS } = require('../server/data');
+  const g = new Game();
+  const p = { id: -970, name: 'Ferreiro', acc: null, instance: g.nexus, x: 5, y: 5, dead: false,
+    invisUntil: 0, status: {}, gold: 1000, kills: 0, godsKilled: 0, dungeons: 0,
+    char: { hp: 500, mp: 100, level: 10, xp: 0, fame: 0, classId: 'wizard',
+      stats: { hp: 500, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 },
+      equipment: [null, null, null, null],
+      inventory: ['staff1', 'bow1', null, null, null, null, null, null] },
+    ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  g.players.set(p.id, p); g.nexus.players.set(p.id, p);
+  const opts = g.forgeOptions(p);
+  check(opts.length === 1 && opts[0].cost > 0, 'forge offers a pair of same-tier weapons');
+  g.onForge(p, { a: opts[0].a, b: opts[0].b });
+  const result = p.char.inventory[0];
+  check(!!result && ITEMS[result].tier === 2, 'forging yields an item one tier up');
+  check(ITEMS[result].type === 'staff', 'forged weapon follows the class weapon kind');
+  check(p.char.inventory[1] === null, 'both source items are consumed');
+  check(p.gold === 1000 - 90, 'forging costs the listed gold');
+  // mismatched tiers are refused
+  p.char.inventory[0] = 'staff1'; p.char.inventory[1] = 'staff3';
+  const before = p.gold;
+  g.onForge(p, { a: 4, b: 5 });
+  check(p.char.inventory[1] === 'staff3' && p.gold === before, 'mismatched tiers cannot be fused');
+  // broke players are refused
+  p.char.inventory[1] = 'staff1'; p.gold = 10;
+  g.onForge(p, { a: 4, b: 5 });
+  check(p.char.inventory[0] === 'staff1' && p.char.inventory[1] === 'staff1', 'fusion requires gold');
+  g.players.delete(p.id); g.nexus.players.delete(p.id);
+}
+
+// world boss: lair opens on schedule, boss HP scales, rewards on the kill,
+// then the next opening is scheduled
+function worldBossSanity() {
+  const { Game } = require('../server/game');
+  const { ENEMIES, ITEMS } = require('../server/data');
+  const storage = require('../server/db');
+  const g = new Game();
+  const now = Date.now();
+  const accId = storage.createAccount('tita' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const p = { id: -960, name: 'Cacador', acc: storage.getAccountById(accId), instance: g.nexus, x: 5, y: 5,
+    dead: false, invisUntil: 0, status: {}, gold: 0, kills: 0, godsKilled: 0, dungeons: 0, guild: null,
+    vault: new Array(16).fill(null), bounties: [],
+    char: { hp: 500, mp: 100, level: 15, xp: 0, fame: 0, classId: 'wizard',
+      stats: { hp: 500, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 },
+      equipment: [null, null, null, null], inventory: new Array(8).fill(null) },
+    ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  g.players.set(p.id, p); g.nexus.players.set(p.id, p);
+
+  g.worldBossNextAt = now + 60000; // inside the 5-min warning window
+  g.tickWorldBoss(now);
+  check(g.worldBossReady && !!g.worldBossInst, 'lair opens inside the warning window');
+  check([...g.nexus.portals.values()].some(pt => pt.kind === 'worldboss'), 'world boss portal stands in the nexus');
+  const boss = g.worldBossInst.enemies.get(g.worldBossInst.bossId);
+  check(boss && boss.def.id === 'world_titan', 'the titan waits in its lair');
+  check(boss.maxHp >= ENEMIES.world_titan.hp, 'titan HP scales with the crowd (never below base)');
+  // the lair is not garbage-collected while the window is open
+  g.cleanupInstances();
+  check(g.instances.has(g.worldBossInst.id), 'empty lair survives cleanup during the window');
+
+  // slay it: every damager is paid, the top damager gets a legendary
+  p.instance = g.worldBossInst; g.worldBossInst.players.set(p.id, p);
+  boss.hp = 1;
+  g.damageEnemy(g.worldBossInst, boss, 30, p);
+  check(p.gold >= 200, 'titan kill pays gold');
+  check(p.vault.filter(x => x !== null).length >= 2, 'titan kill banks a stat pot + legendary in the vault');
+  check(p.vault.some(id => id && ITEMS[id] && ITEMS[id].tier >= 6), 'top damager receives a legendary');
+
+  g.tickWorldBoss(now + 1000);
+  check(!g.worldBossReady && g.worldBossNextAt > now + 1000, 'next opening is scheduled after the kill');
+  g.players.delete(p.id);
+}
+
+// guild quests: weekly deterministic draw, shared progress, gold for every member
+function guildQuestSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const suffix = Math.floor(Math.random() * 1e9);
+  const leaderId = storage.createAccount('lider' + suffix, 's', 'h');
+  const memberId = storage.createAccount('membro' + suffix, 's', 'h');
+  const guildId = storage.createGuild('Guilda' + suffix, leaderId);
+  storage.joinGuild(guildId, memberId);
+
+  const quests = g.guildQuests(guildId);
+  check(quests.length === 3 && quests.every(q => q.goal > 0 && q.reward > 0), 'guild gets 3 weekly quests');
+  const g2 = new Game();
+  check(JSON.stringify(g2.guildQuests(guildId).map(q => q.k)) === JSON.stringify(quests.map(q => q.k)),
+    'weekly quest draw is deterministic per guild');
+
+  const p = { id: -950, name: 'Lider', acc: storage.getAccountById(leaderId), instance: g.realm,
+    guild: { id: guildId, name: 'Guilda' + suffix, rank: 'leader' },
+    gold: 0, dead: false, status: {},
+    char: { hp: 1, mp: 1, level: 1, xp: 0, fame: 0, classId: 'wizard', stats: {}, equipment: [], inventory: [] },
+    ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  g.players.set(p.id, p);
+
+  const q = quests[0];
+  q.goal = 2; // shrink for the test
+  g.progressGuildQuest(p, q.k);
+  check(q.n === 1 && !q.done, 'guild quest progress accumulates');
+  const memberGoldBefore = storage.getAccountById(memberId).gold;
+  g.progressGuildQuest(p, q.k);
+  check(q.done, 'guild quest completes at its goal');
+  check(p.gold === q.reward, 'online member is paid on completion');
+  check(storage.getAccountById(memberId).gold === memberGoldBefore + q.reward, 'offline member is paid on completion');
+  check(p.ws.sent.some(m => m.evt === 1 && (m.text || '').includes('completou')), 'completion hits the global feed');
+  // progress persists for other game instances (after the flush)
+  const c = g.guildQuestCache.get(guildId);
+  storage.setGuildQuests(guildId, c.week, c.quests);
+  const g3 = new Game();
+  check(g3.guildQuests(guildId).find(x => x.k === q.k).done, 'quest state persists in the database');
+  g.players.delete(p.id);
+}
+
 // merchant economy: kills give gold; buying costs gold, selling pays it
 function shopSanity() {
   const { Game } = require('../server/game');
@@ -1116,6 +1234,9 @@ async function main() {
   equipmentSetSanity();
   weeklyBoardSanity();
   petActiveSanity();
+  forgeSanity();
+  worldBossSanity();
+  guildQuestSanity();
   keySanity();
   shopSanity();
   let server = await startServer();
