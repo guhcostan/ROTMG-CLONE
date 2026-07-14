@@ -285,6 +285,17 @@
         div.textContent = `${i + 1}. ${t.username} — ${(t.ms / 1000).toFixed(1)}s`;
         el.appendChild(div);
       });
+      if (d.week && d.week.length) {
+        const head = document.createElement('div');
+        head.style.cssText = 'color:#f0c040;margin-top:6px';
+        head.textContent = `Ranking da semana (campeao leva ${d.weekPrize} de ouro):`;
+        el.appendChild(head);
+        d.week.slice(0, 3).forEach((w, i) => {
+          const div = document.createElement('div');
+          div.textContent = `${['🥇', '🥈', '🥉'][i]} ${w.username} — ${w.clears} conclus${w.clears === 1 ? 'ao' : 'oes'}`;
+          el.appendChild(div);
+        });
+      }
     } catch { el.textContent = 'Desafio indisponivel.'; }
   }
 

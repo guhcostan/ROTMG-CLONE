@@ -10,7 +10,7 @@ const { WebSocketTransport } = require('@colyseus/ws-transport');
 const auth = require('./auth');
 const { Game, ACHIEVEMENTS } = require('./game');
 const { RealmRoom } = require('./room');
-const { CLASSES, ITEMS } = require('./data');
+const { CLASSES, ITEMS, SETS } = require('./data');
 const storage = require('./db');
 
 const PORT = process.env.PORT || 8080;
@@ -190,6 +190,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/items' && req.method === 'GET') {
       // client needs item metadata for rendering/tooltips
       return json(res, 200, ITEMS);
+    }
+    if (p === '/api/sets' && req.method === 'GET') {
+      return json(res, 200, SETS);
     }
     if (p === '/api/profile' && req.method === 'GET') {
       const acc = storage.getAccountByName(url.searchParams.get('name') || '');

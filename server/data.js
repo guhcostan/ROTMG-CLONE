@@ -251,6 +251,27 @@ for (const [kind, tiers] of Object.entries(ARMOR_TIERS)) {
   ['ringtyrant', 'Selo do Tirano', { hp: 150, mp: 100, att: 7, def: 7, spd: 6, dex: 6 }, 7],
 ].forEach(([id, name, bonus, tier]) => def(id, { name, type: 'ring', slot: 'ring', tier, bonus }));
 
+// ---------------------------------------------------------------- sets
+// Thematic gear: wearing 2 or 3 pieces of a set grants extra stats on top of
+// the items themselves (bonuses are cumulative: 3 pieces = tier-2 + tier-3).
+const SETS = {
+  abismo:  { name: 'Vestes do Abismo',  bonuses: { 2: { wis: 10, mp: 40 }, 3: { att: 8, wis: 15, hp: 40 } } },
+  matilha: { name: 'Garras da Matilha', bonuses: { 2: { spd: 6, dex: 5 },  3: { att: 8, spd: 8, vit: 8 } } },
+  colosso: { name: 'Ossos do Colosso',  bonuses: { 2: { def: 6, hp: 50 },  3: { def: 8, hp: 100, att: 6 } } },
+};
+// Abismo (staff family) — drops in the Cursed Keep
+def('staff_abismo', { name: 'Cajado do Abismo', type: 'staff', slot: 'weapon', tier: 5, set: 'abismo', proj: Object.assign({ dmg: [46, 71] }, WEAPON_PROJ.staff) });
+def('robe_abismo',  { name: 'Veste do Abismo', type: 'robe', slot: 'armor', tier: 5, set: 'abismo', def: 15 });
+def('ring_abismo',  { name: 'Sinete do Abismo', type: 'ring', slot: 'ring', tier: 5, set: 'abismo', bonus: { mp: 60, wis: 8 } });
+// Matilha (bow family) — drops in the Spider Grotto and from the Alpha
+def('bow_matilha',     { name: 'Arco da Matilha', type: 'bow', slot: 'weapon', tier: 5, set: 'matilha', proj: Object.assign({ dmg: [56, 92] }, WEAPON_PROJ.bow) });
+def('leather_matilha', { name: 'Couro da Matilha', type: 'leather', slot: 'armor', tier: 5, set: 'matilha', def: 17 });
+def('ring_matilha',    { name: 'Presa da Matilha', type: 'ring', slot: 'ring', tier: 5, set: 'matilha', bonus: { dex: 6, spd: 4 } });
+// Colosso (sword family) — drops in the Sunbaked Ziggurat
+def('sword_colosso', { name: 'Lamina do Colosso', type: 'sword', slot: 'weapon', tier: 5, set: 'colosso', proj: Object.assign({ dmg: [104, 136] }, WEAPON_PROJ.sword) });
+def('heavy_colosso', { name: 'Peitoral do Colosso', type: 'heavy', slot: 'armor', tier: 5, set: 'colosso', def: 22 });
+def('ring_colosso',  { name: 'Elo do Colosso', type: 'ring', slot: 'ring', tier: 5, set: 'colosso', bonus: { hp: 80, def: 4 } });
+
 // Legendary uniques (tier 6, white bag drops from gods and bosses)
 def('staff_cataclysm', { name: 'Cajado do Cataclisma', type: 'staff', slot: 'weapon', tier: 6, proj: { dmg: [70, 110], speed: 19, range: 8.5, count: 3, spread: 0.22, pierce: false, rateMul: 1 } });
 def('bow_tempest', { name: 'Arco da Tempestade', type: 'bow', slot: 'weapon', tier: 6, proj: { dmg: [60, 95], speed: 17, range: 7.5, count: 3, spread: 0.16, pierce: true, rateMul: 1.1 } });
@@ -360,7 +381,7 @@ enemy('wolf_alpha', {
   behavior: 'chase', band: 1, rare: true, entourage: { type: 'wolf', count: 4 },
   melee: { dmg: 26, rate: 1.4 },
   shots: { dmg: 16, speed: 10, range: 5, count: 3, spread: 0.5, rate: 1 }, // close cone
-  loot: [['weapon:1-2', 0.5], ['armor:1-2', 0.5], ['ringspd0', 0.15], ['hppot', 0.3]],
+  loot: [['weapon:1-2', 0.5], ['armor:1-2', 0.5], ['ringspd0', 0.15], ['hppot', 0.3], ['ring_matilha', 0.1]],
 });
 // --- band 2: forest
 enemy('treant', {
@@ -486,7 +507,7 @@ enemy('brood_mother', {
   name: 'Brood Mother', sprite: 'brood_mother', hp: 3000, def: 12, xp: 280, speed: 3, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'spiderling', max: 4, rate: 0.15 },
   shots: { dmg: 28, speed: 10, range: 7.5, count: 3, spread: 0.7, rate: 1.6, ring: 12, ringRate: 0.25 },
-  loot: [['weapon:2-4', 1], ['armor:2-4', 1], ['pot_dex', 0.7], ['pot_att', 0.6], ['ringmp1', 0.2], ['legendary', 0.03], ['pet_egg', 0.05], ['elixir_rage', 0.3], ['elixir_haste', 0.3]],
+  loot: [['weapon:2-4', 1], ['armor:2-4', 1], ['pot_dex', 0.7], ['pot_att', 0.6], ['ringmp1', 0.2], ['legendary', 0.03], ['pet_egg', 0.05], ['elixir_rage', 0.3], ['elixir_haste', 0.3], ['bow_matilha', 0.09], ['leather_matilha', 0.09]],
 });
 enemy('keep_knight', {
   name: 'Cursed Knight', sprite: 'keep_knight', hp: 500, def: 12, xp: 45, speed: 4, size: 1,
@@ -498,7 +519,7 @@ enemy('keep_lord', {
   name: 'Lord of the Cursed Keep', sprite: 'keep_lord', hp: 6000, def: 18, xp: 500, speed: 3.5, size: 2,
   behavior: 'boss', band: -1, spawns: { type: 'keep_knight', max: 3, rate: 0.1 },
   shots: { dmg: 40, speed: 11, range: 8, count: 5, spread: 1, rate: 1.8, ring: 16, ringRate: 0.3 },
-  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_vit', 0.8], ['pot_wis', 0.8], ['statpot', 1], ['ringall0', 0.25], ['legendary', 0.05], ['pet_egg', 0.08], ['key_greater', 0.25]],
+  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_vit', 0.8], ['pot_wis', 0.8], ['statpot', 1], ['ringall0', 0.25], ['legendary', 0.05], ['pet_egg', 0.08], ['key_greater', 0.25], ['staff_abismo', 0.09], ['robe_abismo', 0.09], ['ring_abismo', 0.09]],
 });
 enemy('imp', {
   name: 'Infernal Imp', sprite: 'imp', hp: 700, def: 14, xp: 70, speed: 5.5, size: 0.9,
@@ -530,7 +551,7 @@ enemy('pharaoh', {
   name: 'Pharaoh of the Sands', sprite: 'pharaoh', hp: 9000, def: 20, xp: 800, speed: 3.5, size: 2.1,
   behavior: 'boss', band: -1, spawns: { type: 'mummy', max: 3, rate: 0.1 },
   shots: { dmg: 45, speed: 11, range: 8.5, count: 5, spread: 1.1, rate: 1.8, ring: 14, ringRate: 0.35, spiral: true },
-  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_life', 0.5], ['statpot', 1], ['ringhp1', 0.25], ['legendary', 0.06]],
+  loot: [['weapon:3-4', 1], ['armor:3-4', 1], ['pot_life', 0.5], ['statpot', 1], ['ringhp1', 0.25], ['legendary', 0.06], ['sword_colosso', 0.09], ['heavy_colosso', 0.09], ['ring_colosso', 0.09]],
 });
 enemy('void_spawn', {
   name: 'Void Spawn', sprite: 'void_spawn', hp: 900, def: 16, xp: 90, speed: 5, size: 0.9,
@@ -832,4 +853,4 @@ const DUNGEONS = {
 
 const STAT_POTS = ['pot_att', 'pot_def', 'pot_spd', 'pot_dex', 'pot_vit', 'pot_wis'];
 
-module.exports = { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES, STARTER_CLASSES };
+module.exports = { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES, STARTER_CLASSES, SETS };

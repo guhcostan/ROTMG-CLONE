@@ -1,7 +1,7 @@
 'use strict';
 // Authoritative game simulation: instances (nexus / realm / dungeons),
 // enemy AI and bullet patterns, combat, XP/levels, loot and permadeath.
-const { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES } = require('./data');
+const { CLASSES, ITEMS, ENEMIES, DUNGEONS, STAT_POTS, LEGENDARIES, SETS } = require('./data');
 const { T, generateNexus, generateTutorial, generateRealm, generateDungeon, bandAt } = require('./world');
 const { buryCharacter } = require('./auth');
 const storage = require('./db');
@@ -80,6 +80,7 @@ const COLOR_TIERS = [
 // their aura strength scales with level.
 const PET_AURAS = ['heal', 'magic', 'vigor']; // HP regen | MP regen | both (weaker)
 const PET_MAX_LEVEL = 20;
+const WEEKLY_PRIZE_GOLD = 500; // weekly daily-challenge champion prize
 const petXpToNext = (level) => level * 50;
 const petTypeFor = () => ['pet_wolf', 'pet_imp', 'pet_sprite'][Math.floor(Math.random() * 3)];
 
@@ -165,11 +166,22 @@ function bagTier(items) {
 // ---------------------------------------------------------------- stats
 function effectiveStats(player) {
   const s = Object.assign({}, player.char.stats);
+  const setCount = {};
   for (const itemId of player.char.equipment) {
     const it = itemId && ITEMS[itemId];
     if (!it) continue;
     if (it.slot === 'armor') s.def += it.def;
     if (it.slot === 'ring' && it.bonus) for (const k in it.bonus) s[k] = (s[k] || 0) + it.bonus[k];
+    if (it.set) setCount[it.set] = (setCount[it.set] || 0) + 1;
+  }
+  // themed set bonuses stack cumulatively at 2 and 3 equipped pieces
+  for (const key in setCount) {
+    const set = SETS[key];
+    if (!set) continue;
+    for (let n = 2; n <= setCount[key]; n++) {
+      const b = set.bonuses[n];
+      if (b) for (const k in b) s[k] = (s[k] || 0) + b[k];
+    }
   }
   if (player.berserkUntil > Date.now()) { s.dex = Math.round(s.dex * 1.5); s.spd = Math.round(s.spd * 1.25); }
   if (player.attBuffUntil > Date.now()) s.att = Math.round(s.att * 1.25);
@@ -600,6 +612,42 @@ class Game {
     player.petAura = aura;
     this.persistPet(player);
     this.sendPet(player);
+  }
+
+  // active pet abilities, on top of the passive aura: while the owner fights,
+  // the wolf bites a nearby enemy, the imp fires a bolt, the sprite mends
+  // wounds. Cooldown shrinks and power grows with pet level.
+  petAct(inst, p, now) {
+    if (!p.pet || inst.kind === 'nexus' || now < (p.petNextAct || 0)) return;
+    const power = 8 + p.petLevel * 5;
+    const cooldown = 4200 - p.petLevel * 120;
+    if (p.pet === 'pet_sprite') {
+      const max = effectiveMaxHp(p);
+      const hurtRecently = now - p.lastHit < 6000;
+      if (!hurtRecently || p.char.hp >= max || p.status.sick > now) return;
+      p.char.hp = Math.min(max, p.char.hp + power);
+      inst.broadcastNear({ t: 'dmg', id: p.id, n: -power }, p.x, p.y);
+      inst.broadcastNear({ t: 'fx', k: 'heal', x: p.x, y: p.y, r: 1, ab: 'tome' }, p.x, p.y);
+    } else {
+      const range2 = p.pet === 'pet_wolf' ? 9 : 64; // bite 3 tiles, bolt 8
+      let target = null, best = range2;
+      for (const e of inst.enemies.values()) {
+        const d = dist2(e.x, e.y, p.x, p.y);
+        if (d < best) { best = d; target = e; }
+      }
+      if (!target) return;
+      if (p.pet === 'pet_wolf') {
+        this.damageEnemy(inst, target, Math.round(power * 1.5), p);
+      } else { // pet_imp
+        const a = Math.round(Math.atan2(target.y - p.y, target.x - p.x) * 1000) / 1000;
+        inst.projectiles.push({
+          owner: p.id, friendly: true,
+          x: p.x, y: p.y, a, speed: 11, left: 8, dmg: [power, power],
+        });
+        inst.broadcastNear({ t: 'shot', x: p.x, y: p.y, as: [a], spd: 11, rg: 8, k: 'petbolt', f: 1, o: p.id }, p.x, p.y);
+      }
+    }
+    p.petNextAct = now + cooldown;
   }
 
   // cosmetics an account has unlocked (name colors by best fame, titles by achievement)
@@ -1573,7 +1621,35 @@ class Game {
       dungeon: key,
       name: DUNGEONS[key].name,
       times: storage.topDungeonTimes('daily:' + this.dailyDay()),
+      week: this.weeklyBoard(),
+      weekPrize: WEEKLY_PRIZE_GOLD,
     };
+  }
+
+  // most daily-challenge clears across the current season week (ties broken by
+  // total time); the leader takes a gold prize when the week rolls over
+  weeklyBoard(week = this.season) {
+    const startDay = week * 7; // SEASON_MS = 7 * DAY_MS, so weeks align with days
+    const keys = [];
+    for (let d = 0; d < 7; d++) keys.push('daily:' + (startDay + d));
+    return storage.weeklyDailyBoard(keys);
+  }
+
+  awardWeeklyPrize(endedWeek) {
+    const board = this.weeklyBoard(endedWeek);
+    if (!board.length) return;
+    const champ = board[0];
+    let online = null;
+    for (const p of this.players.values()) if (p.acc && p.acc.id === champ.id) { online = p; break; }
+    if (online) {
+      // online player gold lives in memory; writing straight to the DB would be clobbered
+      online.gold += WEEKLY_PRIZE_GOLD;
+      this.persistGold(online);
+      send(online.ws, { t: 'notice', text: `Voce venceu o Desafio semanal! +${WEEKLY_PRIZE_GOLD} de ouro` });
+    } else {
+      storage.addGold(champ.id, WEEKLY_PRIZE_GOLD);
+    }
+    this.globalEvent(`🏆 Campeao semanal do Desafio: ${champ.username} (${champ.clears} conclusoes) — premio de ${WEEKLY_PRIZE_GOLD} de ouro!`);
   }
 
   // ------------------------------------------------ dungeons
@@ -1911,6 +1987,7 @@ class Game {
       if (this.dailyPortal) this.dailyPortal.name = this.dailyLabel(); // day rollover
       const s = currentSeason();
       if (s !== this.season) { // week rolled over: new season + modifier
+        try { this.awardWeeklyPrize(this.season); } catch (e) { console.error('weekly prize:', e); }
         this.season = s; this.seasonMod = seasonModifier(s);
         this.nexus.broadcast({ t: 'chat', from: '', text: `Nova temporada: ${this.seasonMod.name}!`, sys: 1 });
       }
@@ -1976,6 +2053,7 @@ class Game {
         if (!p._lavaT || now - p._lavaT > 500) { p._lavaT = now; this.damagePlayer(p, 40, 'lava'); }
         if (p.dead) continue;
       }
+      this.petAct(inst, p, now);
       // cancel trades when players walk apart or change instance
       if (p.trade) {
         const partner = this.players.get(p.trade.partnerId);
@@ -2273,24 +2351,11 @@ class Game {
   }
 }
 
-function effectiveMaxHp(player) {
-  let hp = player.char.stats.hp;
-  for (const id of player.char.equipment) {
-    const it = id && ITEMS[id];
-    if (it && it.bonus && it.bonus.hp) hp += it.bonus.hp;
-  }
-  return hp;
-}
-function effectiveMaxMp(player) {
-  let mp = player.char.stats.mp;
-  for (const id of player.char.equipment) {
-    const it = id && ITEMS[id];
-    if (it && it.bonus && it.bonus.mp) mp += it.bonus.mp;
-  }
-  return mp;
-}
+// max HP/MP follow effectiveStats so ring AND set bonuses count
+function effectiveMaxHp(player) { return effectiveStats(player).hp; }
+function effectiveMaxMp(player) { return effectiveStats(player).mp; }
 
 function round1(n) { return Math.round(n * 10) / 10; }
 function send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 
-module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage, newbieDamageMul, enemyShotSpeed };
+module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage, newbieDamageMul, enemyShotSpeed, effectiveStats, effectiveMaxHp };

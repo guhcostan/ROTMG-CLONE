@@ -164,6 +164,11 @@ const q = {
   setPetState: db.prepare('UPDATE accounts SET pet = ?, pet_level = ?, pet_xp = ?, pet_aura = ? WHERE id = ?'),
   setGold: db.prepare('UPDATE accounts SET gold = ? WHERE id = ?'),
   setBanned: db.prepare('UPDATE accounts SET banned = ? WHERE id = ?'),
+  addGold: db.prepare('UPDATE accounts SET gold = gold + ? WHERE id = ?'),
+  weeklyClears: db.prepare(`SELECT a.username, a.id, COUNT(*) AS clears, SUM(t.ms) AS total
+    FROM dungeon_times t JOIN accounts a ON a.id = t.account_id
+    WHERE t.dungeon IN (SELECT value FROM json_each(?))
+    GROUP BY t.account_id ORDER BY clears DESC, total ASC LIMIT 10`),
 
   insSession: db.prepare('INSERT INTO sessions (token, account_id, created_at, expires_at) VALUES (?,?,?,?)'),
   getSession: db.prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > ?'),
@@ -258,6 +263,9 @@ const storage = {
   setPetState: (accountId, pet, level, xp, aura) => q.setPetState.run(pet, level, xp, aura, accountId),
   setGold: (accountId, gold) => q.setGold.run(gold, accountId),
   setBanned: (accountId, banned) => q.setBanned.run(banned ? 1 : 0, accountId),
+  addGold: (accountId, amount) => q.addGold.run(amount, accountId),
+  // aggregated daily-challenge board across a list of day keys
+  weeklyDailyBoard: (dayKeys) => q.weeklyClears.all(JSON.stringify(dayKeys)),
   // batch several writes into one transaction (single fsync)
   inTransaction: (fn) => db.transaction(fn)(),
 

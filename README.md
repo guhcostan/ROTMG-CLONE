@@ -155,7 +155,14 @@ moderação — contas banidas não conseguem logar.
   perde item se a confirmação não for mútua.
 - **Guildas** — criação, convites, chat próprio e tag exibida sobre o personagem.
 - **Pets** — chocados de ovos misteriosos (drop de bosses), seguem o jogador e
-  aceleram a regeneração de HP/MP.
+  aceleram a regeneração de HP/MP. Cada espécie também tem uma habilidade
+  ativa em combate: o lobo morde inimigos próximos, o diabrete dispara raios e
+  o espírito cura o dono ferido — mais forte e mais frequente conforme o pet
+  sobe de nível.
+- **Conjuntos de equipamento** — três sets temáticos tier 5 (Vestes do Abismo,
+  Garras da Matilha, Ossos do Colosso) dropados por bosses específicos; usar
+  2 ou 3 peças do mesmo conjunto concede bônus cumulativos, mostrados no
+  tooltip do item.
 - **Ranking** — leaderboard por fama (vivos e lendas do cemitério) na tela de
   personagens, com contagem de jogadores online.
 - **Combate bullet-hell** — servidor autoritativo a 20 ticks/s: padrões de tiro
@@ -165,7 +172,9 @@ moderação — contas banidas não conseguem logar.
 - **Desafio do Dia** — um portal fixo no Nexus (leste, acima do mercador) leva
   à masmorra do dia: mesma para todos os jogadores, instância compartilhada
   (co-op), recompensa no cofre na primeira limpeza e recorde do dia anunciado
-  no servidor inteiro. O placar aparece na tela de personagens.
+  no servidor inteiro. O placar aparece na tela de personagens, junto com o
+  **ranking semanal**: quem completar mais desafios na semana leva 500 de ouro
+  quando a temporada vira.
 - **Trilha sonora procedural** — ambiente gerado por WebAudio que muda com a
   zona (arpejos calmos no Nexus, pulso aventureiro no Reino, drone tenso nas
   masmorras). Tecla `N` liga/desliga.
