@@ -642,6 +642,34 @@ const UI = (() => {
         buy.appendChild(row);
       }
     }
+    // forge: fuse two same-tier items of the same kind into one tier up
+    const head = document.createElement('div');
+    head.className = 'inv-label';
+    head.textContent = 'Forja (fusao de itens)';
+    buy.appendChild(head);
+    if (m.forge && m.forge.length) {
+      for (const f of m.forge) {
+        const row = document.createElement('div');
+        row.className = 'shop-buy-row' + (m.gold < f.cost ? ' poor' : '');
+        const icon = document.createElement('div');
+        icon.className = 'shop-icon';
+        icon.textContent = '⚒';
+        const name = document.createElement('span');
+        name.className = 'shop-name';
+        name.textContent = `${f.label} → ${f.result}`;
+        const price = document.createElement('span');
+        price.className = 'shop-price';
+        price.textContent = `${f.cost} ⦿`;
+        row.append(icon, name, price);
+        row.onclick = () => { if (shopGold >= f.cost) Net.send({ t: 'forge', a: f.a, b: f.b }); };
+        buy.appendChild(row);
+      }
+    } else {
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:10px;color:#888;padding:2px 4px';
+      hint.textContent = 'Carregue 2 itens do mesmo tipo e tier no inventario para fundir.';
+      buy.appendChild(hint);
+    }
     renderShopSell();
   }
   function hideShop() { shopOpen = false; $('shop-overlay').classList.add('hidden'); }

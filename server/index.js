@@ -117,7 +117,18 @@ const server = http.createServer(async (req, res) => {
       });
     }
     if (p === '/api/season' && req.method === 'GET') {
-      return json(res, 200, game.seasonInfo());
+      return json(res, 200, Object.assign(game.seasonInfo(), { worldBoss: game.worldBossInfo() }));
+    }
+    if (p === '/api/guild' && req.method === 'GET') {
+      const acc = auth.authed(req.headers['x-token']);
+      if (!acc) return json(res, 401, { error: 'Sessao invalida' });
+      const guild = storage.getGuildOf(acc.id);
+      if (!guild) return json(res, 200, { guild: null });
+      return json(res, 200, {
+        guild: guild.name, rank: guild.rank,
+        members: storage.guildMembers(guild.id).map(m => m.username),
+        quests: game.guildQuests(guild.id),
+      });
     }
     if (p === '/api/daily' && req.method === 'GET') {
       return json(res, 200, game.dailyInfo());

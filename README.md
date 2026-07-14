@@ -158,6 +158,16 @@ moderação — contas banidas não conseguem logar.
 - **Trade entre jogadores** — proposta segura com confirmação dupla; ninguém
   perde item se a confirmação não for mútua.
 - **Guildas** — criação, convites, chat próprio e tag exibida sobre o personagem.
+  **Missões de guilda semanais**: 3 objetivos sorteados por semana (caçadas,
+  deuses, masmorras...), progresso compartilhado entre todos os membros e ouro
+  para a guilda inteira quando completa (`/guilda missoes`).
+- **Chefe Mundial** — a cada 2 horas o **Titã Ancestral** desperta: aviso global
+  5 minutos antes, portal no Nexus para o Covil, HP escalado pela quantidade de
+  jogadores online. Todo mundo que causar dano leva poção de stat + ouro no
+  cofre; o maior dano leva um item lendário.
+- **Forja** — no mercador do Nexus: funda 2 itens do mesmo tipo e tier (+ ouro)
+  em um item aleatório um tier acima, sempre compatível com a sua classe. Funde
+  até tier 5, onde moram os itens de conjunto.
 - **Pets** — chocados de ovos misteriosos (drop de bosses), seguem o jogador e
   aceleram a regeneração de HP/MP. Cada espécie também tem uma habilidade
   ativa em combate: o lobo morde inimigos próximos, o diabrete dispara raios e

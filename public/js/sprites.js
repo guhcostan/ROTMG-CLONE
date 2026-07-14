@@ -843,6 +843,19 @@ yyYYwwwwYYyy
 .cBc....cBc.
 ..cBBccBBc..
 ....cBBc....`,
+  world_titan: `
+..y..gggg..y..
+.yYygGGGGgyYy.
+..yGGkGGkGGy..
+...GGGGGGGG...
+..gGGyGGyGGg..
+.gGGGyyyyGGGg.
+.gGgGGGGGGgGg.
+.gG.GGGGGG.Gg.
+....GGGGGG....
+...GGG..GGG...
+..GGG....GGG..
+..gg......gg..`,
   boar: `
 ..v......v..
 .vvv....vvv.
