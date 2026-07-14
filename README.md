@@ -142,9 +142,13 @@ moderação — contas banidas não conseguem logar.
 - **Ciclo do reino** — a cada 25 deuses mortos o Reino cai: todos os heróis
   dentro dele são convocados ao Castelo do Rei Demente para a luta final, e um
   novo Reino é gerado com outro seed.
-- **Mobs e mini-bosses** — ~40 tipos de inimigos pelas bandas; mini-bosses
-  (Bandit Lord, Alpha Dire Wolf, Forest Witch, Highland Lich, Demon Prince)
-  vagam com seu séquito de lacaios e derrubam loot acima da média.
+- **Mobs e mini-bosses** — ~55 tipos de inimigos no Reino formando uma escada
+  contínua de dificuldade da praia ao centro: cada banda mistura mobs fracos e
+  fortes (javali, urso, centauro, troll, basilisco...) e o centro tem
+  **semideuses** (Valquíria, Fera de Obsidiana, Acólito do Vazio) que fazem a
+  ponte entre as colinas e os deuses. Mini-bosses (Bandit Lord, Alpha Dire
+  Wolf, Forest Witch, Highland Lich, Quimera, Demon Prince) vagam com seu
+  séquito de lacaios e derrubam loot acima da média.
 - **Loot e raridades** — sacolas marrom/roxa/dourada/branca por raridade
   (Comum, Incomum, Raro, Épico, Lendário); armas, armaduras, anéis e poções em
   7 tiers, incluindo lendários únicos (Cajado do Cataclisma, Arco da Tempestade,

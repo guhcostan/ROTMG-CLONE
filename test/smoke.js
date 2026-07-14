@@ -68,8 +68,37 @@ function dataSanity() {
   }
   check(Object.keys(CLASSES).length >= 18, `>= 18 classes (have ${Object.keys(CLASSES).length})`);
   check(Object.keys(DUNGEONS).length >= 15, `>= 15 dungeons (have ${Object.keys(DUNGEONS).length})`);
-  check(Object.keys(ENEMIES).length >= 80, `>= 80 enemies (have ${Object.keys(ENEMIES).length})`);
+  check(Object.keys(ENEMIES).length >= 90, `>= 90 enemies (have ${Object.keys(ENEMIES).length})`);
   check(classBad.length === 0, 'class defs consistent' + (classBad.length ? ' -> ' + classBad.join(', ') : ''));
+}
+
+// mob variety: every band mixes weak and strong mobs, and XP/difficulty climbs
+// without cliffs from the beach to the gods
+function mobVarietySanity() {
+  const { ENEMIES } = require('../server/data');
+  const realm = Object.values(ENEMIES).filter(e => e.band >= 0);
+  const byBand = [0, 1, 2, 3, 4].map(b => realm.filter(e => e.band === b));
+  check(byBand.every((l, b) => l.length >= (b === 0 ? 4 : 6)),
+    'every band has a healthy mob variety (' + byBand.map(l => l.length).join('/') + ')');
+  for (let b = 0; b <= 4; b++) {
+    const hps = byBand[b].filter(e => !e.rare).map(e => e.hp);
+    check(Math.max(...hps) / Math.min(...hps) >= 1.8, `band ${b} spans weaker and tougher mobs`);
+  }
+  for (let b = 0; b < 4; b++) {
+    const maxXp = Math.max(...byBand[b].filter(e => !e.rare).map(e => e.xp));
+    const minXp = Math.min(...byBand[b + 1].filter(e => !e.rare).map(e => e.xp));
+    check(minXp <= maxXp * 2.2, `no XP cliff between band ${b} and band ${b + 1} (${maxXp} -> ${minXp})`);
+  }
+  // demigods pad the center: band 4 must have non-god mobs weaker than every god
+  const gods = byBand[4].filter(e => e.god), demis = byBand[4].filter(e => !e.god);
+  check(demis.length >= 3, 'band 4 has demigod footsoldiers');
+  check(Math.max(...demis.map(e => e.hp)) < Math.min(...gods.map(e => e.hp)),
+    'demigods are weaker than every god');
+  // every enemy sprite must exist client-side (SPRITE_DEFS keys in sprites.js)
+  const spriteSrc = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'sprites.js'), 'utf8');
+  const spriteKeys = new Set([...spriteSrc.matchAll(/^  (\w+): `/gm)].map(m => m[1]));
+  const missing = [...new Set(Object.values(ENEMIES).map(e => e.sprite))].filter(s => !spriteKeys.has(s));
+  check(missing.length === 0, 'every enemy sprite exists in the client' + (missing.length ? ' -> ' + missing.join(', ') : ''));
 }
 
 function realmCycleSanity() {
@@ -1049,6 +1078,7 @@ function statusAndFameSanity() {
 
 async function main() {
   dataSanity();
+  mobVarietySanity();
   realmCycleSanity();
   statusAndFameSanity();
   iceBiomeSanity();

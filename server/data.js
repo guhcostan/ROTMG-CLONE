@@ -383,6 +383,18 @@ enemy('wolf_alpha', {
   shots: { dmg: 16, speed: 10, range: 5, count: 3, spread: 0.5, rate: 1 }, // close cone
   loot: [['weapon:1-2', 0.5], ['armor:1-2', 0.5], ['ringspd0', 0.15], ['hppot', 0.3], ['ring_matilha', 0.1]],
 });
+enemy('boar', {
+  name: 'Javali Selvagem', sprite: 'boar', hp: 200, def: 3, xp: 18, speed: 5, size: 1,
+  behavior: 'chase', band: 1, melee: { dmg: 14, rate: 1.1 },
+  shots: { dmg: 12, speed: 9, range: 4, count: 1, spread: 0, rate: 0.8 }, // grunting charge
+  loot: [['armor:0-1', 0.2], ['hppot', 0.18]],
+});
+enemy('vulture', {
+  name: 'Abutre Carniceiro', sprite: 'vulture', hp: 150, def: 2, xp: 16, speed: 6, size: 0.8,
+  behavior: 'orbit', band: 1,
+  shots: { dmg: 7, speed: 13, range: 5.5, count: 1, spread: 0, rate: 2.2 }, // pecking strafer
+  loot: [['weapon:0-1', 0.15], ['mppot', 0.15]],
+});
 // --- band 2: forest
 enemy('treant', {
   name: 'Elder Treant', sprite: 'treant', hp: 350, def: 6, xp: 30, speed: 1.5, size: 1.3,
@@ -414,6 +426,24 @@ enemy('forest_witch', {
   shots: { dmg: 26, speed: 9, range: 7.5, count: 3, spread: 0.6, rate: 1.2, ring: 8, ringRate: 0.3, status: { type: 'quiet', dur: 2500, chance: 0.5 } }, // hex
 
   loot: [['weapon:2-3', 0.5], ['armor:2-3', 0.5], ['ringmp0', 0.2], ['portal:spider_grotto', 0.15], ['mppot', 0.3]],
+});
+enemy('bear', {
+  name: 'Urso Pardo', sprite: 'bear', hp: 480, def: 8, xp: 40, speed: 4.5, size: 1.3,
+  behavior: 'chase', band: 2, melee: { dmg: 24, rate: 1 },
+  shots: { dmg: 24, speed: 7, range: 4.5, count: 3, spread: 0.6, rate: 0.7 }, // swiping cone
+  loot: [['armor:1-2', 0.25], ['hppot', 0.2], ['elixir_rage', 0.08]],
+});
+enemy('myconid', {
+  name: 'Miconideo', sprite: 'myconid', hp: 320, def: 5, xp: 30, speed: 2, size: 0.9,
+  behavior: 'wander', band: 2,
+  shots: { dmg: 16, speed: 6, range: 6, count: 1, spread: 0, rate: 0.6, ring: 8, ringRate: 0.25, ringStatus: { type: 'slow', dur: 2000, chance: 0.5 } }, // spore cloud
+  loot: [['mppot', 0.2], ['ringmp0', 0.06], ['portal:spider_grotto', 0.04]],
+});
+enemy('centaur', {
+  name: 'Centauro Batedor', sprite: 'centaur', hp: 380, def: 6, xp: 34, speed: 5.5, size: 1.1,
+  behavior: 'orbit', band: 2,
+  shots: { dmg: 20, speed: 13, range: 8, count: 1, spread: 0, rate: 0.9, burst: 2, burstGap: 140 }, // longbow volley
+  loot: [['weapon:1-2', 0.22], ['ringspd0', 0.06], ['mppot', 0.15]],
 });
 // --- band 3: highlands
 enemy('ogre', {
@@ -452,6 +482,30 @@ enemy('lich', {
   shots: { dmg: 36, speed: 10, range: 8, count: 3, spread: 0.5, rate: 1.4, ring: 10, ringRate: 0.3, spiral: true, ringStatus: { type: 'paralyze', dur: 900, chance: 0.5 } }, // death grip
   loot: [['weapon:3-4', 0.5], ['armor:3-4', 0.5], ['statpot', 0.3], ['portal:cursed_keep', 0.18], ['portal:sunken_tomb', 0.12]],
 });
+enemy('troll', {
+  name: 'Troll da Colina', sprite: 'troll', hp: 1300, def: 12, xp: 100, speed: 3.5, size: 1.5,
+  behavior: 'chase', band: 3, melee: { dmg: 32, rate: 0.8 },
+  shots: { dmg: 34, speed: 7, range: 5.5, count: 4, spread: 0.9, rate: 0.7 }, // boulder toss
+  loot: [['weapon:2-3', 0.25], ['armor:2-3', 0.25], ['hppot_big', 0.08], ['portal:cursed_keep', 0.05]],
+});
+enemy('dark_knight', {
+  name: 'Cavaleiro Caido', sprite: 'keep_knight', hp: 800, def: 20, xp: 80, speed: 4.2, size: 1.1,
+  behavior: 'chase', band: 3,
+  shots: { dmg: 26, speed: 12, range: 6.5, count: 1, spread: 0, rate: 1.1, burst: 3, burstGap: 100 }, // blade flurry
+  loot: [['armor:2-3', 0.25], ['ringdef0', 0.08], ['portal:storm_citadel', 0.05]],
+});
+enemy('basilisk', {
+  name: 'Basilisco', sprite: 'basilisk', hp: 950, def: 10, xp: 85, speed: 3, size: 1.2,
+  behavior: 'wander', band: 3,
+  shots: { dmg: 30, speed: 8, range: 7, count: 2, spread: 0.25, rate: 0.8, status: { type: 'paralyze', dur: 800, chance: 0.3 } }, // petrifying gaze
+  loot: [['weapon:2-3', 0.2], ['mppot', 0.2], ['ringall0', 0.03], ['portal:crystal_caverns', 0.05]],
+});
+enemy('chimera', {
+  name: 'Quimera', sprite: 'chimera', hp: 2600, def: 16, xp: 300, speed: 4.5, size: 1.6,
+  behavior: 'chase', band: 3, rare: true, melee: { dmg: 26, rate: 1.2 },
+  shots: { dmg: 38, speed: 10, range: 7.5, count: 3, spread: 0.55, rate: 1.3, ring: 8, ringRate: 0.25 }, // three heads, three attacks
+  loot: [['weapon:3-4', 0.5], ['armor:3-4', 0.5], ['statpot', 0.35], ['elixir_guerra', 0.1], ['portal:volcanic_forge', 0.1]],
+});
 // --- band 4: mountains / gods
 enemy('flame_titan', {
   name: 'Flame Titan', sprite: 'flame_titan', hp: 2200, def: 18, xp: 180, speed: 3, size: 1.6,
@@ -482,6 +536,26 @@ enemy('demon_prince', {
   behavior: 'chase', band: 4, god: true, rare: true, entourage: { type: 'imp', count: 3 },
   shots: { dmg: 55, speed: 12, range: 8.5, count: 3, spread: 0.4, rate: 1.2, burst: 2, ring: 12, ringRate: 0.35, spiral: true },
   loot: [['weapon:3-4', 0.5], ['armor:3-4', 0.5], ['statpot', 0.8], ['portal:abyssal_rift', 0.12], ['legendary', 0.05]],
+});
+// demigods: band-4 footsoldiers without god status — the stepping stone
+// between highland mobs and the gods proper
+enemy('valkyrie', {
+  name: 'Valquiria', sprite: 'valkyrie', hp: 1400, def: 16, xp: 130, speed: 5, size: 1.3,
+  behavior: 'orbit', band: 4,
+  shots: { dmg: 44, speed: 15, range: 9, count: 1, spread: 0, rate: 1.1, burst: 2, burstGap: 130 }, // spear of light
+  loot: [['weapon:3-4', 0.25], ['statpot', 0.35], ['key_greater', 0.1], ['legendary', 0.008]],
+});
+enemy('obsidian_beast', {
+  name: 'Fera de Obsidiana', sprite: 'obsidian_beast', hp: 1600, def: 20, xp: 140, speed: 3.5, size: 1.5,
+  behavior: 'chase', band: 4, melee: { dmg: 40, rate: 0.9 },
+  shots: { dmg: 42, speed: 8, range: 6, count: 4, spread: 0.8, rate: 0.7 }, // shard spray
+  loot: [['armor:3-4', 0.25], ['statpot', 0.35], ['hppot_big', 0.12], ['legendary', 0.008]],
+});
+enemy('void_acolyte', {
+  name: 'Acolito do Vazio', sprite: 'wraith', hp: 1100, def: 12, xp: 110, speed: 3, size: 1.1,
+  behavior: 'orbit', band: 4,
+  shots: { dmg: 36, speed: 9, range: 7.5, count: 2, spread: 0.3, rate: 1, ring: 8, ringRate: 0.25 }, // lesser void rites
+  loot: [['mppot_big', 0.12], ['statpot', 0.3], ['ringall0', 0.05], ['portal:abyssal_rift', 0.04]],
 });
 
 // --- dungeon enemies

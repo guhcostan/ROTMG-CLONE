@@ -843,6 +843,90 @@ yyYYwwwwYYyy
 .cBc....cBc.
 ..cBBccBBc..
 ....cBBc....`,
+  boar: `
+..v......v..
+.vvv....vvv.
+.vNNNNNNNNv.
+vNNkNNNNkNNv
+.NNNwNNwNNN.
+..NNNNNNNN..
+..N.N..N.N..`,
+  vulture: `
+.....rr.....
+....rRkr....
+.ddDDDDdd...
+dDDDDDDDDDd.
+.ddDDDDDdd..
+...dd..dd...
+...d....d...`,
+  bear: `
+.n........n.
+.nnn....nnn.
+.nNNNNNNNNn.
+nNNkNNNNkNNn
+.NNNNvvNNNN.
+..NNNNNNNN..
+.NN.NN.NN.N.
+..N......N..`,
+  myconid: `
+...rrRRrr...
+..rRRwwRRr..
+.rRwRRRRwRr.
+..rrRRRRrr..
+....SSSS....
+...SkSSkS...
+...SSSSSS...
+....S..S....`,
+  centaur: `
+....ssss....
+...sSkkSs...
+...sSSSSs...
+..nNSSSSNn..
+.nNNNNNNNNn.
+.nNNNNNNNNn.
+..N.N..N.N..
+..N.N..N.N..`,
+  troll: `
+...eeEEee...
+..eEEEEEEe..
+.eEkEEEEkEe.
+.eEEEEEEEEe.
+..eEEnnEEe..
+..EEEEEEEE..
+.EE.EEEE.EE.
+..E......E..`,
+  basilisk: `
+....pPPp....
+...pPyyPp...
+..pPPPPPPp..
+.pPPp..pPPp.
+.pPp....pPp.
+..pP.....p..
+...pppppp...`,
+  chimera: `
+.o...rr...y.
+oOo.rRRr.yYy
+.oOrRRRRrYy.
+..RRRRRRRR..
+.RRkRRRRkRR.
+..RRRRRRRR..
+..R.R..R.R..`,
+  valkyrie: `
+w....yy....w
+ww..yYYy..ww
+www.ykky.www
+.wwwYYYYwww.
+..wwYYYYww..
+....SSSS....
+....Y..Y....`,
+  obsidian_beast: `
+...dddddd...
+..dDDrrDDd..
+.dDkDrrDkDd.
+.dDDDDDDDDd.
+..dDrrrrDd..
+..DDDDDDDD..
+..D.D..D.D..`,
   portal_red: `
 ....rOOr....
 ..rOOrrOOr..
