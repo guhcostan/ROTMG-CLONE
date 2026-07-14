@@ -85,12 +85,26 @@ const petTypeFor = () => ['pet_wolf', 'pet_imp', 'pet_sprite'][Math.floor(Math.r
 
 // Nexus merchant: a fixed buy catalog (gold prices) + sell any item for its value.
 const SHOP_CATALOG = [
-  { id: 'hppot', price: 30 },
-  { id: 'mppot', price: 30 },
-  { id: 'key_lesser', price: 120 },
-  { id: 'key_greater', price: 350 },
-  { id: 'pet_egg', price: 600 },
+  { id: 'hppot', price: 30, cat: 'Consumiveis' },
+  { id: 'mppot', price: 30, cat: 'Consumiveis' },
+  { id: 'hppot_big', price: 90, cat: 'Consumiveis' },
+  { id: 'mppot_big', price: 90, cat: 'Consumiveis' },
+  { id: 'elixir_vida', price: 260, cat: 'Consumiveis' },
+  { id: 'elixir_rage', price: 70, cat: 'Elixires' },
+  { id: 'elixir_haste', price: 70, cat: 'Elixires' },
+  { id: 'elixir_stone', price: 70, cat: 'Elixires' },
+  { id: 'elixir_focus', price: 70, cat: 'Elixires' },
+  { id: 'elixir_guerra', price: 320, cat: 'Elixires' },
+  { id: 'key_lesser', price: 120, cat: 'Chaves' },
+  { id: 'key_greater', price: 350, cat: 'Chaves' },
+  { id: 'key_master', price: 800, cat: 'Chaves' },
+  { id: 'ring_granada', price: 400, cat: 'Aneis' },
+  { id: 'ring_topazio', price: 400, cat: 'Aneis' },
+  { id: 'ring_agata', price: 420, cat: 'Aneis' },
+  { id: 'pet_egg', price: 600, cat: 'Especiais' },
 ];
+// two of these go on a rotating daily discount, same for everyone all day
+const SALE_POOL = ['elixir_guerra', 'elixir_vida', 'key_greater', 'key_master', 'pet_egg', 'ring_granada', 'ring_topazio', 'ring_agata'];
 // gold an item is worth (sell price); buying costs more (see SHOP_CATALOG)
 function itemValue(id) {
   const it = ITEMS[id];
@@ -264,6 +278,10 @@ class Game {
     this.ensureRealms();              // open the initial pool of realms + their portals
     const ms = this.nexus.map.marketSpot;
     this.spawnPortal(this.nexus, ms.x, ms.y, 'shop', 'Mercador', null, 1e15); // Nexus merchant
+    // daily co-op challenge: a deterministic dungeon-of-the-day, shared by all
+    // (east side above the merchant; the west side already has vault + tutorial)
+    const ds = { x: ms.x, y: ms.y - 5 };
+    this.dailyPortal = this.spawnPortal(this.nexus, ds.x, ds.y, 'daily', this.dailyLabel(), null, 1e15);
     // a bug in one tick must not kill the process (and everyone's session);
     // tick timing is tracked and exposed on /health for live diagnosis
     this.tickStats = { avgMs: 0, maxMs: 0, gapMaxMs: 0 };
@@ -483,17 +501,32 @@ class Game {
   // ------------------------------------------------ merchant / gold economy
   persistGold(player) { if (player.acc) storage.setGold(player.acc.id, player.gold); }
 
+  // full price list for today: static catalog + the rotating daily deals
+  shopCatalog() {
+    const day = Math.floor(Date.now() / DAY_MS);
+    const list = SHOP_CATALOG.map(c => ({ ...c }));
+    const picks = new Set([SALE_POOL[day % SALE_POOL.length], SALE_POOL[(day + 3) % SALE_POOL.length]]);
+    for (const id of picks) {
+      const base = SHOP_CATALOG.find(c => c.id === id);
+      if (!base) continue;
+      list.push({ id, price: Math.round(base.price * 0.65), was: base.price, cat: 'Oferta do Dia', sale: 1 });
+    }
+    return list;
+  }
+
   openShop(player) {
     if (player.instance !== this.nexus) return;
     send(player.ws, {
       t: 'shop', gold: player.gold,
-      buy: SHOP_CATALOG.map(c => ({ id: c.id, name: ITEMS[c.id].name, price: c.price })),
+      buy: this.shopCatalog().map(c => ({ id: c.id, name: ITEMS[c.id].name, price: c.price, cat: c.cat, sale: c.sale, was: c.was })),
+      values: player.char.inventory.map(id => (id ? itemValue(id) : 0)),
     });
   }
 
   onShopBuy(player, itemId) {
     if (player.instance !== this.nexus) return;
-    const entry = SHOP_CATALOG.find(c => c.id === itemId);
+    // when an item is both in the catalog and on sale, the player pays the lower price
+    const entry = this.shopCatalog().filter(c => c.id === itemId).sort((a, b) => a.price - b.price)[0];
     if (!entry) return;
     if (player.gold < entry.price) return send(player.ws, { t: 'notice', text: 'Ouro insuficiente.' });
     const slot = player.char.inventory.indexOf(null);
@@ -1417,7 +1450,10 @@ class Game {
     if (!item || item.type !== 'consumable') return;
     const ch = player.char;
     const cls = CLASSES[ch.classId];
-    if (item.heal) ch.hp = Math.min(effectiveMaxHp(player), ch.hp + item.heal);
+    if (item.heal) {
+      ch.hp = Math.min(effectiveMaxHp(player), ch.hp + item.heal);
+      if (item.cleanse) this.cleanseStatus(player); // Elixir da Vida also purges statuses
+    }
     else if (item.restore) ch.mp = Math.min(effectiveMaxMp(player), ch.mp + item.restore);
     else if (item.pet) {
       player.pet = petTypeFor();
@@ -1477,6 +1513,7 @@ class Game {
       if (portal.kind === 'nexus') return this.toNexus(player);
       if (portal.kind === 'shop') return this.openShop(player);
       if (portal.kind === 'tutorial') return this.enterTutorial(player);
+      if (portal.kind === 'daily') return this.enterInstance(player, this.getDailyInstance());
       if (portal.kind === 'dungeon') {
         let dest = portal.instanceId && this.instances.get(portal.instanceId);
         if (!dest) {
@@ -1498,9 +1535,45 @@ class Game {
     if (player.instance !== this.nexus) this.enterInstance(player, this.nexus);
   }
 
+  // ------------------------------------------------ daily challenge
+  // one dungeon per day, same layout for everyone (seeded by the date) and a
+  // single shared instance so friends land in the same co-op run
+  dailyDay() { return Math.floor(Date.now() / DAY_MS); }
+
+  dailyDungeonKey() {
+    const keys = Object.keys(DUNGEONS).filter(k => !['mad_castle', 'tyrant_sanctum', 'celestial_sanctum'].includes(k)).sort();
+    return keys[this.dailyDay() % keys.length];
+  }
+
+  dailyLabel() { return `Desafio do Dia: ${DUNGEONS[this.dailyDungeonKey()].name}`; }
+
+  getDailyInstance() {
+    const day = this.dailyDay();
+    const alive = this.dailyInst && this.instances.has(this.dailyInst.id);
+    if (alive && this.dailyDayCache === day && !this.dailyInst.bossDead) return this.dailyInst;
+    const key = this.dailyDungeonKey();
+    const inst = this.createDungeon(key, DUNGEONS[key], day * 7919);
+    inst.dungeonKey = 'daily:' + day; // day-scoped speedrun board
+    inst.isDaily = true;
+    inst.name = 'Desafio do Dia: ' + DUNGEONS[key].name;
+    this.dailyInst = inst;
+    this.dailyDayCache = day;
+    return inst;
+  }
+
+  dailyInfo() {
+    const key = this.dailyDungeonKey();
+    return {
+      day: this.dailyDay(),
+      dungeon: key,
+      name: DUNGEONS[key].name,
+      times: storage.topDungeonTimes('daily:' + this.dailyDay()),
+    };
+  }
+
   // ------------------------------------------------ dungeons
-  createDungeon(key, defn) {
-    const map = generateDungeon(defn, (Math.random() * 1e9) | 0);
+  createDungeon(key, defn, seed) {
+    const map = generateDungeon(defn, seed !== undefined ? seed : (Math.random() * 1e9) | 0);
     const inst = this.addInstance(new Instance('dungeon', defn.name, map));
     inst.dungeonDef = defn;
     inst.dungeonKey = key;
@@ -1671,9 +1744,25 @@ class Game {
       if (inst.startedAt && inst.dungeonKey) {
         const ms = Date.now() - inst.startedAt;
         const secs = (ms / 1000).toFixed(1);
+        // daily challenge: server-wide record announcement (checked before recording)
+        if (inst.isDaily) {
+          const top = storage.topDungeonTimes(inst.dungeonKey);
+          if (!top.length || ms < top[0].ms) {
+            const team = [...inst.players.values()].filter(p => !p.dead).map(p => p.name).slice(0, 4).join(', ');
+            this.globalEvent(`⏱ Recorde do ${inst.name}: ${secs}s por ${team || 'ninguem'}!`);
+          }
+        }
         for (const p of inst.players.values()) {
           if (p.dead || !p.acc) continue;
           const prev = storage.bestDungeonTime(p.acc.id, inst.dungeonKey);
+          // first daily clear of the day pays out to the vault
+          if (inst.isDaily && prev === null) {
+            const reward = ['hppot', STAT_POTS[Math.floor(Math.random() * STAT_POTS.length)]];
+            const vault = p.vault;
+            for (const it of reward) { const i = vault.indexOf(null); if (i !== -1) vault[i] = it; }
+            storage.setVault(p.acc.id, vault);
+            this.sysMsg(p, 'Desafio do Dia concluido! Recompensa no cofre.');
+          }
           storage.recordDungeonTime(p.acc.id, inst.dungeonKey, ms);
           this.sysMsg(p, prev !== null && ms >= prev ? `Tempo: ${secs}s (recorde pessoal: ${(prev / 1000).toFixed(1)}s)` : `Novo recorde pessoal: ${secs}s!`);
         }
@@ -1814,6 +1903,7 @@ class Game {
     if ((this._respawnT = (this._respawnT || 0) + 1) % 40 === 0) {
       this.respawnRealm();
       this.refreshRealmLabels();
+      if (this.dailyPortal) this.dailyPortal.name = this.dailyLabel(); // day rollover
       const s = currentSeason();
       if (s !== this.season) { // week rolled over: new season + modifier
         this.season = s; this.seasonMod = seasonModifier(s);

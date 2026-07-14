@@ -343,6 +343,68 @@ function coopXpSanity() {
   for (const id of [-30, -31, -32]) { g.players.delete(id); g.realm.players.delete(id); }
 }
 
+// expanded shop: categories, rotating daily deals, cleanse elixir
+function shopExpansionSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const cat = g.shopCatalog();
+  check(cat.length >= 17, `shop stocks a real catalog (${cat.length} entries)`);
+  check(new Set(cat.map(c => c.cat)).size >= 5, 'catalog is organized in categories');
+  const sale = cat.find(c => c.sale);
+  check(!!sale && sale.price < sale.was, 'rotating daily deal is discounted');
+  // buying an on-sale item pays the sale price, not the base price
+  const id = storage.createAccount('shopx' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const p = { id: -950, acc: storage.getAccountById(id), ws: { readyState: 3, send() {} }, instance: g.nexus,
+    gold: 5000, dead: false,
+    char: { classId: 'wizard', stats: {}, equipment: [null, null, null, null], inventory: new Array(8).fill(null), hp: 100, mp: 100, level: 5, xp: 0, fame: 0 } };
+  g.onShopBuy(p, sale.id);
+  check(p.gold === 5000 - sale.price && p.char.inventory.includes(sale.id), 'sale item costs the discounted price');
+  // Elixir da Vida: full heal + status cleanse
+  const p2 = { id: -951, acc: null, ws: { readyState: 3, send() {} }, instance: g.realm, x: 5, y: 5, dead: false,
+    status: { slow: Date.now() + 9000 }, buffs: {},
+    char: { classId: 'wizard', stats: { hp: 300, mp: 100, att: 1, def: 0, spd: 1, dex: 1, vit: 1, wis: 1 },
+      equipment: [null, null, null, null], inventory: ['elixir_vida', null, null, null, null, null, null, null], hp: 20, mp: 50 } };
+  g.onUseItem(p2, { slot: 4 });
+  check(p2.char.hp === 300, 'Elixir da Vida heals to full');
+  check(!g.activeStatus(p2).slow, 'Elixir da Vida cleanses statuses');
+}
+
+// daily challenge: deterministic dungeon-of-the-day, shared instance, rewards
+function dailyChallengeSanity() {
+  const { Game } = require('../server/game');
+  const storage = require('../server/db');
+  const g = new Game();
+  const a = g.getDailyInstance();
+  check(g.getDailyInstance() === a, 'daily instance is shared (co-op)');
+  check(a.dungeonKey === 'daily:' + g.dailyDay(), 'daily speedrun board is day-scoped');
+  check([...g.nexus.portals.values()].some(p => p.kind === 'daily'), 'daily portal stands in the nexus');
+  const g2 = new Game();
+  const a2 = g2.getDailyInstance();
+  check(a2.name === a.name && Buffer.from(a2.map.tiles).equals(Buffer.from(a.map.tiles)),
+    'daily dungeon layout is deterministic for the day');
+
+  // clear it: first clear pays the vault and sets the day record globally
+  const accId = storage.createAccount('daily' + Math.floor(Math.random() * 1e9), 's', 'h');
+  const p = { id: -900, name: 'Corredor', acc: storage.getAccountById(accId), instance: a, x: 1, y: 1,
+    dead: false, invisUntil: 0, status: {}, gold: 0, kills: 0, godsKilled: 0, dungeons: 0,
+    vault: new Array(16).fill(null), bounties: [],
+    char: { hp: 500, mp: 100, level: 10, xp: 0, fame: 0, classId: 'wizard',
+      stats: { hp: 500, mp: 100, att: 10, def: 0, spd: 10, dex: 10, vit: 10, wis: 10 },
+      equipment: [null, null, null, null], inventory: new Array(8).fill(null) },
+    ws: { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); } } };
+  g.players.set(p.id, p); a.players.set(p.id, p);
+  const boss = a.enemies.get(a.bossId);
+  boss.hp = 1;
+  g.damageEnemy(a, boss, 25, p);
+  check(a.bossDead === true, 'daily boss can be defeated');
+  check(p.vault.some(x => x !== null), 'first daily clear pays a vault reward');
+  check(p.ws.sent.some(m => m.evt === 1 && (m.text || '').includes('Recorde do')), 'daily record reaches the global feed');
+  const info = g.dailyInfo();
+  check(info.times.length >= 1 && typeof info.name === 'string', 'dailyInfo exposes name and times');
+  g.players.delete(p.id); a.players.delete(p.id);
+}
+
 // boss kills report a damage scoreboard; ability fx carry their identity tag
 function dpsAndAbilityFxSanity() {
   const { Game } = require('../server/game');
@@ -886,6 +948,8 @@ async function main() {
   spectatorSanity();
   conquestSanity();
   dpsAndAbilityFxSanity();
+  dailyChallengeSanity();
+  shopExpansionSanity();
   bleedSanity();
   tutorialSanity();
   bountySanity();

@@ -1200,12 +1200,12 @@ const Sprites = (() => {
     if (it.slot === 'armor') return get(it.type);
     if (it.slot === 'ring') return get('ring');
     if (it.type === 'consumable') {
-      if (id === 'hppot') return get('potion_red');
-      if (id === 'mppot') return get('potion_blue');
-      if (id === 'pot_life' || id === 'pot_mana') return get('potion_life');
+      if (id === 'hppot' || id === 'hppot_big') return get('potion_red');
+      if (id === 'mppot' || id === 'mppot_big') return get('potion_blue');
+      if (id === 'pot_life' || id === 'pot_mana' || id === 'elixir_vida') return get('potion_life');
       if (id === 'pet_egg') return get('egg');
       if (id.startsWith('key_')) return get('key');
-      if (id.startsWith('elixir_')) return get(id);
+      if (id.startsWith('elixir_')) return get(id) || get('elixir_rage') || get('potion_stat');
       return get('potion_stat');
     }
     return null;
