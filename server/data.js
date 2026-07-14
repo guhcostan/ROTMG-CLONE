@@ -87,7 +87,7 @@ const CLASSES = {
     name: 'Samurai', weapon: 'katana', armor: 'heavy', ability: 'wakizashi', unlock: 'knight',
     base: { hp: 160, mp: 100, att: 15, def: 0, spd: 9, dex: 13, vit: 13, wis: 10 },
     growth: { hp: [23, 33], mp: [3, 9], att: 1.4, def: 0, spd: 0.8, dex: 1.1, vit: 0.9, wis: 0.5 },
-    max: { hp: 740, mp: 252, att: 75, def: 30, spd: 55, dex: 65, vit: 60, wis: 50 },
+    max: { hp: 700, mp: 252, att: 75, def: 28, spd: 55, dex: 65, vit: 60, wis: 50 },
     starter: ['katana0', 'wakizashi0', 'heavy0', null],
   },
   // ---- tier-3 classes: unlocked by maxing an advanced class to 20 ----
@@ -130,7 +130,7 @@ const CLASSES = {
     name: 'Ronin', weapon: 'katana', armor: 'heavy', ability: 'helm', unlock: 'samurai',
     base: { hp: 170, mp: 100, att: 16, def: 0, spd: 10, dex: 14, vit: 13, wis: 9 },
     growth: { hp: [23, 33], mp: [3, 9], att: 1.5, def: 0, spd: 0.8, dex: 1.2, vit: 0.9, wis: 0.5 },
-    max: { hp: 760, mp: 252, att: 80, def: 30, spd: 60, dex: 70, vit: 60, wis: 50 },
+    max: { hp: 720, mp: 252, att: 80, def: 28, spd: 60, dex: 70, vit: 60, wis: 50 },
     starter: ['katana0', 'helm0', 'heavy0', null],
   },
 };
@@ -146,33 +146,36 @@ const ITEMS = {};
 function def(id, item) { item.id = id; ITEMS[id] = item; return item; }
 
 // Weapons: proj = {dmg:[min,max], speed (tiles/s), range (tiles), count, spread(rad), pierce}
+// Balance bands (max stats, tier-4): risk buys power. Long range (staff 8,
+// wand 9) sits ~800-1300 DPS; mid range (dagger 5.6, bow 7) ~880-1220;
+// melee (sword 3.5, katana 4.2) is top DPS and/or top bulk.
 const WEAPON_TIERS = {
-  staff: [
-    ['Cracked Staff',      [15, 30]], ['Apprentice Staff', [25, 40]],
-    ['Staff of Embers',    [35, 55]], ['Staff of Storms',  [45, 70]],
-    ['Staff of the Comet', [55, 85]], ['Staff of Eternity', [65, 100]],
+  staff: [ // two-shot spread; was far ahead of every other weapon (-22%)
+    ['Cracked Staff',      [12, 23]], ['Apprentice Staff', [20, 31]],
+    ['Staff of Embers',    [27, 43]], ['Staff of Storms',  [35, 55]],
+    ['Staff of the Comet', [43, 66]], ['Staff of Eternity', [51, 78]],
   ],
-  bow: [
-    ['Worn Shortbow', [15, 35]], ['Hunter Bow',    [25, 45]],
-    ['Longbow',       [35, 60]], ['Hawkeye Bow',   [45, 75]],
-    ['Stormcaller Bow', [55, 90]], ['Bow of the Void', [65, 105]],
+  bow: [ // piercing utility (+12%)
+    ['Worn Shortbow', [17, 39]], ['Hunter Bow',    [28, 50]],
+    ['Longbow',       [39, 67]], ['Hawkeye Bow',   [50, 84]],
+    ['Stormcaller Bow', [62, 101]], ['Bow of the Void', [73, 118]],
   ],
-  sword: [
-    ['Rusty Blade',  [25, 45]], ['Iron Sword',    [40, 60]],
-    ['Steel Saber',  [55, 80]], ['Knight Blade',  [70, 95]],
-    ['Dragonfang',   [85, 110]], ['Sword of Dawn', [100, 130]],
+  sword: [ // shortest range deserves real damage (+18%)
+    ['Rusty Blade',  [30, 53]], ['Iron Sword',    [47, 71]],
+    ['Steel Saber',  [65, 94]], ['Knight Blade',  [83, 112]],
+    ['Dragonfang',   [100, 130]], ['Sword of Dawn', [118, 153]],
   ],
-  wand: [
-    ['Bent Wand',     [20, 40]], ['Oak Wand',     [30, 55]],
-    ['Wand of Sparks', [45, 70]], ['Wand of Dusk', [55, 85]],
-    ['Wand of Wonder', [70, 100]], ['Wand of Ascension', [80, 115]],
+  wand: [ // was the weakest weapon by far (+30%)
+    ['Bent Wand',     [26, 52]], ['Oak Wand',     [39, 72]],
+    ['Wand of Sparks', [59, 91]], ['Wand of Dusk', [72, 111]],
+    ['Wand of Wonder', [91, 130]], ['Wand of Ascension', [104, 150]],
   ],
-  dagger: [
-    ['Chipped Dagger', [20, 40]], ['Steel Dagger', [30, 55]],
-    ['Twin Fang',      [45, 70]], ['Night Edge',   [55, 85]],
-    ['Viper Kiss',     [70, 100]], ['Dagger of the Abyss', [80, 115]],
+  dagger: [ // (+15%)
+    ['Chipped Dagger', [23, 46]], ['Steel Dagger', [35, 63]],
+    ['Twin Fang',      [52, 81]], ['Night Edge',   [63, 98]],
+    ['Viper Kiss',     [81, 115]], ['Dagger of the Abyss', [92, 132]],
   ],
-  katana: [
+  katana: [ // already the melee DPS king; bulk was trimmed on its classes
     ['Bamboo Katana', [30, 50]], ['Iron Katana', [45, 65]],
     ['Folded Steel',  [60, 85]], ['Moonlight Katana', [75, 100]],
     ['Dragontail Katana', [90, 120]], ['Katana of the Tempest', [105, 140]],
@@ -182,7 +185,7 @@ const WEAPON_PROJ = {
   staff:  { speed: 18, range: 8,   count: 2, spread: 0.18, pierce: false, rateMul: 1 },
   bow:    { speed: 16, range: 7,   count: 1, spread: 0,    pierce: true,  rateMul: 1.2 },
   sword:  { speed: 14, range: 3.5, count: 1, spread: 0,    pierce: false, rateMul: 1 },
-  wand:   { speed: 18, range: 9,   count: 1, spread: 0,    pierce: false, rateMul: 0.9 },
+  wand:   { speed: 18, range: 9,   count: 1, spread: 0,    pierce: false, rateMul: 1 },
   dagger: { speed: 16, range: 5.6, count: 1, spread: 0,    pierce: false, rateMul: 1.3 },
   katana: { speed: 16, range: 4.2, count: 1, spread: 0,    pierce: false, rateMul: 1.15 },
 };

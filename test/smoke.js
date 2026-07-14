@@ -578,6 +578,29 @@ function moderationSanity() {
   for (const id of [-400, -401, -402]) { g.players.delete(id); g.nexus.players.delete(id); }
 }
 
+// class balance invariants: DPS spread bounded, risk buys power, dodgeable bullets
+function classBalanceSanity() {
+  const { CLASSES, ITEMS, ENEMIES } = require('../server/data');
+  const { enemyShotSpeed } = require('../server/game');
+  const fireRate = d => 1.5 + 4.5 * (d / 75);
+  const dps = c => {
+    const p = ITEMS[c.weapon + '4'].proj;
+    return (p.dmg[0] + p.dmg[1]) / 2 * p.count * p.rateMul * fireRate(c.max.dex) * (0.5 + c.max.att / 50);
+  };
+  const all = Object.entries(CLASSES).map(([id, c]) => ({ id, d: dps(c), r: ITEMS[c.weapon + '4'].proj.range }));
+  const max = Math.max(...all.map(a => a.d)), min = Math.min(...all.map(a => a.d));
+  check(max / min <= 2.05, `class DPS spread stays within ~2x (${(max / min).toFixed(2)})`);
+  const top = all.sort((a, b) => b.d - a.d)[0];
+  check(top.r <= 4.5, `the highest DPS belongs to a melee-range class (${top.id})`);
+  const longRange = all.filter(a => a.r >= 8);
+  check(longRange.every(a => a.d < top.d), 'long-range classes never out-DPS the melee king');
+
+  // every enemy bullet is slower than a maxed-SPD hero (9.6 t/s): always dodgeable
+  const maxHero = 4 + 5.6;
+  const worst = Math.max(...Object.values(ENEMIES).filter(e => e.shots).map(e => enemyShotSpeed(e.shots.speed)));
+  check(worst < maxHero, `enemy bullets are dodgeable (fastest ${worst} < hero ${maxHero} t/s)`);
+}
+
 // newbie protection: low-level characters take reduced damage, gone by level 6
 function newbieProtectionSanity() {
   const { Game, newbieDamageMul } = require('../server/game');
@@ -941,6 +964,7 @@ async function main() {
   abilityScalingSanity();
   coopXpSanity();
   balanceSanity();
+  classBalanceSanity();
   newbieProtectionSanity();
   moderationSanity();
   eventFeedSanity();

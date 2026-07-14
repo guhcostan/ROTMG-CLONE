@@ -196,6 +196,11 @@ function statusMoveMul(player) {
 
 const PLAYER_MIN_SPEED = 4;       // moveSpeed() at SPD 0
 const MOB_SPEED_CAP = 3.9;        // strictly below a 0-SPD player so no mob outruns anyone
+// enemy bullets fly slower than the data says and never faster than a maxed
+// hero (9.6 t/s), so every shot is dodgeable by movement, not just by tanking
+const ENEMY_SHOT_CAP = 12;
+const ENEMY_SHOT_MUL = 0.78;
+function enemyShotSpeed(v) { return Math.round(Math.min(v, ENEMY_SHOT_CAP) * ENEMY_SHOT_MUL * 10) / 10; }
 function moveSpeed(stats) { return PLAYER_MIN_SPEED + 5.6 * (stats.spd / 75); }     // tiles/s
 function fireRate(stats) { return 1.5 + 4.5 * (stats.dex / 75); }    // shots/s
 function applyDefense(dmg, def) { return Math.max(Math.ceil(dmg * 0.1), dmg - def); }
@@ -2139,9 +2144,9 @@ class Game {
         const off = s.count > 1 ? (i - (s.count - 1) / 2) * (s.spread / Math.max(1, s.count - 1)) * 2 : 0;
         const a = base + off;
         angles.push(Math.round(a * 1000) / 1000);
-        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed, left: s.range, dmg: shotDmg, src: d.name, status: s.status });
+        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: enemyShotSpeed(s.speed), left: s.range, dmg: shotDmg, src: d.name, status: s.status });
       }
-      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed, rg: s.range, k: 'enemy', f: 0, o: e.id, st: s.status && s.status.type }, e.x, e.y);
+      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: enemyShotSpeed(s.speed), rg: s.range, k: 'enemy', f: 0, o: e.id, st: s.status && s.status.type }, e.x, e.y);
     }
     // ring attacks (spiral rings rotate a bit each volley); big boss rings
     // telegraph the danger zone on the ground before firing
@@ -2163,9 +2168,9 @@ class Game {
       for (let i = 0; i < s.ring; i++) {
         const a = base + (i / s.ring) * Math.PI * 2;
         angles.push(Math.round(a * 1000) / 1000);
-        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: s.speed * 0.8, left: s.range, dmg: ringDmg, src: d.name, status: s.ringStatus || s.status });
+        inst.projectiles.push({ friendly: false, x: e.x, y: e.y, a, speed: enemyShotSpeed(s.speed) * 0.8, left: s.range, dmg: ringDmg, src: d.name, status: s.ringStatus || s.status });
       }
-      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: s.speed * 0.8, rg: s.range, k: 'enemy', f: 0, o: e.id, st: (s.ringStatus || s.status) && (s.ringStatus || s.status).type }, e.x, e.y);
+      inst.broadcastNear({ t: 'shot', x: e.x, y: e.y, as: angles, spd: enemyShotSpeed(s.speed) * 0.8, rg: s.range, k: 'enemy', f: 0, o: e.id, st: (s.ringStatus || s.status) && (s.ringStatus || s.status).type }, e.x, e.y);
     }
     // boss minion spawns
     if (d.spawns && now > e.nextSpawn) {
@@ -2288,4 +2293,4 @@ function effectiveMaxMp(player) {
 function round1(n) { return Math.round(n * 10) / 10; }
 function send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 
-module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage, newbieDamageMul };
+module.exports = { Game, ACHIEVEMENTS, MOB_SPEED_CAP, PLAYER_MIN_SPEED, notableKillMessage, newbieDamageMul, enemyShotSpeed };
